@@ -10,8 +10,8 @@
     <meta name="description" content="Kézilabda mérkőzés-statisztika, videóelemzés és edzői dashboard.">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Handball Lab">
-    <link rel="manifest" href="/functions/v1/handball-lab/manifest.webmanifest">
-    <link rel="apple-touch-icon" href="/functions/v1/handball-lab/icons/apple-touch-icon.png">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
     <title>HANDBALL LAB</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -1534,7 +1534,7 @@ KOVÁCS DÁVID MÁTÉ
             wakeLockDesired = localStorage.getItem('handball_wake_lock') === '1';
             if('serviceWorker' in navigator && isSecurePwaContext()) {
                 try {
-                    pwaRegistration = await navigator.serviceWorker.register('/functions/v1/handball-lab/sw.js', { scope:'/functions/v1/handball-lab/' });
+                    pwaRegistration = await navigator.serviceWorker.register('./sw.js', { scope:'./' });
                     navigator.serviceWorker.ready.then(reg=>{ pwaRegistration=reg; updateDeviceUI(); }).catch(()=>{});
                 } catch(err) { console.warn('Service worker registration failed', err); }
             }
