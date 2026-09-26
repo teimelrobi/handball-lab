@@ -866,52 +866,31 @@ KOVÁCS DÁVID MÁTÉ
         </div>
     </div>
 
-    <!-- V4.0 FELHŐ / FIÓK -->
+    <!-- V4.3 FELHŐ / FIÓK + GOOGLE DRIVE BIZTONSÁGI MENTÉS -->
     <div class="screen" id="view-cloud">
         <button class="back-btn" onclick="showScreen('view-home')"><i class="fas fa-arrow-left"></i> Vissza a Főmenübe</button>
         <h2 class="page-title"><i class="fas fa-cloud"></i> Felhő & fiók</h2>
         <div style="max-width:1100px;width:100%;margin:0 auto 18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-            <div id="cloud-status-pill" class="cloud-status-pill"><i class="fas fa-circle"></i><span>Helyi mód</span></div>
-            <div style="font-size:11px;color:var(--text-muted);">A helyi mentés mindig megmarad tartaléknak.</div>
+            <div id="cloud-status-pill" class="cloud-status-pill"><i class="fas fa-circle"></i><span>Felhő állapota</span></div>
+            <div style="font-size:11px;color:var(--text-muted);">Supabase = élő adatbázis · Google Drive = külön biztonsági másolat.</div>
         </div>
         <div class="cloud-grid">
             <div class="cloud-card">
-                <h3><i class="fas fa-database" style="color:#3498db;"></i> Supabase kapcsolat</h3>
-                <div class="cloud-help">A Handball Lab felhőprojekt már előre be van állítva. A Project URL és a publikus kulcs csak haladó beállításként módosítható. Service role kulcsot ide soha ne írj.</div>
-                <div class="input-group"><label>Project URL</label><input id="cloud-url" type="text" placeholder="https://xxxxx.supabase.co"></div>
-                <div class="input-group" style="margin-top:12px;"><label>Publishable / anon key</label><input id="cloud-key" type="password" placeholder="sb_publishable_... vagy anon key"></div>
-                <div class="cloud-actions">
-                    <button class="cloud-btn primary" onclick="saveCloudConfig()"><i class="fas fa-link"></i> Kapcsolat mentése</button>
-                    <button class="cloud-btn" onclick="testCloudConnection()"><i class="fas fa-vial"></i> Teszt</button>
-                </div>
-                <div id="cloud-config-message" class="cloud-message"></div>
-            </div>
-            <div class="cloud-card">
-                <h3><i class="fas fa-user-shield" style="color:var(--green-accent);"></i> Bejelentkezés</h3>
-                <div id="cloud-auth-signed-out">
-                    <div class="input-group"><label>E-mail</label><input id="cloud-email" type="email" autocomplete="email" placeholder="edzo@email.hu"></div>
-                    <div class="input-group" style="margin-top:12px;"><label>Jelszó</label><input id="cloud-password" type="password" autocomplete="current-password" placeholder="Legalább 6 karakter"></div>
-                    <div class="cloud-actions">
-                        <button class="cloud-btn primary" onclick="cloudSignIn()"><i class="fas fa-sign-in-alt"></i> Belépés</button>
-                        <button class="cloud-btn" onclick="cloudSignUp()"><i class="fas fa-user-plus"></i> Regisztráció</button>
-                    </div>
-                </div>
-                <div id="cloud-auth-signed-in" style="display:none;">
+                <h3><i class="fas fa-user-shield" style="color:var(--green-accent);"></i> Fiókom</h3>
+                <div id="cloud-auth-signed-in">
                     <div class="cloud-help">Bejelentkezve: <b id="cloud-user-email" style="color:#fff;"></b></div>
-                    <div class="cloud-actions">
-                        <button class="cloud-btn red" onclick="cloudSignOut()"><i class="fas fa-sign-out-alt"></i> Kijelentkezés</button>
-                    </div>
+                    <div class="cloud-actions"><button class="cloud-btn red" onclick="cloudSignOut()"><i class="fas fa-sign-out-alt"></i> Kijelentkezés</button></div>
                 </div>
                 <div id="cloud-auth-message" class="cloud-message"></div>
             </div>
             <div class="cloud-card">
-                <h3><i class="fas fa-sync-alt" style="color:#9b59b6;"></i> Adatszinkron</h3>
-                <div class="cloud-help">Bejelentkezés után minden helyi mentés automatikusan ütemezett felhőmentést indít. Az alábbi gombokkal azonnal is szinkronizálhatsz.</div>
+                <h3><i class="fas fa-sync-alt" style="color:#9b59b6;"></i> Automatikus felhőmentés</h3>
+                <div class="cloud-help">A Handball Lab minden módosítást automatikusan ment a Supabase adatbázisba. Ezekkel a gombokkal azonnali mentést vagy visszatöltést is indíthatsz.</div>
                 <div class="cloud-actions">
-                    <button id="cloud-push-btn" class="cloud-btn blue" onclick="cloudSyncNow()" disabled><i class="fas fa-cloud-upload-alt"></i> Felhőbe mentés</button>
+                    <button id="cloud-push-btn" class="cloud-btn blue" onclick="cloudSyncNow()" disabled><i class="fas fa-cloud-upload-alt"></i> Mentés most</button>
                     <button id="cloud-pull-btn" class="cloud-btn" onclick="cloudPullNow()" disabled><i class="fas fa-cloud-download-alt"></i> Felhőből betöltés</button>
                 </div>
-                <div id="cloud-sync-message" class="cloud-message">Nincs aktív felhőkapcsolat.</div>
+                <div id="cloud-sync-message" class="cloud-message">Felhő állapotának ellenőrzése…</div>
                 <div class="cloud-db-list">
                     <div class="cloud-db-item"><b id="cloud-count-teams">0</b>csapat</div>
                     <div class="cloud-db-item"><b id="cloud-count-players">0</b>játékos</div>
@@ -920,9 +899,20 @@ KOVÁCS DÁVID MÁTÉ
                 </div>
             </div>
             <div class="cloud-card">
-                <h3><i class="fas fa-shield-alt" style="color:#f1c40f;"></i> Működés</h3>
-                <div class="cloud-help">A v4.2 <b>PWA + offline-first</b>: a program azonnal ment a böngészőbe, majd bejelentkezve a felhőbe is. A felhőben egy teljes állapotmentés készül a biztos visszaállításhoz, emellett a csapatok, játékosok, mérkőzések és események külön táblákba is bekerülnek a későbbi szezonstatisztikákhoz.</div>
-                <div class="cloud-help" style="margin:0;">Az adatbázis már létre van hozva és RLS-védelemmel működik. Regisztrálj vagy lépj be, majd a rendszer automatikusan tud szinkronizálni.</div>
+                <h3><i class="fab fa-google-drive" style="color:#f1c40f;"></i> Google Drive biztonsági mentés</h3>
+                <div class="cloud-help">A Drive-ra egy külön <b>Handball Lab Backups</b> mappa készül. A rendszer a <b>handball-lab-latest.json</b> fájlt frissíti, így mindig van egy külön visszaállítható másolatod.</div>
+                <div id="drive-status-pill" class="cloud-status-pill" style="margin:4px 0 12px;"><i class="fas fa-link"></i><span>Nincs összekapcsolva</span></div>
+                <div class="cloud-actions">
+                    <button id="drive-connect-btn" class="cloud-btn primary" onclick="connectGoogleDrive()"><i class="fab fa-google-drive"></i> Google Drive összekapcsolása</button>
+                    <button id="drive-backup-btn" class="cloud-btn blue" onclick="driveBackupNow(true)" disabled><i class="fas fa-save"></i> Biztonsági mentés most</button>
+                </div>
+                <div id="drive-message" class="cloud-message">A Drive-hozzáférést csak ehhez a munkamenethez tartjuk memóriában.</div>
+                <div id="drive-last-backup" class="cloud-help" style="margin:10px 0 0;">Utolsó Drive-mentés: —</div>
+            </div>
+            <div class="cloud-card">
+                <h3><i class="fas fa-shield-alt" style="color:#f1c40f;"></i> Adatbiztonság</h3>
+                <div class="cloud-help">A napi használat elsődleges tárhelye a Supabase. A Google Drive csak második, független biztonsági mentés. A Google hozzáférési tokent a Handball Lab nem menti el tartósan a böngészőbe.</div>
+                <div class="cloud-help" style="margin:0;">Amíg a Drive-kapcsolat aktív, a program a Supabase-mentések mellett legfeljebb 5 percenként automatikusan frissíti a Drive-másolatot is.</div>
             </div>
         </div>
     </div>
@@ -1264,6 +1254,19 @@ KOVÁCS DÁVID MÁTÉ
             key: 'sb_publishable_dmOgz3B1OtdlnRmkJ8ieQg_JD-ZBMox'
         };
 
+        // --- V4.3 GOOGLE DRIVE BIZTONSÁGI MENTÉS ---
+        const GOOGLE_DRIVE_CLIENT_ID = '189900726583-ev7aff8p4m9flgmabf11jmvdvprtd5r7.apps.googleusercontent.com';
+        const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+        const DRIVE_FOLDER_NAME = 'Handball Lab Backups';
+        const DRIVE_FOLDER_KEY = 'handball_drive_folder_id';
+        const DRIVE_LATEST_FILE_KEY = 'handball_drive_latest_file_id';
+        const DRIVE_LAST_BACKUP_KEY = 'handball_drive_last_backup';
+        let driveTokenClient = null;
+        let driveAccessToken = null;
+        let driveTokenExpiresAt = 0;
+        let driveBackupInProgress = false;
+        let driveAutoLastAttempt = 0;
+
         function getCloudConfig() {
             try {
                 const saved = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)) || {};
@@ -1393,7 +1396,8 @@ KOVÁCS DÁVID MÁTÉ
             cloudUser=data.user; updateCloudUI('Bejelentkezve.'); await reconcileCloudOnLogin();
         }
         async function cloudSignOut() {
-            if(cloudClient) await cloudClient.auth.signOut(); cloudUser=null; updateCloudUI('Kijelentkezve.'); updateLoginGate();
+            if(cloudClient) await cloudClient.auth.signOut();
+            cloudUser=null; clearDriveSession(); updateCloudUI('Kijelentkezve.'); updateLoginGate();
         }
         function scheduleCloudSync() {
             if(!cloudUser || !cloudClient) return;
@@ -1406,6 +1410,105 @@ KOVÁCS DÁVID MÁTÉ
         function getLiveStateForCloud() {
             try { return JSON.parse(localStorage.getItem('live_match_state')) || null; } catch(e) { return null; }
         }
+
+        function isDriveAuthorized() { return !!driveAccessToken && Date.now() < driveTokenExpiresAt; }
+        function updateDriveUI() {
+            const connected=isDriveAuthorized(), pill=document.getElementById('drive-status-pill'), connect=document.getElementById('drive-connect-btn'), backup=document.getElementById('drive-backup-btn'), last=document.getElementById('drive-last-backup');
+            const lastIso=localStorage.getItem(DRIVE_LAST_BACKUP_KEY);
+            if(pill) { pill.className='cloud-status-pill'+(connected?' online':''); pill.innerHTML=connected?'<i class="fab fa-google-drive"></i><span>Drive összekapcsolva</span>':'<i class="fas fa-link"></i><span>Drive nincs összekapcsolva</span>'; }
+            if(connect) connect.innerHTML=connected?'<i class="fas fa-check"></i> Drive összekapcsolva':'<i class="fab fa-google-drive"></i> Google Drive összekapcsolása';
+            if(backup) backup.disabled=!connected || driveBackupInProgress;
+            if(last) { let label='—'; if(lastIso){ const d=new Date(lastIso); if(!Number.isNaN(d.getTime())) label=d.toLocaleString('hu-HU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); } last.innerText='Utolsó Drive-mentés: '+label; }
+        }
+        async function ensureGoogleDriveLibrary() {
+            if(window.google?.accounts?.oauth2) return true;
+            return await new Promise(resolve=>{
+                let script=document.getElementById('handball-google-gis'), settled=false;
+                const finish=ok=>{ if(settled)return; settled=true; resolve(ok); };
+                if(!script){ script=document.createElement('script'); script.id='handball-google-gis'; script.src='https://accounts.google.com/gsi/client'; script.async=true; script.defer=true; document.head.appendChild(script); }
+                script.addEventListener('load',()=>finish(!!window.google?.accounts?.oauth2),{once:true});
+                script.addEventListener('error',()=>finish(false),{once:true});
+                setTimeout(()=>finish(!!window.google?.accounts?.oauth2),10000);
+            });
+        }
+        async function initDriveTokenClient() {
+            if(driveTokenClient) return true;
+            if(!await ensureGoogleDriveLibrary()) return false;
+            driveTokenClient=window.google.accounts.oauth2.initTokenClient({client_id:GOOGLE_DRIVE_CLIENT_ID,scope:GOOGLE_DRIVE_SCOPE,callback:()=>{}});
+            return true;
+        }
+        async function requestDriveAccessToken() {
+            if(!await initDriveTokenClient()) throw new Error('A Google bejelentkezési modul nem tölthető be.');
+            return await new Promise((resolve,reject)=>{
+                driveTokenClient.callback=resp=>{
+                    if(resp?.error) return reject(new Error(resp.error_description||resp.error));
+                    if(!resp?.access_token) return reject(new Error('Nem érkezett Google hozzáférési token.'));
+                    driveAccessToken=resp.access_token; driveTokenExpiresAt=Date.now()+(Number(resp.expires_in||3600)*1000)-60000; updateDriveUI(); resolve(resp.access_token);
+                };
+                driveTokenClient.error_callback=err=>reject(new Error(err?.message||err?.type||'Google engedélyezési hiba.'));
+                driveTokenClient.requestAccessToken({prompt:'consent'});
+            });
+        }
+        async function driveFetch(url,options={}) {
+            if(!isDriveAuthorized()) throw new Error('A Google Drive kapcsolat lejárt. Kapcsold össze újra.');
+            const headers=new Headers(options.headers||{}); headers.set('Authorization','Bearer '+driveAccessToken);
+            const res=await fetch(url,{...options,headers});
+            if(res.status===401){ driveAccessToken=null; driveTokenExpiresAt=0; updateDriveUI(); throw new Error('A Google Drive kapcsolat lejárt. Kapcsold össze újra.'); }
+            if(!res.ok){ let detail=''; try{ const j=await res.json(); detail=j?.error?.message||''; }catch(e){} throw new Error(detail||('Google Drive API hiba ('+res.status+').')); }
+            if(res.status===204) return null;
+            return (res.headers.get('content-type')||'').includes('application/json')?await res.json():await res.text();
+        }
+        function driveEscapeQueryValue(value){ return String(value).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+        async function ensureDriveFolder() {
+            let folderId=localStorage.getItem(DRIVE_FOLDER_KEY)||'';
+            if(folderId) return folderId;
+            const q="name='"+driveEscapeQueryValue(DRIVE_FOLDER_NAME)+"' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+            const found=await driveFetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&fields=files(id,name)&spaces=drive');
+            if(found?.files?.length) folderId=found.files[0].id;
+            if(!folderId){ const created=await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id,name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:DRIVE_FOLDER_NAME,mimeType:'application/vnd.google-apps.folder'})}); folderId=created.id; }
+            localStorage.setItem(DRIVE_FOLDER_KEY,folderId); return folderId;
+        }
+        async function findDriveLatestFile(folderId) {
+            let fileId=localStorage.getItem(DRIVE_LATEST_FILE_KEY)||'';
+            if(fileId) return fileId;
+            const q="'"+driveEscapeQueryValue(folderId)+"' in parents and name='handball-lab-latest.json' and trashed=false";
+            const found=await driveFetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&fields=files(id,name)&spaces=drive');
+            if(found?.files?.length){ fileId=found.files[0].id; localStorage.setItem(DRIVE_LATEST_FILE_KEY,fileId); }
+            return fileId;
+        }
+        function buildDriveBackupPayload(){ return {app:'Handball Lab',formatVersion:1,exportedAt:new Date().toISOString(),account:cloudUser?.email||null,database:db,liveState:getLiveStateForCloud()}; }
+        async function uploadDriveBackup() {
+            const folderId=await ensureDriveFolder(); let fileId=await findDriveLatestFile(folderId); const json=JSON.stringify(buildDriveBackupPayload(),null,2);
+            if(fileId){
+                await driveFetch('https://www.googleapis.com/upload/drive/v3/files/'+encodeURIComponent(fileId)+'?uploadType=media&fields=id,name,modifiedTime',{method:'PATCH',headers:{'Content-Type':'application/json;charset=UTF-8'},body:json});
+            } else {
+                const boundary='handball_lab_'+Date.now(), metadata={name:'handball-lab-latest.json',parents:[folderId],mimeType:'application/json'};
+                const body='--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(metadata)+'\r\n--'+boundary+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+json+'\r\n--'+boundary+'--';
+                const created=await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,modifiedTime',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+boundary},body});
+                fileId=created.id; localStorage.setItem(DRIVE_LATEST_FILE_KEY,fileId);
+            }
+            const now=new Date().toISOString(); localStorage.setItem(DRIVE_LAST_BACKUP_KEY,now); driveAutoLastAttempt=Date.now(); updateDriveUI(); return now;
+        }
+        async function connectGoogleDrive() {
+            setCloudMessage('drive-message','Google Drive engedélyezése…');
+            try{ if(!isDriveAuthorized()) await requestDriveAccessToken(); await ensureDriveFolder(); updateDriveUI(); setCloudMessage('drive-message','Drive összekapcsolva. Első biztonsági mentés készül…','ok'); await driveBackupNow(false); }
+            catch(err){ setCloudMessage('drive-message','Drive kapcsolati hiba: '+(err.message||err),'err'); updateDriveUI(); }
+        }
+        async function driveBackupNow(interactive=true) {
+            if(driveBackupInProgress) return false;
+            try{
+                if(!isDriveAuthorized()){ if(!interactive) return false; await requestDriveAccessToken(); }
+                driveBackupInProgress=true; updateDriveUI(); setCloudMessage('drive-message','Biztonsági mentés a Google Drive-ra…');
+                const iso=await uploadDriveBackup(), stamp=new Date(iso).toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'});
+                setCloudMessage('drive-message','Google Drive biztonsági mentés kész · '+stamp,'ok'); return true;
+            }catch(err){ setCloudMessage('drive-message','Drive mentési hiba: '+(err.message||err),'err'); return false; }
+            finally{ driveBackupInProgress=false; updateDriveUI(); }
+        }
+        function scheduleDriveAutoBackup() {
+            if(!isDriveAuthorized()||driveBackupInProgress||Date.now()-driveAutoLastAttempt<5*60*1000) return;
+            driveAutoLastAttempt=Date.now(); setTimeout(()=>driveBackupNow(false),800);
+        }
+        function clearDriveSession(){ driveAccessToken=null; driveTokenExpiresAt=0; updateDriveUI(); }
         async function syncDatabaseToCloud(showMessage=true) {
             if(!cloudClient || !cloudUser) return false;
             if(cloudSyncInProgress) { cloudSyncPending=true; return false; }
@@ -1420,6 +1523,7 @@ KOVÁCS DÁVID MÁTÉ
                 setCloudMessage('cloud-sync-message','Automatikus felhőmentés kész · '+stamp,'ok');
                 const home=document.getElementById('home-cloud-status');
                 if(home) home.innerText='Felhő aktív · automatikusan mentve '+stamp;
+                scheduleDriveAutoBackup();
                 return true;
             } catch(err) {
                 setCloudMessage('cloud-sync-message','Felhőmentési hiba: '+(err.message||err),'err');
@@ -1559,7 +1663,7 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('mksz-date').valueAsDate = new Date();
             const savedState = localStorage.getItem('live_match_state'); 
             if(savedState) { document.getElementById('resume-panel').style.display = 'block'; }
-            populateTeamSelectors(); updateCloudCounts(); await initCloud(); await initPwaFeatures();
+            populateTeamSelectors(); updateCloudCounts(); await initCloud(); updateDriveUI(); await initPwaFeatures();
         };
 
         // --- V4.2 PWA / OFFLINE / ESZKÖZ ---
@@ -1696,7 +1800,7 @@ KOVÁCS DÁVID MÁTÉ
             if(screenId === 'view-match-setup') populateTeamSelectors();
             if(screenId === 'view-mksz-import') populateTeamSelectors();
             if(screenId === 'view-archive') loadArchive();
-            if(screenId === 'view-cloud') { const cfg=getCloudConfig(); const u=document.getElementById('cloud-url'); const k=document.getElementById('cloud-key'); if(u)u.value=cfg.url||''; if(k)k.value=cfg.key||''; updateCloudUI(); }
+            if(screenId === 'view-cloud') { updateCloudUI(); updateDriveUI(); }
             if(screenId === 'view-device') updateDeviceUI();
             document.getElementById(screenId).classList.add('active');
         }
