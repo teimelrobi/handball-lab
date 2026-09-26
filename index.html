@@ -647,7 +647,7 @@
                     <h3>Felhő & fiók</h3>
                     <p id="home-cloud-status">Helyi mentés · Supabase beállítható</p>
                 </div>
-                <div class="menu-card" onclick="showScreen('view-device')" style="background:rgba(28,216,138,.035);">
+                <div class="menu-card" onclick="showScreen('view-device')" style="display:none;background:rgba(28,216,138,.035);">
                     <i class="fas fa-mobile-alt"></i>
                     <h3>Telepítés & offline</h3>
                     <p id="home-device-status">Eszközállapot ellenőrzése</p>
@@ -655,8 +655,8 @@
                 <div class="menu-card red" onclick="document.getElementById('import-file').click()">
                     <input type="file" id="import-file" style="display:none" accept=".json" onchange="importProject(event)">
                     <i class="fas fa-folder-open"></i>
-                    <h3>Projekt betöltése</h3>
-                    <p>Adatbázis importálása külső fájlból</p>
+                    <h3>Adatmentés betöltése</h3>
+                    <p>Korábbi Handball Lab mentés visszaállítása</p>
                 </div>
             </div>
         </div>
@@ -1255,6 +1255,7 @@ KOVÁCS DÁVID MÁTÉ
         let cloudUser = null;
         let cloudSyncTimer = null;
         let cloudSyncInProgress = false;
+        let cloudSyncPending = false;
         let cloudNormalizedLastSync = 0;
         let cloudInitialized = false;
         const CLOUD_CONFIG_KEY = 'handball_cloud_config';
@@ -1396,24 +1397,43 @@ KOVÁCS DÁVID MÁTÉ
         }
         function scheduleCloudSync() {
             if(!cloudUser || !cloudClient) return;
-            clearTimeout(cloudSyncTimer); cloudSyncTimer=setTimeout(()=>syncDatabaseToCloud(false),900);
+            cloudSyncPending = true;
+            const home=document.getElementById('home-cloud-status');
+            if(home) home.innerText='Automatikus mentés folyamatban…';
+            clearTimeout(cloudSyncTimer);
+            cloudSyncTimer=setTimeout(()=>syncDatabaseToCloud(false),700);
         }
         function getLiveStateForCloud() {
             try { return JSON.parse(localStorage.getItem('live_match_state')) || null; } catch(e) { return null; }
         }
         async function syncDatabaseToCloud(showMessage=true) {
-            if(!cloudClient || !cloudUser || cloudSyncInProgress) return false;
-            cloudSyncInProgress=true; if(showMessage) setCloudMessage('cloud-sync-message','Mentés a felhőbe…');
+            if(!cloudClient || !cloudUser) return false;
+            if(cloudSyncInProgress) { cloudSyncPending=true; return false; }
+            cloudSyncInProgress=true;
+            cloudSyncPending=false;
+            if(showMessage) setCloudMessage('cloud-sync-message','Mentés a felhőbe…');
             try {
                 const payload = { user_id:cloudUser.id, data:db, live_state:getLiveStateForCloud(), client_updated_at:new Date().toISOString() };
                 let { error } = await cloudClient.from('handball_state').upsert(payload,{onConflict:'user_id'}); if(error) throw error;
                 if(showMessage || Date.now()-cloudNormalizedLastSync > 30000) { await syncNormalizedCloudTables(); cloudNormalizedLastSync=Date.now(); }
-                if(showMessage) setCloudMessage('cloud-sync-message','Felhőmentés kész · ' + new Date().toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'}),'ok');
+                const stamp=new Date().toLocaleTimeString('hu-HU',{hour:'2-digit',minute:'2-digit'});
+                setCloudMessage('cloud-sync-message','Automatikus felhőmentés kész · '+stamp,'ok');
+                const home=document.getElementById('home-cloud-status');
+                if(home) home.innerText='Felhő aktív · automatikusan mentve '+stamp;
                 return true;
-            } catch(err) { if(showMessage) setCloudMessage('cloud-sync-message','Felhőmentési hiba: '+(err.message||err),'err'); return false; }
-            finally { cloudSyncInProgress=false; }
+            } catch(err) {
+                setCloudMessage('cloud-sync-message','Felhőmentési hiba: '+(err.message||err),'err');
+                cloudSyncPending=true;
+                return false;
+            } finally {
+                cloudSyncInProgress=false;
+                if(cloudSyncPending && cloudClient && cloudUser) {
+                    clearTimeout(cloudSyncTimer);
+                    cloudSyncTimer=setTimeout(()=>syncDatabaseToCloud(false),1200);
+                }
+            }
         }
-        async function syncNormalizedCloudTables() {
+                async function syncNormalizedCloudTables() {
             const uid=cloudUser.id; const teamRows=[]; const playerRows=[];
             Object.entries(db.teams||{}).forEach(([teamId,t])=>{
                 teamRows.push({user_id:uid,team_id:String(teamId),name:t.name||'',data:t});
@@ -1666,6 +1686,7 @@ KOVÁCS DÁVID MÁTÉ
         window.addEventListener('offline', ()=>updateDeviceUI());
         document.addEventListener('visibilitychange', async ()=>{
             if(document.visibilityState === 'visible' && wakeLockDesired) await requestWakeLock();
+            if(document.visibilityState === 'hidden' && cloudUser && cloudClient && cloudSyncPending) syncDatabaseToCloud(false);
         });
 
         // --- NAVIGÁCIÓ ---
