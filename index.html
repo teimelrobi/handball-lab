@@ -565,9 +565,41 @@
             .u-btn-action { padding:11px 8px; }
             .goal-grid { max-width:340px; margin:auto; }
         }
+    
+        /* V4.3 WEB LOGIN GATE */
+        #app-login-gate{position:fixed;inset:0;z-index:99999;background:radial-gradient(circle at top,#123326 0,#08110d 48%,#050807 100%);display:flex;align-items:center;justify-content:center;padding:22px}
+        #app-login-gate.hidden{display:none}
+        .login-shell{width:min(440px,100%);background:#0d1713;border:1px solid #244235;border-radius:24px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+        .login-brand{text-align:center;margin-bottom:24px}.login-brand h1{margin:8px 0 5px;color:#25e69a;font-size:30px}.login-brand p{margin:0;color:#8fa49a}
+        .login-logo{font-size:44px;color:#25e69a}.login-shell label{display:block;color:#b8c7c0;font-size:13px;font-weight:700;margin:14px 0 6px}
+        .login-shell input{width:100%;box-sizing:border-box;background:#07100c;border:1px solid #294438;color:white;border-radius:12px;padding:14px;font-size:16px}
+        .login-main-btn{width:100%;margin-top:18px;border:0;border-radius:12px;padding:14px;background:#18c77e;color:#04120b;font-weight:900;font-size:16px}
+        .login-secondary-btn{width:100%;margin-top:10px;border:1px solid #355247;border-radius:12px;padding:12px;background:transparent;color:#d8e4df;font-weight:700}
+        #app-login-message{min-height:20px;text-align:center;margin-top:12px;color:#ffb15c;font-size:13px}
+        .login-note{text-align:center;color:#71867c;font-size:12px;margin-top:16px;line-height:1.45}
+
     </style>
 </head>
 <body>
+
+    <div id="app-login-gate">
+      <div class="login-shell">
+        <div class="login-brand">
+          <div class="login-logo"><i class="fas fa-hand-paper"></i></div>
+          <h1>HANDBALL LAB</h1>
+          <p>Saját edzői felület · felhőszinkronnal</p>
+        </div>
+        <label>E-mail</label>
+        <input id="app-login-email" type="email" autocomplete="email" placeholder="edzo@email.hu">
+        <label>Jelszó</label>
+        <input id="app-login-password" type="password" autocomplete="current-password" placeholder="Jelszó" onkeydown="if(event.key==='Enter') appGateSignIn()">
+        <button class="login-main-btn" onclick="appGateSignIn()"><i class="fas fa-sign-in-alt"></i> Belépés</button>
+        <button class="login-secondary-btn" onclick="appGateSignUp()"><i class="fas fa-user-plus"></i> Első regisztráció</button>
+        <div id="app-login-message"></div>
+        <div class="login-note">Belépés után ugyanazokat a csapatokat, mérkőzéseket és statisztikákat éred el telefonon, tableten és számítógépen.</div>
+      </div>
+    </div>
+
 
     <!-- 0. FŐMENÜ -->
     <div class="screen active" id="view-home">
@@ -1249,7 +1281,39 @@ KOVÁCS DÁVID MÁTÉ
             const vals = { 'cloud-count-teams':teams.length, 'cloud-count-players':players, 'cloud-count-matches':matches, 'cloud-count-events':events };
             Object.entries(vals).forEach(([id,v])=>{ const el=document.getElementById(id); if(el) el.innerText=v; });
         }
+        function updateLoginGate() {
+            const gate=document.getElementById('app-login-gate');
+            if(gate) gate.classList.toggle('hidden', !!cloudUser);
+        }
+        function setLoginGateMessage(text, ok=false) {
+            const el=document.getElementById('app-login-message'); if(!el) return;
+            el.style.color=ok?'#25e69a':'#ffb15c'; el.innerText=text||'';
+        }
+        async function appGateSignIn() {
+            setLoginGateMessage('Belépés…');
+            if(!cloudClient) { cloudInitialized=false; await initCloud(); }
+            if(!cloudClient) return setLoginGateMessage('A felhőkapcsolat nem érhető el. Ellenőrizd az internetet.');
+            const email=(document.getElementById('app-login-email')?.value||'').trim();
+            const password=document.getElementById('app-login-password')?.value||'';
+            if(!email || !password) return setLoginGateMessage('Add meg az e-mail címet és a jelszót.');
+            const {data,error}=await cloudClient.auth.signInWithPassword({email,password});
+            if(error) return setLoginGateMessage('Belépési hiba: '+error.message);
+            cloudUser=data.user; updateCloudUI('Bejelentkezve.'); await reconcileCloudOnLogin();
+        }
+        async function appGateSignUp() {
+            setLoginGateMessage('Regisztráció…');
+            if(!cloudClient) { cloudInitialized=false; await initCloud(); }
+            if(!cloudClient) return setLoginGateMessage('A felhőkapcsolat nem érhető el.');
+            const email=(document.getElementById('app-login-email')?.value||'').trim();
+            const password=document.getElementById('app-login-password')?.value||'';
+            if(!email || password.length<6) return setLoginGateMessage('Adj meg e-mail címet és legalább 6 karakteres jelszót.');
+            const {data,error}=await cloudClient.auth.signUp({email,password});
+            if(error) return setLoginGateMessage('Regisztrációs hiba: '+error.message);
+            if(data?.session){ cloudUser=data.user; updateCloudUI('Regisztráció kész.'); await cloudSyncNow(); }
+            else setLoginGateMessage('Regisztráció kész. Nézd meg az e-mail fiókodat a megerősítéshez.',true);
+        }
         function updateCloudUI(message = '') {
+            updateLoginGate();
             const pill = document.getElementById('cloud-status-pill');
             const home = document.getElementById('home-cloud-status');
             const signedOut = document.getElementById('cloud-auth-signed-out');
@@ -1328,7 +1392,7 @@ KOVÁCS DÁVID MÁTÉ
             cloudUser=data.user; updateCloudUI('Bejelentkezve.'); await reconcileCloudOnLogin();
         }
         async function cloudSignOut() {
-            if(cloudClient) await cloudClient.auth.signOut(); cloudUser=null; updateCloudUI('Kijelentkezve · helyi mód.');
+            if(cloudClient) await cloudClient.auth.signOut(); cloudUser=null; updateCloudUI('Kijelentkezve.'); updateLoginGate();
         }
         function scheduleCloudSync() {
             if(!cloudUser || !cloudClient) return;
