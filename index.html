@@ -1581,15 +1581,23 @@ KOVÁCS DÁVID MÁTÉ
             try {
                 const row=await fetchCloudState();
                 if(!row?.data) { await syncDatabaseToCloud(true); return; }
-                const cloudTime=Date.parse(row.client_updated_at||row.updated_at||0)||0; const localTime=Date.parse(localStorage.getItem('handball_db_updated_at')||0)||0;
-                const localHasData=Object.keys(db.teams||{}).length>0 || (db.matches||[]).length>0;
-                const cloudMkszImport=row?.data?.meta?.mkszImport||'';
-                const localMkszImport=db?.meta?.mkszImport||'';
-                const hasNewMkszImport=!!cloudMkszImport && cloudMkszImport!==localMkszImport;
-                if(cloudTime>localTime+2000) {
-                    if(hasNewMkszImport || !localHasData || confirm('A felhőben frissebb Handball Lab adatok vannak. Betöltöd őket erre az eszközre?')) await applyCloudState(row);
-                } else if(localTime>cloudTime+2000) { await syncDatabaseToCloud(true); }
-                else updateCloudUI('Felhő és helyi adatok szinkronban.');
+
+                // The signed-in cloud state is canonical. This prevents an old phone/tablet
+                // localStorage copy from overwriting newer rosters imported on another device.
+                const cloudImport=row?.data?.meta?.mkszImport||'';
+                const localImport=db?.meta?.mkszImport||'';
+                const cloudTeamCount=Object.keys(row?.data?.teams||{}).length;
+                const localTeamCount=Object.keys(db?.teams||{}).length;
+                const cloudTime=Date.parse(row.client_updated_at||row.updated_at||0)||0;
+                const localTime=Date.parse(localStorage.getItem('handball_db_updated_at')||0)||0;
+
+                if(cloudImport !== localImport || cloudTeamCount !== localTeamCount || cloudTime >= localTime-2000) {
+                    await applyCloudState(row);
+                } else {
+                    // Keep a genuinely newer local edit, but only after the device has already
+                    // received the same MKSZ import version.
+                    await syncDatabaseToCloud(true);
+                }
             } catch(err){ setCloudMessage('cloud-sync-message','Szinkronellenőrzési hiba: '+(err.message||err),'err'); }
         }
 
