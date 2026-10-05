@@ -1401,6 +1401,9 @@ KOVÁCS DÁVID MÁTÉ
         }
         function scheduleCloudSync() {
             if(!cloudUser || !cloudClient) return;
+            // Never let an old pre-import browser cache overwrite the official MKSZ roster set.
+            const importVersion=db?.meta?.mkszImport||'';
+            if(!importVersion && Object.keys(db?.teams||{}).length<=2) return;
             cloudSyncPending = true;
             const home=document.getElementById('home-cloud-status');
             if(home) home.innerText='Automatikus mentés folyamatban…';
