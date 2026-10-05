@@ -1591,11 +1591,22 @@ KOVÁCS DÁVID MÁTÉ
                 const cloudTime=Date.parse(row.client_updated_at||row.updated_at||0)||0;
                 const localTime=Date.parse(localStorage.getItem('handball_db_updated_at')||0)||0;
 
+                // 2026/27 MKSZ import is canonical. Never let the original two demo teams
+                // overwrite it from an older phone/browser localStorage copy.
+                const cloudHasOfficialRoster = cloudImport === '2026-10-05' && cloudTeamCount >= 20;
+                const localHasOfficialRoster = localImport === '2026-10-05' && localTeamCount >= 20;
+                if(cloudHasOfficialRoster && !localHasOfficialRoster) {
+                    await applyCloudState(row);
+                    return;
+                }
+                if(!cloudHasOfficialRoster && localHasOfficialRoster) {
+                    await syncDatabaseToCloud(true);
+                    return;
+                }
+
                 if(cloudImport !== localImport || cloudTeamCount !== localTeamCount || cloudTime >= localTime-2000) {
                     await applyCloudState(row);
                 } else {
-                    // Keep a genuinely newer local edit, but only after the device has already
-                    // received the same MKSZ import version.
                     await syncDatabaseToCloud(true);
                 }
             } catch(err){ setCloudMessage('cloud-sync-message','Szinkronellenőrzési hiba: '+(err.message||err),'err'); }
