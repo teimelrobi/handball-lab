@@ -1674,7 +1674,19 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('mksz-date').valueAsDate = new Date();
             const savedState = localStorage.getItem('live_match_state'); 
             if(savedState) { document.getElementById('resume-panel').style.display = 'block'; }
-            populateTeamSelectors(); updateCloudCounts(); await initCloud(); updateDriveUI(); await initPwaFeatures();
+            populateTeamSelectors(); updateCloudCounts(); await initCloud(); updateDriveUI();
+            // The old PWA service worker could keep serving a stale index.html on Android.
+            // This project now runs as a normal web app, so remove old workers/caches once.
+            if('serviceWorker' in navigator) {
+                try {
+                    const regs=await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r=>r.unregister()));
+                    if(window.caches) {
+                        const keys=await caches.keys();
+                        await Promise.all(keys.filter(k=>k.startsWith('app-handball-lab-')||k.startsWith('runtime-handball-lab-')).map(k=>caches.delete(k)));
+                    }
+                } catch(e) {}
+            }
         };
 
         // --- V4.2 PWA / OFFLINE / ESZKÖZ ---
