@@ -2161,7 +2161,8 @@ KOVÁCS DÁVID MÁTÉ
             videoNode.ontimeupdate = function() {
                 if(isVideoAnalysis && document.getElementById('unified-modal-overlay').style.display !== 'flex') { 
                     seconds = Math.max(0, Math.floor(this.currentTime - videoSyncOffset)); 
-                    updateTimerDisplay(); 
+                    updateTimerDisplay();
+                    syncRosterPlayTimesFromLineup(currentMatchAbsoluteSeconds());
                 }
             };
         }
@@ -2172,7 +2173,7 @@ KOVÁCS DÁVID MÁTÉ
             videoSyncOffset = vid.currentTime;
             if(!activeMatch.videoSyncPoints || typeof activeMatch.videoSyncPoints !== 'object') activeMatch.videoSyncPoints = {};
             activeMatch.videoSyncPoints[String(currentPeriod)] = videoSyncOffset;
-            seconds = 0; updateTimerDisplay(); saveLiveState();
+            seconds = 0; updateTimerDisplay(); syncRosterPlayTimesFromLineup(currentMatchAbsoluteSeconds()); saveLiveState();
             alert(`${currentPeriod}. Félidő szinkronpont beállítva!`);
         }
 
@@ -2198,7 +2199,7 @@ KOVÁCS DÁVID MÁTÉ
             if(!confirm("Biztosan lezárod a mérkőzést? Ez elmenti az archívumba és kilép a főmenübe.")) return;
             if(timer) toggleTimer();
             if(!db.matches) db.matches = [];
-            activeMatch.matchEndAbs = currentMatchAbsoluteSeconds(); recordLineupSnapshot('Mérkőzés vége');
+            activeMatch.matchEndAbs = currentMatchAbsoluteSeconds(); if(isVideoAnalysis) syncRosterPlayTimesFromLineup(activeMatch.matchEndAbs); recordLineupSnapshot('Mérkőzés vége');
             db.matches.push({ id: 'm_' + Date.now(), matchName: activeMatch.matchName, league: activeMatch.league, location: activeMatch.location, date: activeMatch.date, homeName: activeMatch.homeName, awayName: activeMatch.awayName, homeScore: document.getElementById('score-home').innerText, awayScore: document.getElementById('score-away').innerText, events: globalEvents, homeRoster: activeMatch.homeRoster, awayRoster: activeMatch.awayRoster, lineupHistory: activeMatch.lineupHistory || [], lineupHistoryComplete: activeMatch.lineupHistoryComplete === true, matchEndAbs: activeMatch.matchEndAbs || 0, videoSyncPoints: activeMatch.videoSyncPoints || {} });
             saveDB(); discardMatch(); location.reload();
         }
@@ -2469,6 +2470,32 @@ KOVÁCS DÁVID MÁTÉ
                 if(!Array.isArray(roster)) return;
                 roster.forEach(p => { const el = document.getElementById(`ptime-${side}-${p.num}`); if(el) el.innerText = formatPlayTime(p.playTime); });
             });
+        }
+        function syncRosterPlayTimesFromLineup(endAbs = currentMatchAbsoluteSeconds()) {
+            if(!activeMatch) return;
+            const history = Array.isArray(activeMatch.lineupHistory) ? activeMatch.lineupHistory.slice().sort((a,b)=>Number(a.abs)-Number(b.abs)) : [];
+            const safeEnd = Math.max(0, Number(endAbs)||0);
+            ['home','away'].forEach(side => {
+                const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster;
+                if(!Array.isArray(roster)) return;
+                roster.forEach(p => { p.playTime = 0; });
+                if(history.length === 0) return;
+                for(let i=0;i<history.length;i++) {
+                    const snap = history[i];
+                    const start = Math.max(0, Number(snap.abs)||0);
+                    if(start >= safeEnd) break;
+                    const nextAbs = i+1 < history.length ? Math.max(start, Number(history[i+1].abs)||start) : safeEnd;
+                    const stop = Math.min(safeEnd, nextAbs);
+                    const dur = Math.max(0, stop-start);
+                    if(dur <= 0) continue;
+                    const court = side === 'home' ? (snap.homeCourt||[]) : (snap.awayCourt||[]);
+                    court.forEach(num => {
+                        const p = roster.find(x => String(x.num) === String(num));
+                        if(p) p.playTime = (Number(p.playTime)||0) + dur;
+                    });
+                }
+            });
+            updateRosterPlayTimeUI();
         }
         function refreshAfterSubstitution(side) {
             const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster;
