@@ -2034,8 +2034,9 @@ KOVÁCS DÁVID MÁTÉ
                 });
                 (match.events||[]).forEach(e=>{ if(e.team===side && String(e.assist||'')===String(rp.num)){out.assists++;ma++;} });
                 const oppSide=side==='home'?'away':'home';
+                const rpIsGk=!!rp.isGk || careerNorm(rp.position).includes('kapus');
                 (match.events||[]).forEach(e=>{
-                    if(!rp.isGk || e.team!==oppSide || e.group!=='shot' || String(e.defendingGk||'')!==String(rp.num)) return;
+                    if(!rpIsGk || e.team!==oppSide || e.group!=='shot' || String(e.defendingGk||'')!==String(rp.num)) return;
                     if(e.result!=='Gól' && e.result!=='Védés') return;
                     out.gkFaced++; mgkFaced++;
                     if(e.result==='Védés'){out.gkSaves++;mgkSaves++;} else {out.gkGoalsAgainst++;mgkGoalsAgainst++;}
