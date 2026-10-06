@@ -262,10 +262,22 @@
         .opt-btn-left.selected { background-color: rgba(255,255,255,0.1); border-color: #fff; }
 
         .u-bottom-row { display: flex; gap: 15px; }
-        .goal-grid-container { flex: 1; display: flex; align-items: center; justify-content: center; padding-top: 20px; }
-        .goal-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 3px; background-color: #ff4d64; padding: 3px; border: 3px solid #fff; border-bottom: none; width: 100%; aspect-ratio: 2/1.2; }
-        .g-node { background-color: #1a252f; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s;}
+        .goal-grid-container { flex: 1; display: flex; align-items: center; justify-content: center; padding-top: 8px; }
+        .goal-target-map { width:100%; max-width:440px; display:grid; grid-template-columns:58px minmax(210px,1fr) 58px; grid-template-rows:42px auto; gap:5px; }
+        .goal-grid { grid-column:2; grid-row:2; display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 3px; background-color: #ff4d64; padding: 3px; border: 4px solid #fff; border-bottom: none; width: 100%; min-height:150px; aspect-ratio: 2/1.15; }
+        .g-node { background-color: #1a252f; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; min-height:42px;}
         .g-node.selected { background-color: var(--green-accent); color: #000; }
+        .goal-miss-zone { border:1px dashed rgba(255,255,255,.45); background:rgba(255,77,100,.08); color:#ff9aaa; border-radius:7px; font-size:10px; font-weight:800; cursor:pointer; letter-spacing:.4px; display:flex; align-items:center; justify-content:center; transition:.15s; }
+        .goal-miss-zone:hover, .goal-miss-zone.selected { background:rgba(255,77,100,.28); border-color:#ff4d64; color:#fff; }
+        .goal-miss-above { grid-column:2; grid-row:1; }
+        .goal-miss-left { grid-column:1; grid-row:2; writing-mode:vertical-rl; transform:rotate(180deg); }
+        .goal-miss-right { grid-column:3; grid-row:2; writing-mode:vertical-rl; }
+        .shot-auto-result { min-height:18px; margin-top:7px; font-size:11px; font-weight:700; color:#ff9aaa; text-align:center; }
+        @media (max-width: 760px) {
+            .goal-target-map { grid-template-columns:44px minmax(180px,1fr) 44px; grid-template-rows:36px auto; gap:4px; }
+            .goal-grid { min-height:132px; }
+            .goal-miss-zone { font-size:9px; }
+        }
         .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 25px; }
         .opt-btn { background-color: transparent; border: 1px solid var(--border-color); color: #fff; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .opt-btn.selected { background-color: rgba(255,255,255,0.1); border-color: #fff; }
@@ -1217,8 +1229,8 @@ KOVÁCS DÁVID MÁTÉ
                     </div>
                 </div>
                 <div class="u-bottom-row">
-                    <div class="u-section" style="flex: 1.2;"><div class="u-section-title"><div class="u-step-num">2</div> Hova?</div><div class="goal-grid-container"><div class="goal-grid"><div class="g-node" onclick="selectTo(this, 'Bal felső')"></div><div class="g-node" onclick="selectTo(this, 'Közép felső')"></div><div class="g-node" onclick="selectTo(this, 'Jobb felső')"></div><div class="g-node" onclick="selectTo(this, 'Bal félmagas')"></div><div class="g-node" onclick="selectTo(this, 'Közép')"></div><div class="g-node" onclick="selectTo(this, 'Jobb félmagas')"></div><div class="g-node" onclick="selectTo(this, 'Bal alsó')"></div><div class="g-node" onclick="selectTo(this, 'Közép alsó')"></div><div class="g-node" onclick="selectTo(this, 'Jobb alsó')"></div></div></div></div>
-                    <div class="u-section" style="flex: 1.5;"><div class="u-section-title"><div class="u-step-num">3</div> Eredmény</div><div class="options-grid" id="shot-result-options"><button class="opt-btn" onclick="selectResult(this, 'Gól')">Gól</button><button class="opt-btn" onclick="selectResult(this, 'Védés')">Védés</button><button class="opt-btn" onclick="selectResult(this, 'Kapufa')">Kapufa</button><button class="opt-btn" onclick="selectResult(this, 'Mellé')">Mellé</button><button class="opt-btn" onclick="selectResult(this, 'Sánc')">Sánc</button></div><div class="u-sub-panels"><div class="assist-panel" id="assist-panel"><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Gólpassz?</div><select id="assist-select"><option value="">Nincs</option></select></div><div class="assist-panel" id="gk-panel" style="display:block;"><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Kapuban:</div><div class="gk-btn-grid" id="gk-buttons-container"></div></div></div></div>
+                    <div class="u-section" style="flex: 1.45;"><div class="u-section-title"><div class="u-step-num">2</div> Hova?</div><div class="goal-grid-container"><div class="goal-target-map"><button class="goal-miss-zone goal-miss-above" onclick="selectMissTarget(this, 'Fölé', 'Fölé')">FÖLÉ</button><button class="goal-miss-zone goal-miss-left" onclick="selectMissTarget(this, 'Bal mellé', 'Mellé')">MELLÉ</button><div class="goal-grid"><div class="g-node" onclick="selectTo(this, 'Bal felső')"></div><div class="g-node" onclick="selectTo(this, 'Közép felső')"></div><div class="g-node" onclick="selectTo(this, 'Jobb felső')"></div><div class="g-node" onclick="selectTo(this, 'Bal félmagas')"></div><div class="g-node" onclick="selectTo(this, 'Közép')"></div><div class="g-node" onclick="selectTo(this, 'Jobb félmagas')"></div><div class="g-node" onclick="selectTo(this, 'Bal alsó')"></div><div class="g-node" onclick="selectTo(this, 'Közép alsó')"></div><div class="g-node" onclick="selectTo(this, 'Jobb alsó')"></div></div><button class="goal-miss-zone goal-miss-right" onclick="selectMissTarget(this, 'Jobb mellé', 'Mellé')">MELLÉ</button></div></div></div>
+                    <div class="u-section" style="flex: 1.35;"><div class="u-section-title"><div class="u-step-num">3</div> Eredmény</div><div class="options-grid" id="shot-result-options"><button class="opt-btn" onclick="selectResult(this, 'Gól')">Gól</button><button class="opt-btn" onclick="selectResult(this, 'Védés')">Védés</button><button class="opt-btn" onclick="selectResult(this, 'Kapufa')">Kapufa</button><button class="opt-btn" onclick="selectResult(this, 'Sánc')">Sánc</button></div><div class="shot-auto-result" id="shot-auto-result"></div><div class="u-sub-panels"><div class="assist-panel" id="assist-panel"><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Gólpassz?</div><select id="assist-select"><option value="">Nincs</option></select></div><div class="assist-panel" id="gk-panel" style="display:block;"><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Kapuban:</div><div class="gk-btn-grid" id="gk-buttons-container"></div></div></div></div>
                     <div class="u-section" style="flex: 0.8;"><div class="u-section-title"><div class="u-step-num">4</div> Módja</div><div class="options-grid" id="shot-type-options" style="grid-template-columns: 1fr;"><button class="opt-btn" onclick="selectType(this, 'Felugrásos')">Felugrásos</button><button class="opt-btn" onclick="selectType(this, 'Talajról')">Talajról</button></div></div>
                 </div>
             </div>
@@ -2794,26 +2806,42 @@ KOVÁCS DÁVID MÁTÉ
             if(ev.playerNum === '?') { activePlayer = {num: '?', name: 'Ismeretlen', isGk: false}; } else { activePlayer = roster.find(p => p.num == ev.playerNum) || {num: ev.playerNum, name: ev.playerName, isGk: ev.isGk}; }
             
             populateModalHeader(roster, activePlayer.num, ev.time + ' · SZERKESZTÉS');
-            document.querySelectorAll('.c-node, .opt-btn-left, .g-node, .opt-btn, .simple-btn, .gk-btn').forEach(e => e.classList.remove('selected'));
+            document.querySelectorAll('.c-node, .opt-btn-left, .g-node, .goal-miss-zone, .opt-btn, .simple-btn, .gk-btn').forEach(e => e.classList.remove('selected'));
             activeActionGroup = ev.group; selSimpleAction = ev.group !== 'shot' ? ev.result : null; selFrom = ev.detailsFrom; selTo = ev.detailsTo; selResult = ev.group === 'shot' ? ev.result : null; selType = ev.shotType || null; selDefendingGk = ev.defendingGk; selAttackType = ev.possessionAttackType || ev.attackType || ''; selDefenseSystem = ev.possessionDefenseSystem || ev.defenseSystem || ''; const evAssist = ev.assist;
             switchModalTabSilently(ev.group); setAttackTypePanelVisibility(); markAttackTypeButton(selAttackType); markDefenseSystemButton(selDefenseSystem); const ath = document.getElementById('attack-type-hint'); if(ath && selAttackType) ath.innerText = `Támadás: ${selAttackType}`; const dsh = document.getElementById('defense-system-hint'); if(dsh && selDefenseSystem) dsh.innerText = `${defenseSideName(defenseSideFor(ev.group, ev.team))} védekezése · ${selDefenseSystem}`;
             const assistSelect = document.getElementById('assist-select'); assistSelect.innerHTML = '<option value="">Nincs gólpassz</option>'; roster.forEach(p => { if(p.num != activePlayer.num && p.name.trim() !== "") assistSelect.innerHTML += `<option value="${p.num}">#${p.num} ${p.name}</option>`; }); if(evAssist) assistSelect.value = evAssist;
             const gkContainer = document.getElementById('gk-buttons-container'); gkContainer.innerHTML = ''; const oppRoster = ev.team === 'home' ? activeMatch.awayRoster : activeMatch.homeRoster; oppRoster.forEach(p => { if(p.isGk && p.name.trim() !== "") gkContainer.innerHTML += `<button class="gk-btn" id="gk-btn-${p.num}" onclick="selectDefendingGk(this, '${p.num}')">${p.name}</button>`; });
-            document.querySelectorAll('[onclick]').forEach(el => { const oc = el.getAttribute('onclick'); if(oc) { if (selFrom && oc === `selectFrom(this, '${selFrom}')`) el.classList.add('selected'); if (selTo && oc === `selectTo(this, '${selTo}')`) el.classList.add('selected'); if (selResult && oc === `selectResult(this, '${selResult}')`) el.classList.add('selected'); if (selType && oc === `selectType(this, '${selType}')`) el.classList.add('selected'); if (selSimpleAction && oc === `selectSimpleAction(this, '${selSimpleAction}')`) el.classList.add('selected'); } });
+            document.querySelectorAll('[onclick]').forEach(el => { const oc = el.getAttribute('onclick'); if(oc) { if (selFrom && oc === `selectFrom(this, '${selFrom}')`) el.classList.add('selected'); if (selTo && (oc === `selectTo(this, '${selTo}')` || oc.startsWith(`selectMissTarget(this, '${selTo}',`))) el.classList.add('selected'); if (selResult && oc === `selectResult(this, '${selResult}')`) el.classList.add('selected'); if (selType && oc === `selectType(this, '${selType}')`) el.classList.add('selected'); if (selSimpleAction && oc === `selectSimpleAction(this, '${selSimpleAction}')`) el.classList.add('selected'); } });
             if(selDefendingGk) { const gkBtn = document.getElementById(`gk-btn-${selDefendingGk}`); if(gkBtn) gkBtn.classList.add('selected'); }
             document.getElementById('assist-panel').style.display = (selResult === 'Gól') ? 'block' : 'none';
+            setShotAutoResultLabel(selResult === 'Fölé' ? 'Automatikus eredmény: Fölé' : (selResult === 'Mellé' ? 'Automatikus eredmény: Mellé' : ''));
             checkReady(); document.getElementById('btn-save-event').innerText = "Módosítás mentése"; document.getElementById('unified-modal-overlay').style.display = 'flex';
         }
 
         function closeModal() { editingEventId = null; document.getElementById('unified-modal-overlay').style.display = 'none'; }
         function changeActionGroup(group, btn) { activeActionGroup = group; document.querySelectorAll('.u-btn-action').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active')); document.getElementById(`tab-${group}`).classList.add('active'); resetSelections(false); setAttackTypePanelVisibility(); markAttackTypeButton(selAttackType); applyDefenseSystemSuggestion(); if(group === 'shot') updatePlayerPositionHint(); checkReady(); }
         function selectFrom(el, val) { document.querySelectorAll('.c-node, .opt-btn-left').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); selFrom = val; if(!selAttackType && val === 'Lerohanás') { selAttackType = 'Lerohanás'; markAttackTypeButton(selAttackType); const hint=document.getElementById('attack-type-hint'); if(hint) hint.innerText='Lerohanás lövési hely alapján javasolva.'; } checkReady(); }
-        function selectTo(el, val) { document.querySelectorAll('.g-node').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); selTo = val; checkReady(); }
-        function selectResult(el, val) { document.querySelectorAll('#shot-result-options .opt-btn').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); selResult = val; document.getElementById('assist-panel').style.display = (val === 'Gól') ? 'block' : 'none'; if(val === 'Sánc') { selTo = null; document.querySelectorAll('.g-node').forEach(e => e.classList.remove('selected')); } checkReady(); }
+        function setShotAutoResultLabel(text='') { const el=document.getElementById('shot-auto-result'); if(el) el.innerText=text; }
+        function selectTo(el, val) {
+            document.querySelectorAll('.g-node, .goal-miss-zone').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected'); selTo = val;
+            if(selResult === 'Mellé' || selResult === 'Fölé') { selResult = null; setShotAutoResultLabel(''); }
+            checkReady();
+        }
+        function selectMissTarget(el, val, result) {
+            document.querySelectorAll('.g-node, .goal-miss-zone').forEach(e => e.classList.remove('selected'));
+            document.querySelectorAll('#shot-result-options .opt-btn').forEach(e => e.classList.remove('selected'));
+            el.classList.add('selected');
+            selTo = val; selResult = result;
+            document.getElementById('assist-panel').style.display = 'none';
+            setShotAutoResultLabel(result === 'Fölé' ? 'Automatikus eredmény: Fölé' : 'Automatikus eredmény: Mellé');
+            checkReady();
+        }
+        function selectResult(el, val) { document.querySelectorAll('#shot-result-options .opt-btn').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); selResult = val; setShotAutoResultLabel(''); document.getElementById('assist-panel').style.display = (val === 'Gól') ? 'block' : 'none'; if(val === 'Sánc') { selTo = null; document.querySelectorAll('.g-node, .goal-miss-zone').forEach(e => e.classList.remove('selected')); } checkReady(); }
         function selectType(el, val) { document.querySelectorAll('#shot-type-options .opt-btn').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); selType = val; checkReady(); }
         function selectSimpleAction(el, val) { document.querySelectorAll('.simple-btn').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); selSimpleAction = val; checkReady(); }
         function selectDefendingGk(el, val) { document.querySelectorAll('.gk-btn').forEach(e => e.classList.remove('selected')); if(el) el.classList.add('selected'); selDefendingGk = val; }
-        function resetSelections(resetAttackType=false) { selFrom = selTo = selResult = selType = selSimpleAction = null; if(resetAttackType) { selAttackType = ''; markAttackTypeButton(''); selDefenseSystem = ''; markDefenseSystemButton(''); } document.querySelectorAll('.c-node.selected, .opt-btn-left.selected, .g-node.selected, #shot-result-options .opt-btn.selected, #shot-type-options .opt-btn.selected, .simple-btn.selected').forEach(el => el.classList.remove('selected')); document.getElementById('btn-save-event').classList.remove('active'); document.getElementById('assist-panel').style.display = 'none'; document.getElementById('assist-select').value = ""; }
+        function resetSelections(resetAttackType=false) { selFrom = selTo = selResult = selType = selSimpleAction = null; if(resetAttackType) { selAttackType = ''; markAttackTypeButton(''); selDefenseSystem = ''; markDefenseSystemButton(''); } document.querySelectorAll('.c-node.selected, .opt-btn-left.selected, .g-node.selected, .goal-miss-zone.selected, #shot-result-options .opt-btn.selected, #shot-type-options .opt-btn.selected, .simple-btn.selected').forEach(el => el.classList.remove('selected')); document.getElementById('btn-save-event').classList.remove('active'); document.getElementById('assist-panel').style.display = 'none'; setShotAutoResultLabel(''); document.getElementById('assist-select').value = ""; }
         function checkReady() { const btn = document.getElementById('btn-save-event'); btn.classList.remove('active'); const shotTargetOk = selResult === 'Sánc' || !!selTo; const defenseOk = !!selDefenseSystem; if (activeActionGroup === 'shot' && selFrom && selResult && shotTargetOk && selAttackType && defenseOk) btn.classList.add('active'); else if (['attack','error'].includes(activeActionGroup) && selSimpleAction && selAttackType && defenseOk) btn.classList.add('active'); else if (['defense','penalty'].includes(activeActionGroup) && selSimpleAction && defenseOk) btn.classList.add('active'); }
 
         function currentVideoTagTime() {
@@ -3195,7 +3223,7 @@ KOVÁCS DÁVID MÁTÉ
                     if(!eventMatchesStatStrength(e, side)) return;
                     if(e.team !== side) return;
                     if(e.playerNum == player.num) {
-                        if(e.group === 'shot') { pShots++; if(e.result==='Gól') { pGoals++; valIndex++; } else if(['Kapufa','Mellé','Sánc'].includes(e.result)) valIndex--; }
+                        if(e.group === 'shot') { pShots++; if(e.result==='Gól') { pGoals++; valIndex++; } else if(['Kapufa','Mellé','Fölé','Sánc'].includes(e.result)) valIndex--; }
                         if(e.group === 'attack') { if(e.result === 'Kulcspassz') { pKeyPass++; valIndex++; } if(e.result === 'Kiharcolt 7m') { pWon7++; valIndex++; } if(e.result === 'Kiharcolt 2 perc') { pWon2++; valIndex++; } if(e.result === 'Megnyert 1:1') valIndex++; }
                         if(e.group === 'error') { pErrors++; valIndex--; }
                         if(e.group === 'penalty') { pPenalties++; valIndex -= (e.result==='Piros lap'?3:2); }
