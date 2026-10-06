@@ -1544,7 +1544,7 @@ KOVÁCS DÁVID MÁTÉ
             const uid=cloudUser.id; const teamRows=[]; const playerRows=[];
             Object.entries(db.teams||{}).forEach(([teamId,t])=>{
                 teamRows.push({user_id:uid,team_id:String(teamId),name:t.name||'',data:t});
-                (t.players||[]).forEach((p,i)=>playerRows.push({user_id:uid,team_id:String(teamId),player_key:String(p.cloudId||p.num||i),jersey_number:String(p.num??''),name:p.name||'',position:p.position||'',is_gk:!!p.isGk,data:p}));
+                (t.players||[]).forEach((p,i)=>playerRows.push({user_id:uid,team_id:String(teamId),player_key:String(p.cloudId||p.mkszPersonId||(`${p.num??'x'}_${i}`)),jersey_number:String(p.num??''),name:p.name||'',position:p.position||'',is_gk:!!p.isGk,data:p}));
             });
             const matchRows=(db.matches||[]).map(m=>({user_id:uid,match_id:String(m.id),match_date:m.date||null,match_name:m.matchName||'',league:m.league||'',location:m.location||'',home_name:m.homeName||'',away_name:m.awayName||'',home_score:Number(m.homeScore)||0,away_score:Number(m.awayScore)||0,data:m}));
             const eventRows=[]; (db.matches||[]).forEach(m=>(m.events||[]).forEach((e,i)=>eventRows.push({user_id:uid,match_id:String(m.id),event_id:String(e.id||`${m.id}_${i}`),period:Number(e.period)||1,seconds:Number(e.seconds)||0,team_side:e.team||'',event_group:e.group||'',action:e.action||'',result:e.result||'',data:e})));
@@ -1587,7 +1587,7 @@ KOVÁCS DÁVID MÁTÉ
             ]);
             if(teamErr) throw teamErr;
             if(playerErr) throw playerErr;
-            if(!Array.isArray(teams) || teams.length < 20) return false;
+            if(!Array.isArray(teams) || teams.length < 20 || !Array.isArray(players) || players.length < 300) return false;
 
             const rebuiltTeams = {};
             teams.forEach(t => {
@@ -1609,7 +1609,7 @@ KOVÁCS DÁVID MÁTÉ
             Object.values(rebuiltTeams).forEach(t => t.players.sort((a,b)=>(Number(a.num)||999)-(Number(b.num)||999) || String(a.name||'').localeCompare(String(b.name||''),'hu')));
             db.teams = rebuiltTeams;
             if(!db.meta || typeof db.meta !== 'object') db.meta = {};
-            db.meta.mkszImport = '2026-10-06-normalized';
+            db.meta.mkszImport = '2026-10-06-rosters-v2';
             db.meta.season = '2026/2027';
             normalizeDatabase();
             localStorage.setItem('handball_db_updated_at',new Date().toISOString());
