@@ -1994,13 +1994,13 @@ KOVÁCS DÁVID MÁTÉ
             return (groups[group]||group||'Egyéb')+' · '+(result||'Esemény');
         }
         function buildCareerPlayerData(teamName, playerKey) {
-            const out={matches:0,playTime:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,errors:0,twoMin:0,yellow:0,red:0,plusMinus:0,eventCounts:{},shotResults:{},shotFrom:{},shotMap:{},shotTo:{},shotType:{},attackTypes:{},defenseSystems:{},matchRows:[],player:null};
+            const out={matches:0,playTime:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,errors:0,twoMin:0,yellow:0,red:0,plusMinus:0,gkSaves:0,gkFaced:0,gkGoalsAgainst:0,gkMap:{},gkFrom:{},eventCounts:{},shotResults:{},shotFrom:{},shotMap:{},shotTo:{},shotType:{},attackTypes:{},defenseSystems:{},matchRows:[],player:null};
             (db.matches||[]).forEach(match=>{
                 const side=careerTeamSide(match,teamName); if(!side) return;
                 const rp=careerMatchPlayer(match,side,playerKey); if(!rp) return;
                 out.player=out.player||rp; out.matches++; out.playTime+=Number(rp.playTime)||0;
                 const direct=(match.events||[]).filter(e=>e.team===side && (careerNorm(e.playerName)===playerKey || (!e.playerName && String(e.playerNum)===String(rp.num))));
-                let mg=0,ms=0,ma=0,mfault=0,mblock=0,msteal=0,merr=0,mpm=0;
+                let mg=0,ms=0,ma=0,mfault=0,mblock=0,msteal=0,merr=0,mpm=0,mgkSaves=0,mgkFaced=0,mgkGoalsAgainst=0;
                 direct.forEach(e=>{
                     const label=careerEventLabel(e.group,e.result); out.eventCounts[label]=(out.eventCounts[label]||0)+1;
                     if(e.group==='shot') {
@@ -2033,13 +2033,28 @@ KOVÁCS DÁVID MÁTÉ
                     const ds=e.possessionDefenseSystem||e.defenseSystem; if(ds) out.defenseSystems[ds]=(out.defenseSystems[ds]||0)+1;
                 });
                 (match.events||[]).forEach(e=>{ if(e.team===side && String(e.assist||'')===String(rp.num)){out.assists++;ma++;} });
+                const oppSide=side==='home'?'away':'home';
+                (match.events||[]).forEach(e=>{
+                    if(!rp.isGk || e.team!==oppSide || e.group!=='shot' || String(e.defendingGk||'')!==String(rp.num)) return;
+                    if(e.result!=='Gól' && e.result!=='Védés') return;
+                    out.gkFaced++; mgkFaced++;
+                    if(e.result==='Védés'){out.gkSaves++;mgkSaves++;} else {out.gkGoalsAgainst++;mgkGoalsAgainst++;}
+                    if(e.detailsTo) {
+                        if(!out.gkMap[e.detailsTo]) out.gkMap[e.detailsTo]={sv:0,tot:0};
+                        out.gkMap[e.detailsTo].tot++; if(e.result==='Védés') out.gkMap[e.detailsTo].sv++;
+                    }
+                    if(e.detailsFrom) {
+                        if(!out.gkFrom[e.detailsFrom]) out.gkFrom[e.detailsFrom]={sv:0,tot:0};
+                        out.gkFrom[e.detailsFrom].tot++; if(e.result==='Védés') out.gkFrom[e.detailsFrom].sv++;
+                    }
+                });
                 const courtKey=side==='home'?'homeCourt':'awayCourt';
                 (match.events||[]).forEach(e=>{
                     if(e.group!=='shot'||e.result!=='Gól'||!Array.isArray(e[courtKey])||!e[courtKey].map(String).includes(String(rp.num))) return;
                     const delta=e.team===side?1:-1; out.plusMinus+=delta; mpm+=delta;
                 });
                 const opponent=side==='home'?match.awayName:match.homeName;
-                out.matchRows.push({date:match.date||'',opponent:opponent||'',time:Number(rp.playTime)||0,goals:mg,shots:ms,assists:ma,faults:mfault,blocks:mblock,steals:msteal,errors:merr,pm:mpm});
+                out.matchRows.push({date:match.date||'',opponent:opponent||'',time:Number(rp.playTime)||0,goals:mg,shots:ms,assists:ma,faults:mfault,blocks:mblock,steals:msteal,errors:merr,pm:mpm,gkSaves:mgkSaves,gkFaced:mgkFaced,gkGoalsAgainst:mgkGoalsAgainst});
             });
             return out;
         }
@@ -2076,6 +2091,32 @@ KOVÁCS DÁVID MÁTÉ
             '</div>';
         }
 
+        function careerGkZoneHTML(data) {
+            const d=data||{sv:0,tot:0}, pct=d.tot?Math.round(d.sv/d.tot*100):0;
+            let bg='rgba(26,37,47,.95)';
+            if(d.tot>0) bg=pct>35?'rgba(243,156,18,.86)':(pct<15?'rgba(255,77,100,.84)':'rgba(26,37,47,.95)');
+            return '<div class="goal-stat-node" style="background:'+bg+';min-height:72px;">'+d.sv+'/'+d.tot+'<span>'+pct+'%</span></div>';
+        }
+        function careerGkMapHTML(map) {
+            const zones=['Bal felső','Közép felső','Jobb felső','Bal félmagas','Közép','Jobb félmagas','Bal alsó','Közép alsó','Jobb alsó'];
+            return '<div style="max-width:620px;margin:0 auto;">'+
+                '<div style="text-align:center;color:var(--text-muted);font-size:11px;margin-bottom:8px;">Védés / kaput eltaláló lövés · védési %</div>'+
+                '<div class="visual-goal" style="width:100%;margin:0;">'+zones.map(z=>careerGkZoneHTML((map||{})[z])).join('')+'</div>'+
+            '</div>';
+        }
+        function careerGkFromHTML(map) {
+            const labels=['Bal szél','Bal átlövő','Irányító','Jobb átlövő','Jobb szél','Beálló','Betörés','7 méteres','Indítás','Lerohanás','Üres kapu'];
+            const obj={};
+            labels.forEach(name=>{
+                const d=(map||{})[name]||{sv:0,tot:0};
+                const pct=d.tot?Math.round(d.sv/d.tot*100):0;
+                if(d.tot) obj[name]=d.sv+'/'+d.tot+' ('+pct+'%)';
+            });
+            const rows=Object.entries(obj);
+            if(!rows.length) return '<div class="career-empty">Nincs rögzített kapusadat.</div>';
+            return '<div class="career-mini-grid">'+rows.map(r=>'<div class="career-mini"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>').join('')+'</div>';
+        }
+
         function renderCareerPlayerStats() {
             const teamName=careerSelectedTeamName(), playerKey=careerSelectedPlayerKey(), root=document.getElementById('career-stat-content');
             if(!root) return;
@@ -2083,14 +2124,38 @@ KOVÁCS DÁVID MÁTÉ
             const d=buildCareerPlayerData(teamName,playerKey);
             const list=careerPlayersForTeam(teamName), meta=list.find(p=>p.key===playerKey);
             if(!meta){root.innerHTML='<div class="career-empty">Ehhez a játékoshoz nincs adat.</div>';return;}
-            const pct=d.shots?Math.round(d.goals/d.shots*100):0, pm=d.plusMinus>0?'+'+d.plusMinus:String(d.plusMinus);
+            const pct=d.shots?Math.round(d.goals/d.shots*100):0, gkPct=d.gkFaced?Math.round(d.gkSaves/d.gkFaced*100):0, pm=d.plusMinus>0?'+'+d.plusMinus:String(d.plusMinus);
             const nums=Array.from(meta.nums).sort((a,b)=>Number(a)-Number(b)).join('/');
-            const rows=d.matchRows.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>{
+            const sortedRows=d.matchRows.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+            const rows=meta.isGk ? sortedRows.map(r=>{
+                const rpct=r.gkFaced?Math.round(r.gkSaves/r.gkFaced*100):0, rpm=r.pm>0?'+'+r.pm:String(r.pm);
+                return '<tr><td>'+r.date+'</td><td>'+r.opponent+'</td><td>'+formatPlayTime(r.time)+'</td><td><b>'+r.gkSaves+'</b>/'+r.gkFaced+'</td><td>'+rpct+'%</td><td>'+r.gkGoalsAgainst+'</td><td>'+rpm+'</td></tr>';
+            }).join('') : sortedRows.map(r=>{
                 const rpct=r.shots?Math.round(r.goals/r.shots*100):0, rpm=r.pm>0?'+'+r.pm:String(r.pm);
                 return '<tr><td>'+r.date+'</td><td>'+r.opponent+'</td><td>'+formatPlayTime(r.time)+'</td><td><b>'+r.goals+'</b>/'+r.shots+' ('+rpct+'%)</td><td>'+r.assists+'</td><td>'+r.faults+'</td><td>'+r.blocks+'</td><td>'+r.steals+'</td><td>'+r.errors+'</td><td>'+rpm+'</td></tr>';
             }).join('');
-            root.innerHTML=
-                '<div class="career-player-head"><h2>'+(nums?'#'+nums+' ':'')+meta.name+(meta.isGk?' · Kapus':'')+'</h2><p>'+teamName+' · összes elmentett mérkőzés alapján</p></div>'+
+
+            const header='<div class="career-player-head"><h2>'+(nums?'#'+nums+' ':'')+meta.name+(meta.isGk?' · Kapus':'')+'</h2><p>'+teamName+' · összes elmentett mérkőzés alapján</p></div>';
+            if(meta.isGk) {
+                root.innerHTML=header+
+                    '<div class="career-kpis">'+
+                        '<div class="career-kpi"><span>Meccs</span><strong>'+d.matches+'</strong></div>'+
+                        '<div class="career-kpi"><span>Játékidő</span><strong>'+formatPlayTime(d.playTime)+'</strong></div>'+
+                        '<div class="career-kpi"><span>Védés</span><strong>'+d.gkSaves+'</strong></div>'+
+                        '<div class="career-kpi"><span>Kapott lövés</span><strong>'+d.gkFaced+'</strong></div>'+
+                        '<div class="career-kpi"><span>Védési %</span><strong>'+gkPct+'%</strong></div>'+
+                        '<div class="career-kpi"><span>Kapott gól</span><strong>'+d.gkGoalsAgainst+'</strong></div>'+
+                    '</div>'+
+                    '<div class="career-stat-grid">'+
+                        '<div class="career-stat-card full"><h3><i class="fas fa-hands"></i> Kapus védési térkép · összes mérkőzés</h3>'+careerGkMapHTML(d.gkMap)+'</div>'+
+                        '<div class="career-stat-card full"><h3>Védési statisztika lövéshely szerint</h3>'+careerGkFromHTML(d.gkFrom)+'</div>'+
+                        '<div class="career-stat-card"><h3>Saját mezőnyesemények</h3>'+careerCountHTML(d.eventCounts,'Nincs külön rögzített mezőnyesemény.')+'</div>'+
+                        '<div class="career-stat-card"><h3>Büntetések</h3>'+careerCountHTML({'2 perc':d.twoMin,'Sárga lap':d.yellow,'Piros lap':d.red})+'</div>'+
+                        '<div class="career-stat-card full"><h3>Meccsenkénti bontás</h3><table class="stats-table"><thead><tr><th>Dátum</th><th>Ellenfél</th><th>Játékidő</th><th>Védés/lövés</th><th>Védési %</th><th>Kapott gól</th><th>+/-</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+                    '</div>';
+                return;
+            }
+            root.innerHTML=header+
                 '<div class="career-kpis">'+
                     '<div class="career-kpi"><span>Meccs</span><strong>'+d.matches+'</strong></div>'+
                     '<div class="career-kpi"><span>Játékidő</span><strong>'+formatPlayTime(d.playTime)+'</strong></div>'+
