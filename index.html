@@ -2057,7 +2057,7 @@ KOVÁCS DÁVID MÁTÉ
         function careerShotMapHTML(map) {
             const z=name=>careerShotZoneHTML((map||{})[name]);
             return '<div style="display:flex;gap:22px;align-items:center;justify-content:center;flex-wrap:wrap;">'+
-                '<div class="visual-court" style="width:420px;min-width:320px;height:184px;max-width:100%;">'+
+                '<div class="visual-court" style="width:320px;min-width:320px;height:140px;max-width:100%;">'+
                     '<div class="visual-goal-area"></div><div class="visual-six-meter"></div><div class="visual-nine-meter"></div>'+
                     '<div style="position:absolute;left:10px;bottom:15px;z-index:10;">'+z('Jobb szél')+'</div>'+
                     '<div style="position:absolute;left:55px;top:42px;z-index:10;">'+z('Jobb átlövő')+'</div>'+
@@ -2067,11 +2067,11 @@ KOVÁCS DÁVID MÁTÉ
                     '<div style="position:absolute;left:50%;bottom:32px;transform:translateX(-50%);z-index:10;">'+z('Beálló')+'</div>'+
                 '</div>'+
                 '<div class="extra-stat-list" style="min-width:230px;">'+
-                    '<div class="extra-stat-item"><span>Betörés</span><b>'+careerShotZoneHTML((map||{})['Betörés'])+'</b></div>'+
-                    '<div class="extra-stat-item"><span>7 méteres</span><b>'+careerShotZoneHTML((map||{})['7 méteres'])+'</b></div>'+
-                    '<div class="extra-stat-item"><span>Indítás</span><b>'+careerShotZoneHTML((map||{})['Indítás'])+'</b></div>'+
-                    '<div class="extra-stat-item"><span>Lerohanás</span><b>'+careerShotZoneHTML((map||{})['Lerohanás'])+'</b></div>'+
-                    '<div class="extra-stat-item"><span>Üres kapu</span><b>'+careerShotZoneHTML((map||{})['Üres kapu'])+'</b></div>'+
+                    '<div class="extra-stat-item"><span>Betörés</span>'+careerShotZoneHTML((map||{})['Betörés'])+'</div>'+
+                    '<div class="extra-stat-item"><span>7 méteres</span>'+careerShotZoneHTML((map||{})['7 méteres'])+'</div>'+
+                    '<div class="extra-stat-item"><span>Indítás</span>'+careerShotZoneHTML((map||{})['Indítás'])+'</div>'+
+                    '<div class="extra-stat-item"><span>Lerohanás</span>'+careerShotZoneHTML((map||{})['Lerohanás'])+'</div>'+
+                    '<div class="extra-stat-item"><span>Üres kapu</span>'+careerShotZoneHTML((map||{})['Üres kapu'])+'</div>'+
                 '</div>'+
             '</div>';
         }
