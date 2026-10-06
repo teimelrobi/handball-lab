@@ -1579,39 +1579,63 @@ KOVÁCS DÁVID MÁTÉ
             try { const row=await fetchCloudState(); if(!row?.data) return setCloudMessage('cloud-sync-message','Ehhez a fiókhoz még nincs felhőmentés.','err'); await applyCloudState(row); setCloudMessage('cloud-sync-message','Felhőadatok betöltve.','ok'); }
             catch(err){ setCloudMessage('cloud-sync-message','Betöltési hiba: '+(err.message||err),'err'); }
         }
+        async function fetchOfficialRosterFromNormalizedTables() {
+            if(!cloudClient || !cloudUser) return false;
+            const [{data:teams,error:teamErr},{data:players,error:playerErr}] = await Promise.all([
+                cloudClient.from('handball_teams').select('team_id,name,data').eq('user_id',cloudUser.id),
+                cloudClient.from('handball_players').select('team_id,player_key,jersey_number,name,position,is_gk,data').eq('user_id',cloudUser.id)
+            ]);
+            if(teamErr) throw teamErr;
+            if(playerErr) throw playerErr;
+            if(!Array.isArray(teams) || teams.length < 20) return false;
+
+            const rebuiltTeams = {};
+            teams.forEach(t => {
+                rebuiltTeams[String(t.team_id)] = { ...(t.data || {}), name:t.name || t.data?.name || '', players:[] };
+            });
+            (players || []).forEach(p => {
+                const team = rebuiltTeams[String(p.team_id)];
+                if(!team) return;
+                const raw = p.data || {};
+                const parsedNum = Number(p.jersey_number);
+                team.players.push({
+                    ...raw,
+                    num:Number.isFinite(parsedNum) ? parsedNum : (Number(raw.num)||0),
+                    name:p.name || raw.name || '',
+                    position:p.position || raw.position || '',
+                    isGk:!!p.is_gk
+                });
+            });
+            Object.values(rebuiltTeams).forEach(t => t.players.sort((a,b)=>(Number(a.num)||999)-(Number(b.num)||999) || String(a.name||'').localeCompare(String(b.name||''),'hu')));
+            db.teams = rebuiltTeams;
+            if(!db.meta || typeof db.meta !== 'object') db.meta = {};
+            db.meta.mkszImport = '2026-10-06-normalized';
+            db.meta.season = '2026/2027';
+            normalizeDatabase();
+            localStorage.setItem('handball_db_updated_at',new Date().toISOString());
+            populateTeamSelectors();
+            updateCloudCounts();
+            return true;
+        }
+
         async function reconcileCloudOnLogin() {
             if(!cloudClient || !cloudUser) return;
             try {
-                const row=await fetchCloudState();
+                // The normalized cloud tables are the authoritative roster source.
+                // Pull them first so a stale two-team phone cache can never overwrite MKSZ rosters.
+                const rosterLoaded = await fetchOfficialRosterFromNormalizedTables();
+                const row = await fetchCloudState();
+
+                if(rosterLoaded) {
+                    if(row?.live_state) localStorage.setItem('live_match_state',JSON.stringify(row.live_state));
+                    const resume=document.getElementById('resume-panel');
+                    if(resume) resume.style.display=row?.live_state?'block':'none';
+                    updateCloudUI('MKSZ keretek betöltve a felhőből.');
+                    return;
+                }
+
                 if(!row?.data) { await syncDatabaseToCloud(true); return; }
-
-                // The signed-in cloud state is canonical. This prevents an old phone/tablet
-                // localStorage copy from overwriting newer rosters imported on another device.
-                const cloudImport=row?.data?.meta?.mkszImport||'';
-                const localImport=db?.meta?.mkszImport||'';
-                const cloudTeamCount=Object.keys(row?.data?.teams||{}).length;
-                const localTeamCount=Object.keys(db?.teams||{}).length;
-                const cloudTime=Date.parse(row.client_updated_at||row.updated_at||0)||0;
-                const localTime=Date.parse(localStorage.getItem('handball_db_updated_at')||0)||0;
-
-                // 2026/27 MKSZ import is canonical. Never let the original two demo teams
-                // overwrite it from an older phone/browser localStorage copy.
-                const cloudHasOfficialRoster = cloudImport === '2026-10-05' && cloudTeamCount >= 20;
-                const localHasOfficialRoster = localImport === '2026-10-05' && localTeamCount >= 20;
-                if(cloudHasOfficialRoster && !localHasOfficialRoster) {
-                    await applyCloudState(row);
-                    return;
-                }
-                if(!cloudHasOfficialRoster && localHasOfficialRoster) {
-                    await syncDatabaseToCloud(true);
-                    return;
-                }
-
-                if(cloudImport !== localImport || cloudTeamCount !== localTeamCount || cloudTime >= localTime-2000) {
-                    await applyCloudState(row);
-                } else {
-                    await syncDatabaseToCloud(true);
-                }
+                await applyCloudState(row);
             } catch(err){ setCloudMessage('cloud-sync-message','Szinkronellenőrzési hiba: '+(err.message||err),'err'); }
         }
 
