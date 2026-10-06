@@ -300,6 +300,30 @@
         .simple-btn { padding: 15px; border: 1px solid var(--border-color); background: var(--bg-card); color: #fff; border-radius: 8px; font-weight: bold; cursor: pointer; text-align: center; transition: 0.2s;}
         .simple-btn.selected { background: var(--green-accent); color: #000; border-color: var(--green-accent); }
 
+
+        /* --- ÖSSZESÍTETT JÁTÉKOS STAT --- */
+        .career-stat-wrap { width:min(1400px,96vw); margin:0 auto; padding:20px 0 50px; }
+        .career-stat-selectors { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0; }
+        .career-stat-selectors label { display:block; font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:bold; margin-bottom:6px; }
+        .career-stat-selectors select { width:100%; background:var(--bg-card); color:#fff; border:1px solid var(--border-color); border-radius:9px; padding:12px; font-weight:bold; }
+        .career-player-head { background:linear-gradient(135deg,rgba(28,216,138,.12),rgba(52,152,219,.08)); border:1px solid var(--border-color); border-radius:14px; padding:18px 20px; margin-bottom:16px; }
+        .career-player-head h2 { margin:0 0 5px; color:#fff; }
+        .career-player-head p { margin:0; color:var(--text-muted); font-size:12px; }
+        .career-kpis { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:16px; }
+        .career-kpi { background:var(--bg-panel); border:1px solid var(--border-color); border-radius:10px; padding:13px; text-align:center; }
+        .career-kpi span { display:block; color:var(--text-muted); text-transform:uppercase; font-size:9px; font-weight:bold; margin-bottom:5px; }
+        .career-kpi strong { font-size:20px; }
+        .career-stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+        .career-stat-card { background:var(--bg-panel); border:1px solid var(--border-color); border-radius:12px; padding:16px; overflow:auto; }
+        .career-stat-card.full { grid-column:1 / -1; }
+        .career-stat-card h3 { margin:0 0 12px; color:var(--green-accent); font-size:14px; }
+        .career-mini-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+        .career-mini { background:rgba(255,255,255,.04); border-radius:8px; padding:10px; display:flex; justify-content:space-between; gap:8px; font-size:12px; }
+        .career-mini span { color:var(--text-muted); }
+        .career-mini b { color:#fff; }
+        .career-empty { color:var(--text-muted); text-align:center; padding:35px 15px; }
+        @media (max-width:1000px) { .career-kpis{grid-template-columns:repeat(3,1fr)} .career-stat-grid{grid-template-columns:1fr} .career-stat-card.full{grid-column:auto} }
+        @media (max-width:650px) { .career-stat-selectors{grid-template-columns:1fr} .career-kpis{grid-template-columns:repeat(2,1fr)} .career-mini-grid{grid-template-columns:1fr 1fr} }
         /* --- STATISZTIKA DASHBOARD --- */
         .stat-dashboard-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--bg-main); z-index: 2000; flex-direction: column; overflow-y: auto;}
         .stat-nav { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); }
@@ -654,6 +678,11 @@
                     <h3>Archívum & Videószoba</h3>
                     <p>Korábbi meccsek lejátszása és szerkesztése</p>
                 </div>
+                <div class="menu-card" onclick="showScreen('view-career-stats')" style="background:rgba(142,68,173,.10);">
+                    <i class="fas fa-chart-bar" style="color:#b884e8;"></i>
+                    <h3 style="color:#d5b3f3;">STAT</h3>
+                    <p>Csapat- és játékosstatisztikák az összes mérkőzésből</p>
+                </div>
                 <div class="menu-card blue" onclick="showScreen('view-cloud')">
                     <i class="fas fa-cloud"></i>
                     <h3>Felhő & fiók</h3>
@@ -671,6 +700,20 @@
                     <p>Korábbi Handball Lab mentés visszaállítása</p>
                 </div>
             </div>
+        </div>
+    </div>
+
+
+    <!-- ÖSSZESÍTETT STAT -->
+    <div class="screen" id="view-career-stats">
+        <button class="back-btn" onclick="showScreen('view-home')"><i class="fas fa-arrow-left"></i> Vissza a Főmenübe</button>
+        <div class="career-stat-wrap">
+            <h2 class="page-title"><i class="fas fa-chart-bar"></i> STAT · Játékos adatbank</h2>
+            <div class="career-stat-selectors">
+                <div><label>1. Csapat</label><select id="career-team-select" onchange="loadCareerPlayers()"></select></div>
+                <div><label>2. Játékos</label><select id="career-player-select" onchange="renderCareerPlayerStats()"></select></div>
+            </div>
+            <div id="career-stat-content"><div class="career-empty">Válassz csapatot és játékost.</div></div>
         </div>
     </div>
 
@@ -1874,9 +1917,172 @@ KOVÁCS DÁVID MÁTÉ
             if(screenId === 'view-match-setup') populateTeamSelectors();
             if(screenId === 'view-mksz-import') populateTeamSelectors();
             if(screenId === 'view-archive') loadArchive();
+            if(screenId === 'view-career-stats') loadCareerStatsUI();
             if(screenId === 'view-cloud') { updateCloudUI(); updateDriveUI(); }
             if(screenId === 'view-device') updateDeviceUI();
             document.getElementById(screenId).classList.add('active');
+        }
+
+
+        function careerNorm(value) {
+            return String(value || '').trim().toLocaleLowerCase('hu-HU').replace(/\s+/g,' ');
+        }
+        function careerTeamNames() {
+            const names = new Map();
+            Object.values(db.teams || {}).forEach(t => { if(t && t.name) names.set(careerNorm(t.name), t.name); });
+            (db.matches || []).forEach(m => {
+                if(m.homeName) names.set(careerNorm(m.homeName), m.homeName);
+                if(m.awayName) names.set(careerNorm(m.awayName), m.awayName);
+            });
+            return Array.from(names.values()).sort((a,b)=>a.localeCompare(b,'hu'));
+        }
+        function loadCareerStatsUI() {
+            const teamSel=document.getElementById('career-team-select');
+            if(!teamSel) return;
+            const previous=teamSel.value;
+            const teams=careerTeamNames();
+            teamSel.innerHTML=teams.length ? teams.map(n=>'<option value="'+encodeURIComponent(n)+'">'+n+'</option>').join('') : '<option value="">Nincs csapat</option>';
+            if(previous && Array.from(teamSel.options).some(o=>o.value===previous)) teamSel.value=previous;
+            loadCareerPlayers();
+        }
+        function careerSelectedTeamName() {
+            const el=document.getElementById('career-team-select');
+            return el && el.value ? decodeURIComponent(el.value) : '';
+        }
+        function careerTeamSide(match, teamName) {
+            const key=careerNorm(teamName);
+            if(careerNorm(match.homeName)===key) return 'home';
+            if(careerNorm(match.awayName)===key) return 'away';
+            return '';
+        }
+        function careerPlayersForTeam(teamName) {
+            const map=new Map(), teamKey=careerNorm(teamName);
+            const add=p=>{
+                if(!p || !p.name || !String(p.name).trim()) return;
+                const key=careerNorm(p.name);
+                if(!map.has(key)) map.set(key,{key:key,name:p.name,nums:new Set(),isGk:!!p.isGk,position:p.position||''});
+                const item=map.get(key); if(p.num!==undefined && p.num!==null && p.num!=='') item.nums.add(String(p.num)); item.isGk=item.isGk||!!p.isGk; if(!item.position && p.position) item.position=p.position;
+            };
+            Object.values(db.teams || {}).forEach(t=>{ if(careerNorm(t.name)===teamKey) (t.players||[]).forEach(add); });
+            (db.matches || []).forEach(m=>{ const side=careerTeamSide(m,teamName); if(side) ((side==='home'?m.homeRoster:m.awayRoster)||[]).forEach(add); });
+            return Array.from(map.values()).sort((a,b)=>{
+                const an=Math.min(...Array.from(a.nums).map(Number).filter(Number.isFinite),999), bn=Math.min(...Array.from(b.nums).map(Number).filter(Number.isFinite),999);
+                return an-bn || a.name.localeCompare(b.name,'hu');
+            });
+        }
+        function loadCareerPlayers() {
+            const teamName=careerSelectedTeamName(), sel=document.getElementById('career-player-select');
+            if(!sel) return;
+            const previous=sel.value, players=careerPlayersForTeam(teamName);
+            sel.innerHTML=players.length ? players.map(p=>{
+                const nums=Array.from(p.nums).sort((a,b)=>Number(a)-Number(b)).join('/');
+                return '<option value="'+encodeURIComponent(p.key)+'">'+(nums?'#'+nums+' ':'')+p.name+(p.isGk?' (K)':'')+'</option>';
+            }).join('') : '<option value="">Nincs játékos</option>';
+            if(previous && Array.from(sel.options).some(o=>o.value===previous)) sel.value=previous;
+            renderCareerPlayerStats();
+        }
+        function careerSelectedPlayerKey() {
+            const el=document.getElementById('career-player-select');
+            return el && el.value ? decodeURIComponent(el.value) : '';
+        }
+        function careerMatchPlayer(match, side, playerKey) {
+            const roster=(side==='home'?match.homeRoster:match.awayRoster)||[];
+            return roster.find(p=>careerNorm(p.name)===playerKey) || null;
+        }
+        function careerEventLabel(group,result) {
+            const groups={shot:'Lövés',attack:'Támadás',error:'Támadási hiba',defense:'Védekezés',penalty:'Büntetés',timeout:'Időkérés'};
+            return (groups[group]||group||'Egyéb')+' · '+(result||'Esemény');
+        }
+        function buildCareerPlayerData(teamName, playerKey) {
+            const out={matches:0,playTime:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,errors:0,twoMin:0,yellow:0,red:0,plusMinus:0,eventCounts:{},shotResults:{},shotFrom:{},shotTo:{},shotType:{},attackTypes:{},defenseSystems:{},matchRows:[],player:null};
+            (db.matches||[]).forEach(match=>{
+                const side=careerTeamSide(match,teamName); if(!side) return;
+                const rp=careerMatchPlayer(match,side,playerKey); if(!rp) return;
+                out.player=out.player||rp; out.matches++; out.playTime+=Number(rp.playTime)||0;
+                const direct=(match.events||[]).filter(e=>e.team===side && (careerNorm(e.playerName)===playerKey || (!e.playerName && String(e.playerNum)===String(rp.num))));
+                let mg=0,ms=0,ma=0,mfault=0,mblock=0,msteal=0,merr=0,mpm=0;
+                direct.forEach(e=>{
+                    const label=careerEventLabel(e.group,e.result); out.eventCounts[label]=(out.eventCounts[label]||0)+1;
+                    if(e.group==='shot') {
+                        out.shots++; ms++; out.shotResults[e.result||'Nem jelölt']=(out.shotResults[e.result||'Nem jelölt']||0)+1;
+                        if(e.result==='Gól'){out.goals++;mg++;}
+                        if(e.detailsFrom) out.shotFrom[e.detailsFrom]=(out.shotFrom[e.detailsFrom]||0)+1;
+                        if(e.detailsTo) out.shotTo[e.detailsTo]=(out.shotTo[e.detailsTo]||0)+1;
+                        if(e.shotType) out.shotType[e.shotType]=(out.shotType[e.shotType]||0)+1;
+                    }
+                    if(e.group==='attack') {
+                        if(e.result==='Kulcspassz'){out.keyPass++;}
+                        if(e.result==='Kiharcolt 7m') out.won7++;
+                        if(e.result==='Kiharcolt 2 perc') out.won2++;
+                        if(e.result==='Megnyert 1:1') out.won1v1++;
+                    }
+                    if(e.group==='error'){out.errors++;merr++;}
+                    if(e.group==='defense') {
+                        if(e.result==='Labdaszerzés'){out.steals++;msteal++;}
+                        if(e.result==='Sánc'){out.blocks++;mblock++;}
+                        if(e.result==='Fault'){out.faults++;mfault++;}
+                        if(e.result==='Kiharcolt belemenés') out.wonCharges++;
+                        if(e.result==='Okozott 7m') out.caused7++;
+                    }
+                    if(e.group==='penalty') {
+                        if(e.result==='2 perc') out.twoMin++;
+                        if(e.result==='Sárga lap') out.yellow++;
+                        if(e.result==='Piros lap') out.red++;
+                    }
+                    const at=e.possessionAttackType||e.attackType; if(at) out.attackTypes[at]=(out.attackTypes[at]||0)+1;
+                    const ds=e.possessionDefenseSystem||e.defenseSystem; if(ds) out.defenseSystems[ds]=(out.defenseSystems[ds]||0)+1;
+                });
+                (match.events||[]).forEach(e=>{ if(e.team===side && String(e.assist||'')===String(rp.num)){out.assists++;ma++;} });
+                const courtKey=side==='home'?'homeCourt':'awayCourt';
+                (match.events||[]).forEach(e=>{
+                    if(e.group!=='shot'||e.result!=='Gól'||!Array.isArray(e[courtKey])||!e[courtKey].map(String).includes(String(rp.num))) return;
+                    const delta=e.team===side?1:-1; out.plusMinus+=delta; mpm+=delta;
+                });
+                const opponent=side==='home'?match.awayName:match.homeName;
+                out.matchRows.push({date:match.date||'',opponent:opponent||'',time:Number(rp.playTime)||0,goals:mg,shots:ms,assists:ma,faults:mfault,blocks:mblock,steals:msteal,errors:merr,pm:mpm});
+            });
+            return out;
+        }
+        function careerCountHTML(obj, emptyText) {
+            const rows=Object.entries(obj||{}).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'hu'));
+            if(!rows.length) return '<div class="career-empty">'+(emptyText||'Nincs rögzített adat.')+'</div>';
+            return '<div class="career-mini-grid">'+rows.map(r=>'<div class="career-mini"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>').join('')+'</div>';
+        }
+        function renderCareerPlayerStats() {
+            const teamName=careerSelectedTeamName(), playerKey=careerSelectedPlayerKey(), root=document.getElementById('career-stat-content');
+            if(!root) return;
+            if(!teamName||!playerKey){root.innerHTML='<div class="career-empty">Válassz csapatot és játékost.</div>';return;}
+            const d=buildCareerPlayerData(teamName,playerKey);
+            const list=careerPlayersForTeam(teamName), meta=list.find(p=>p.key===playerKey);
+            if(!meta){root.innerHTML='<div class="career-empty">Ehhez a játékoshoz nincs adat.</div>';return;}
+            const pct=d.shots?Math.round(d.goals/d.shots*100):0, pm=d.plusMinus>0?'+'+d.plusMinus:String(d.plusMinus);
+            const nums=Array.from(meta.nums).sort((a,b)=>Number(a)-Number(b)).join('/');
+            const rows=d.matchRows.sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(r=>{
+                const rpct=r.shots?Math.round(r.goals/r.shots*100):0, rpm=r.pm>0?'+'+r.pm:String(r.pm);
+                return '<tr><td>'+r.date+'</td><td>'+r.opponent+'</td><td>'+formatPlayTime(r.time)+'</td><td><b>'+r.goals+'</b>/'+r.shots+' ('+rpct+'%)</td><td>'+r.assists+'</td><td>'+r.faults+'</td><td>'+r.blocks+'</td><td>'+r.steals+'</td><td>'+r.errors+'</td><td>'+rpm+'</td></tr>';
+            }).join('');
+            root.innerHTML=
+                '<div class="career-player-head"><h2>'+(nums?'#'+nums+' ':'')+meta.name+(meta.isGk?' · Kapus':'')+'</h2><p>'+teamName+' · összes elmentett mérkőzés alapján</p></div>'+
+                '<div class="career-kpis">'+
+                    '<div class="career-kpi"><span>Meccs</span><strong>'+d.matches+'</strong></div>'+
+                    '<div class="career-kpi"><span>Játékidő</span><strong>'+formatPlayTime(d.playTime)+'</strong></div>'+
+                    '<div class="career-kpi"><span>Gól / lövés</span><strong>'+d.goals+'/'+d.shots+'</strong></div>'+
+                    '<div class="career-kpi"><span>Lövés %</span><strong>'+pct+'%</strong></div>'+
+                    '<div class="career-kpi"><span>Gólpassz</span><strong>'+d.assists+'</strong></div>'+
+                    '<div class="career-kpi"><span>+/-</span><strong>'+pm+'</strong></div>'+
+                '</div>'+
+                '<div class="career-stat-grid">'+
+                    '<div class="career-stat-card"><h3>Támadás</h3>'+careerCountHTML({'Gól':d.goals,'Gólpassz':d.assists,'Kulcspassz':d.keyPass,'Kiharcolt 7m':d.won7,'Kiharcolt 2 perc':d.won2,'Megnyert 1:1':d.won1v1})+'</div>'+
+                    '<div class="career-stat-card"><h3>Védekezés</h3>'+careerCountHTML({'Fault':d.faults,'Sánc':d.blocks,'Labdaszerzés':d.steals,'Kiharcolt belemenés':d.wonCharges,'Okozott 7m':d.caused7})+'</div>'+
+                    '<div class="career-stat-card"><h3>Hibák és büntetések</h3>'+careerCountHTML({'Összes támadási hiba':d.errors,'2 perc':d.twoMin,'Sárga lap':d.yellow,'Piros lap':d.red})+'</div>'+
+                    '<div class="career-stat-card"><h3>Lövések eredménye</h3>'+careerCountHTML(d.shotResults)+'</div>'+
+                    '<div class="career-stat-card"><h3>Lövések helye</h3>'+careerCountHTML(d.shotFrom)+'</div>'+
+                    '<div class="career-stat-card"><h3>Kapura lövés helye</h3>'+careerCountHTML(d.shotTo)+'</div>'+
+                    '<div class="career-stat-card"><h3>Lövés módja</h3>'+careerCountHTML(d.shotType)+'</div>'+
+                    '<div class="career-stat-card"><h3>Támadástípusok</h3>'+careerCountHTML(d.attackTypes)+'</div>'+
+                    '<div class="career-stat-card full"><h3>Összes rögzített esemény</h3>'+careerCountHTML(d.eventCounts)+'</div>'+
+                    '<div class="career-stat-card full"><h3>Meccsenkénti bontás</h3><table class="stats-table"><thead><tr><th>Dátum</th><th>Ellenfél</th><th>Játékidő</th><th>Gól/lövés</th><th>GP</th><th>Fault</th><th>Sánc</th><th>Labda</th><th>Hiba</th><th>+/-</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+                '</div>';
         }
 
         function goToHomeFromLive() {
