@@ -2222,7 +2222,7 @@ KOVÁCS DÁVID MÁTÉ
             if(!db.matches || db.matches.length === 0) { list.innerHTML = "<div style='color:var(--text-muted); text-align:center; font-size:16px; margin-top:20px; grid-column: 1 / -1;'>Nincs elmentett mérkőzés.</div>"; return; }
             db.matches.slice().reverse().forEach(m => {
                 const displayName = m.matchName && m.matchName !== 'Mérkőzés' ? m.matchName : `${m.homeName} vs ${m.awayName}`;
-                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions"><button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
+                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions"><button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
             });
         }
         function deleteMatch(id) { if(confirm("Biztosan törlöd a mérkőzést az archívumból?")) { db.matches = db.matches.filter(m => m.id !== id); saveDB(); loadArchive(); } }
@@ -2242,6 +2242,114 @@ KOVÁCS DÁVID MÁTÉ
             const csv = '\uFEFF' + header.join(',') + '\n' + rows.join('\n');
             const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
             const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `stat_${activeMatch.date || new Date().toISOString().split('T')[0]}.csv`; document.body.appendChild(link); link.click(); URL.revokeObjectURL(link.href); document.body.removeChild(link);
+        }
+
+
+        function parseCSVTable(text) {
+            const clean = String(text || '').replace(/^\uFEFF/, '');
+            const firstLine = clean.split(/\r?\n/, 1)[0] || '';
+            const delimiter = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ';' : ',';
+            const rows = []; let row = [], cell = '', quoted = false;
+            for(let i=0;i<clean.length;i++) {
+                const ch = clean[i];
+                if(ch === '"') {
+                    if(quoted && clean[i+1] === '"') { cell += '"'; i++; }
+                    else quoted = !quoted;
+                } else if(ch === delimiter && !quoted) {
+                    row.push(cell); cell = '';
+                } else if((ch === '\n' || ch === '\r') && !quoted) {
+                    if(ch === '\r' && clean[i+1] === '\n') i++;
+                    row.push(cell); cell = '';
+                    if(row.some(v => String(v).trim() !== '')) rows.push(row);
+                    row = [];
+                } else cell += ch;
+            }
+            row.push(cell); if(row.some(v => String(v).trim() !== '')) rows.push(row);
+            return rows;
+        }
+        function courtListFromCSV(value) {
+            return String(value || '').split('|').map(v => v.trim()).filter(Boolean);
+        }
+        function calculatePlayTimesFromCSVRows(rows, match) {
+            if(!rows || rows.length < 2) throw new Error('A CSV üres vagy nem olvasható.');
+            const headers = rows[0].map(h => String(h).trim().replace(/^"|"$/g,''));
+            const idx = name => headers.indexOf(name);
+            const iPeriod = idx('Felido'), iSeconds = idx('Masodperc'), iHome = idx('Hazai_Palyan'), iAway = idx('Vendeg_Palyan');
+            if([iPeriod,iSeconds,iHome,iAway].some(i => i < 0)) throw new Error('Ez nem Handball Lab CSV: hiányzik a Felido, Masodperc, Hazai_Palyan vagy Vendeg_Palyan oszlop.');
+
+            const timeline = rows.slice(1).map((r, order) => ({
+                abs: eventAbsoluteSeconds(Number(r[iPeriod]) || 1, Number(String(r[iSeconds] || '').replace(',','.')) || 0),
+                homeCourt: courtListFromCSV(r[iHome]),
+                awayCourt: courtListFromCSV(r[iAway]),
+                order
+            })).filter(x => x.homeCourt.length || x.awayCourt.length).sort((a,b) => a.abs-b.abs || a.order-b.order);
+            if(!timeline.length) throw new Error('A CSV-ben nincs pályán lévő összeállítás.');
+
+            const compressed = [];
+            timeline.forEach(snap => {
+                const last = compressed[compressed.length-1];
+                const same = last && JSON.stringify(last.homeCourt) === JSON.stringify(snap.homeCourt) && JSON.stringify(last.awayCourt) === JSON.stringify(snap.awayCourt);
+                if(same) return;
+                if(last && last.abs === snap.abs) compressed[compressed.length-1] = snap;
+                else compressed.push(snap);
+            });
+
+            const latestEventAbs = timeline.reduce((m,x)=>Math.max(m,x.abs),0);
+            const storedEnd = Number(match && match.matchEndAbs) || 0;
+            const endAbs = Math.max(latestEventAbs, storedEnd > 0 ? storedEnd : 3600);
+            const totals = {home:{}, away:{}};
+            const add = (side, nums, dur) => nums.forEach(num => { totals[side][String(num)] = (totals[side][String(num)] || 0) + dur; });
+
+            const first = compressed[0];
+            if(first.abs > 0) {
+                add('home', first.homeCourt, Math.min(first.abs,endAbs));
+                add('away', first.awayCourt, Math.min(first.abs,endAbs));
+            }
+            compressed.forEach((snap,i) => {
+                const nextAbs = i+1 < compressed.length ? compressed[i+1].abs : endAbs;
+                const dur = Math.max(0, Math.min(endAbs,nextAbs) - Math.min(endAbs,snap.abs));
+                if(dur <= 0) return;
+                add('home', snap.homeCourt, dur); add('away', snap.awayCourt, dur);
+            });
+            return {totals, timeline:compressed, endAbs};
+        }
+        function applyExactArchivedPlayTimes(match) {
+            if(!match || match.lineupHistoryComplete !== true || !Array.isArray(match.lineupHistory) || !match.lineupHistory.length) return false;
+            const previousActive = activeMatch;
+            activeMatch = match;
+            syncRosterPlayTimesFromLineup(Number(match.matchEndAbs) || 3600);
+            activeMatch = previousActive;
+            return true;
+        }
+        function importPlayTimeCSV(matchId) {
+            const match = (db.matches || []).find(m => m.id === matchId); if(!match) return alert('A mérkőzés nem található.');
+            const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv,text/csv';
+            input.onchange = () => {
+                const file = input.files && input.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        const rows = parseCSVTable(reader.result);
+                        const calc = calculatePlayTimesFromCSVRows(rows, match);
+                        const exact = applyExactArchivedPlayTimes(match);
+                        if(!exact) {
+                            ['home','away'].forEach(side => {
+                                const roster = side === 'home' ? match.homeRoster : match.awayRoster;
+                                (roster || []).forEach(p => { p.playTime = Math.round(calc.totals[side][String(p.num)] || 0); });
+                            });
+                            match.playTimeSource = 'csv-events';
+                            match.playTimeImportedAt = new Date().toISOString();
+                        } else {
+                            match.playTimeSource = 'lineup-history';
+                        }
+                        saveDB();
+                        const sourceText = exact ? 'A CSV-t beolvastam. Ehhez a meccshez megvan a pontos csere-idővonal is, ezért a játékidőt abból számoltam ki.' : 'Játékidők betöltve a CSV pályán lévő összeállításaiból.';
+                        alert(sourceText + '\n\nA STAT nézetben a JÁTÉKIDŐ (ÖSSZ.) oszlopban már láthatók az értékek.');
+                    } catch(err) { alert('Nem sikerült a játékidő betöltése: ' + (err && err.message ? err.message : err)); }
+                };
+                reader.readAsText(file, 'utf-8');
+            };
+            input.click();
         }
 
         function eventAbsoluteSeconds(period, eventSeconds) {
