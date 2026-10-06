@@ -1994,7 +1994,7 @@ KOVÁCS DÁVID MÁTÉ
             return (groups[group]||group||'Egyéb')+' · '+(result||'Esemény');
         }
         function buildCareerPlayerData(teamName, playerKey) {
-            const out={matches:0,playTime:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,errors:0,twoMin:0,yellow:0,red:0,plusMinus:0,eventCounts:{},shotResults:{},shotFrom:{},shotTo:{},shotType:{},attackTypes:{},defenseSystems:{},matchRows:[],player:null};
+            const out={matches:0,playTime:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,errors:0,twoMin:0,yellow:0,red:0,plusMinus:0,eventCounts:{},shotResults:{},shotFrom:{},shotMap:{},shotTo:{},shotType:{},attackTypes:{},defenseSystems:{},matchRows:[],player:null};
             (db.matches||[]).forEach(match=>{
                 const side=careerTeamSide(match,teamName); if(!side) return;
                 const rp=careerMatchPlayer(match,side,playerKey); if(!rp) return;
@@ -2006,7 +2006,7 @@ KOVÁCS DÁVID MÁTÉ
                     if(e.group==='shot') {
                         out.shots++; ms++; out.shotResults[e.result||'Nem jelölt']=(out.shotResults[e.result||'Nem jelölt']||0)+1;
                         if(e.result==='Gól'){out.goals++;mg++;}
-                        if(e.detailsFrom) out.shotFrom[e.detailsFrom]=(out.shotFrom[e.detailsFrom]||0)+1;
+                        if(e.detailsFrom) { out.shotFrom[e.detailsFrom]=(out.shotFrom[e.detailsFrom]||0)+1; if(!out.shotMap[e.detailsFrom]) out.shotMap[e.detailsFrom]={g:0,s:0}; out.shotMap[e.detailsFrom].s++; if(e.result==='Gól') out.shotMap[e.detailsFrom].g++; }
                         if(e.detailsTo) out.shotTo[e.detailsTo]=(out.shotTo[e.detailsTo]||0)+1;
                         if(e.shotType) out.shotType[e.shotType]=(out.shotType[e.shotType]||0)+1;
                     }
@@ -2048,6 +2048,34 @@ KOVÁCS DÁVID MÁTÉ
             if(!rows.length) return '<div class="career-empty">'+(emptyText||'Nincs rögzített adat.')+'</div>';
             return '<div class="career-mini-grid">'+rows.map(r=>'<div class="career-mini"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>').join('')+'</div>';
         }
+        function careerShotZoneHTML(data) {
+            const d=data||{g:0,s:0}, pct=d.s?Math.round(d.g/d.s*100):0;
+            let bg='rgba(0,0,0,.78)';
+            if(d.s>0) bg=pct>50?'rgba(28,216,138,.82)':(pct<30?'rgba(255,77,100,.82)':'rgba(0,0,0,.78)');
+            return '<div style="background:'+bg+';border:1px solid var(--border-color);padding:4px 6px;border-radius:6px;font-size:11px;font-weight:bold;text-align:center;min-width:42px;">'+d.g+'/'+d.s+'<span style="display:block;font-size:9px;color:rgba(255,255,255,.7);font-weight:normal;">'+pct+'%</span></div>';
+        }
+        function careerShotMapHTML(map) {
+            const z=name=>careerShotZoneHTML((map||{})[name]);
+            return '<div style="display:flex;gap:22px;align-items:center;justify-content:center;flex-wrap:wrap;">'+
+                '<div class="visual-court" style="width:420px;min-width:320px;height:184px;max-width:100%;">'+
+                    '<div class="visual-goal-area"></div><div class="visual-six-meter"></div><div class="visual-nine-meter"></div>'+
+                    '<div style="position:absolute;left:10px;bottom:15px;z-index:10;">'+z('Jobb szél')+'</div>'+
+                    '<div style="position:absolute;left:55px;top:42px;z-index:10;">'+z('Jobb átlövő')+'</div>'+
+                    '<div style="position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:10;">'+z('Irányító')+'</div>'+
+                    '<div style="position:absolute;right:55px;top:42px;z-index:10;">'+z('Bal átlövő')+'</div>'+
+                    '<div style="position:absolute;right:10px;bottom:15px;z-index:10;">'+z('Bal szél')+'</div>'+
+                    '<div style="position:absolute;left:50%;bottom:32px;transform:translateX(-50%);z-index:10;">'+z('Beálló')+'</div>'+
+                '</div>'+
+                '<div class="extra-stat-list" style="min-width:230px;">'+
+                    '<div class="extra-stat-item"><span>Betörés</span><b>'+careerShotZoneHTML((map||{})['Betörés'])+'</b></div>'+
+                    '<div class="extra-stat-item"><span>7 méteres</span><b>'+careerShotZoneHTML((map||{})['7 méteres'])+'</b></div>'+
+                    '<div class="extra-stat-item"><span>Indítás</span><b>'+careerShotZoneHTML((map||{})['Indítás'])+'</b></div>'+
+                    '<div class="extra-stat-item"><span>Lerohanás</span><b>'+careerShotZoneHTML((map||{})['Lerohanás'])+'</b></div>'+
+                    '<div class="extra-stat-item"><span>Üres kapu</span><b>'+careerShotZoneHTML((map||{})['Üres kapu'])+'</b></div>'+
+                '</div>'+
+            '</div>';
+        }
+
         function renderCareerPlayerStats() {
             const teamName=careerSelectedTeamName(), playerKey=careerSelectedPlayerKey(), root=document.getElementById('career-stat-content');
             if(!root) return;
@@ -2075,6 +2103,7 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-stat-card"><h3>Támadás</h3>'+careerCountHTML({'Gól':d.goals,'Gólpassz':d.assists,'Kulcspassz':d.keyPass,'Kiharcolt 7m':d.won7,'Kiharcolt 2 perc':d.won2,'Megnyert 1:1':d.won1v1})+'</div>'+
                     '<div class="career-stat-card"><h3>Védekezés</h3>'+careerCountHTML({'Fault':d.faults,'Sánc':d.blocks,'Labdaszerzés':d.steals,'Kiharcolt belemenés':d.wonCharges,'Okozott 7m':d.caused7})+'</div>'+
                     '<div class="career-stat-card"><h3>Hibák és büntetések</h3>'+careerCountHTML({'Összes támadási hiba':d.errors,'2 perc':d.twoMin,'Sárga lap':d.yellow,'Piros lap':d.red})+'</div>'+
+                    '<div class="career-stat-card full"><h3><i class="fas fa-bullseye"></i> Lövéstérkép · összes mérkőzés</h3>'+careerShotMapHTML(d.shotMap)+'</div>'+
                     '<div class="career-stat-card"><h3>Lövések eredménye</h3>'+careerCountHTML(d.shotResults)+'</div>'+
                     '<div class="career-stat-card"><h3>Lövések helye</h3>'+careerCountHTML(d.shotFrom)+'</div>'+
                     '<div class="career-stat-card"><h3>Kapura lövés helye</h3>'+careerCountHTML(d.shotTo)+'</div>'+
