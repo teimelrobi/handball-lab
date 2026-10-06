@@ -2722,8 +2722,7 @@ KOVÁCS DÁVID MÁTÉ
                     if(type && type !== 'Nem jelölt') return {type, reason:'Folytatódó támadás'};
                 }
             }
-            if(inferSevenSix(side)) return {type:'7:6', reason:'7 mezőnyjátékos, kapus nélkül'};
-            return {type:'', reason:''};
+            return {type:'Pozíciós támadás', reason:'Alapértelmezett'};
         }
         function applyAttackTypeSuggestion(side) {
             selAttackType = '';
@@ -2734,7 +2733,7 @@ KOVÁCS DÁVID MÁTÉ
                 selAttackType = sug.type;
                 markAttackTypeButton(sug.type, false);
                 if(hint) hint.innerText = `${sug.reason}: ${sug.type}`;
-            } else if(hint) hint.innerText = 'A támadás első eseményénél válaszd ki; utána továbböröklődik.';
+            } else if(hint) hint.innerText = 'Alapértelmezett: Pozíciós támadás. Ha kell, válassz másik típust.';
             checkReady();
         }
 
