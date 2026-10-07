@@ -2797,7 +2797,7 @@ KOVÁCS DÁVID MÁTÉ
                 document.getElementById('start-btn').style.display = 'block';
             }
 
-            globalEvents = []; seconds = 0; currentPeriod = 1; pendingSubstitution = { home: null, away: null }; activeMatch.lineupHistory = []; activeMatch.lineupHistoryComplete = true; activeMatch.matchEndAbs = 0; activeMatch.videoSyncPoints = {}; document.getElementById('timer-text').innerText = "00:00"; recordLineupSnapshot('Kezdő felállás'); updateLiveUI(); saveLiveState();
+            globalEvents = []; seconds = 0; currentPeriod = 1; pendingSubstitution = { home: null, away: null }; activeMatch.lineupHistory = []; activeMatch.lineupHistoryComplete = true; activeMatch.matchEndAbs = 0; activeMatch.videoSyncPoints = {}; activeMatch.officialClockPoints = []; document.getElementById('timer-text').innerText = "00:00"; recordLineupSnapshot('Kezdő felállás'); updateLiveUI(); saveLiveState();
             showScreen('view-main-app');
         }
 
@@ -2811,7 +2811,8 @@ KOVÁCS DÁVID MÁTÉ
                 if(isVideoAnalysis && document.getElementById('unified-modal-overlay').style.display !== 'flex') { 
                     seconds = Math.max(0, Math.floor(this.currentTime - videoSyncOffset)); 
                     updateTimerDisplay();
-                    syncRosterPlayTimesFromLineup(currentMatchAbsoluteSeconds());
+                    // A videó a játékóra megállásakor is fut, ezért ebből nem számolunk játékidőt.
+                    // A pontos játékidő a cserék/kiállítások hivatalos játékóra-pontjaiból készül.
                 }
             };
         }
@@ -2848,8 +2849,10 @@ KOVÁCS DÁVID MÁTÉ
             if(!confirm("Biztosan lezárod a mérkőzést? Ez elmenti az archívumba és kilép a főmenübe.")) return;
             if(timer) toggleTimer();
             if(!db.matches) db.matches = [];
-            activeMatch.matchEndAbs = currentMatchAbsoluteSeconds(); if(isVideoAnalysis) syncRosterPlayTimesFromLineup(activeMatch.matchEndAbs); recordLineupSnapshot('Mérkőzés vége');
-            db.matches.push({ id: 'm_' + Date.now(), matchName: activeMatch.matchName, league: activeMatch.league, location: activeMatch.location, date: activeMatch.date, homeName: activeMatch.homeName, awayName: activeMatch.awayName, homeTeamId: activeMatch.homeTeamId || '', awayTeamId: activeMatch.awayTeamId || '', homeAgeGroup: careerAgeGroup(db.teams?.[activeMatch.homeTeamId]?.ageGroup), awayAgeGroup: careerAgeGroup(db.teams?.[activeMatch.awayTeamId]?.ageGroup), homeScore: document.getElementById('score-home').innerText, awayScore: document.getElementById('score-away').innerText, events: globalEvents, homeRoster: activeMatch.homeRoster, awayRoster: activeMatch.awayRoster, lineupHistory: activeMatch.lineupHistory || [], lineupHistoryComplete: activeMatch.lineupHistoryComplete === true, matchEndAbs: activeMatch.matchEndAbs || 0, videoSyncPoints: activeMatch.videoSyncPoints || {} });
+            activeMatch.matchEndAbs = (isVideoAnalysis && currentPeriod===2) ? 3600 : currentMatchAbsoluteSeconds();
+            recordLineupSnapshot('Mérkőzés vége',activeMatch.matchEndAbs);
+            if(isVideoAnalysis) syncRosterPlayTimesFromLineup(activeMatch.matchEndAbs);
+            db.matches.push({ id: 'm_' + Date.now(), matchName: activeMatch.matchName, league: activeMatch.league, location: activeMatch.location, date: activeMatch.date, homeName: activeMatch.homeName, awayName: activeMatch.awayName, homeTeamId: activeMatch.homeTeamId || '', awayTeamId: activeMatch.awayTeamId || '', homeAgeGroup: careerAgeGroup(db.teams?.[activeMatch.homeTeamId]?.ageGroup), awayAgeGroup: careerAgeGroup(db.teams?.[activeMatch.awayTeamId]?.ageGroup), homeScore: document.getElementById('score-home').innerText, awayScore: document.getElementById('score-away').innerText, events: globalEvents, homeRoster: activeMatch.homeRoster, awayRoster: activeMatch.awayRoster, lineupHistory: activeMatch.lineupHistory || [], lineupHistoryComplete: activeMatch.lineupHistoryComplete === true, matchEndAbs: activeMatch.matchEndAbs || 0, videoSyncPoints: activeMatch.videoSyncPoints || {}, officialClockPoints: activeMatch.officialClockPoints || [] });
             saveDB(); discardMatch(); location.reload();
         }
 
@@ -3187,9 +3190,38 @@ KOVÁCS DÁVID MÁTÉ
         function currentMatchAbsoluteSeconds() { return eventAbsoluteSeconds(currentPeriod, seconds); }
         function currentCourtNumbers(side) { const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster; return (roster || []).filter(p => p.onCourt).map(p => p.num.toString()).sort((a,b) => Number(a)-Number(b)); }
         function ensureLineupHistory() { if(!Array.isArray(activeMatch.lineupHistory)) activeMatch.lineupHistory = []; }
-        function recordLineupSnapshot(reason = '') {
+        function parseOfficialClockInput(value, period=currentPeriod) {
+            const raw=String(value??'').trim(); if(!raw) return null;
+            const parts=raw.split(':'); if(parts.length>2) return null;
+            let sec=0;
+            if(parts.length===2) sec=(Number(parts[0])||0)*60+(Number(parts[1])||0);
+            else sec=Number(parts[0]); 
+            if(!Number.isFinite(sec)||sec<0) return null;
+            // 2. félidőben 30:00–60:00 formátumot is elfogadunk.
+            if(Number(period)===2 && sec>=1800) return Math.min(3600,sec);
+            sec=Math.min(1800,sec);
+            return eventAbsoluteSeconds(period,sec);
+        }
+        function officialClockPromptDefault(period=currentPeriod) {
+            const within=Math.max(0,Math.min(1800,Number(seconds)||0));
+            return formatTime(within);
+        }
+        function requestOfficialLineupAbs(reason='Felállásváltozás', period=currentPeriod) {
+            if(!isVideoAnalysis) return currentMatchAbsoluteSeconds();
+            const raw=prompt(reason+' – add meg a videón látható HIVATALOS JÁTÉKÓRÁT (PP:MM).\n2. félidőben jó a 05:20 és a 35:20 forma is.',officialClockPromptDefault(period));
+            if(raw===null) return null;
+            const abs=parseOfficialClockInput(raw,period);
+            if(abs===null) { alert('Nem értelmezhető játékidő. Példa: 17:42'); return requestOfficialLineupAbs(reason,period); }
+            if(!Array.isArray(activeMatch.officialClockPoints)) activeMatch.officialClockPoints=[];
+            activeMatch.officialClockPoints.push({abs,period:Number(period),videoTime:currentVideoTagTime(),reason});
+            activeMatch.officialClockPoints.sort((a,b)=>Number(a.abs)-Number(b.abs));
+            return abs;
+        }
+        function recordLineupSnapshot(reason = '', absOverride = null) {
             ensureLineupHistory();
-            const snap = { abs: currentMatchAbsoluteSeconds(), period: currentPeriod, seconds: seconds, homeCourt: currentCourtNumbers('home'), awayCourt: currentCourtNumbers('away'), reason };
+            const snapAbs=absOverride===null?currentMatchAbsoluteSeconds():Number(absOverride);
+            const snapPeriod=snapAbs>=1800?2:1, snapSeconds=snapPeriod===2?snapAbs-1800:snapAbs;
+            const snap = { abs: snapAbs, period: snapPeriod, seconds: snapSeconds, homeCourt: currentCourtNumbers('home'), awayCourt: currentCourtNumbers('away'), reason };
             const last = activeMatch.lineupHistory[activeMatch.lineupHistory.length - 1];
             const same = last && last.abs === snap.abs && JSON.stringify(last.homeCourt) === JSON.stringify(snap.homeCourt) && JSON.stringify(last.awayCourt) === JSON.stringify(snap.awayCourt);
             if(same) return;
@@ -3326,10 +3358,13 @@ KOVÁCS DÁVID MÁTÉ
             if(Number.isInteger(selectedOutIndex)) {
                 const outgoing = roster[selectedOutIndex];
                 if(outgoing && outgoing.onCourt) {
+                    const exactAbs=requestOfficialLineupAbs('Csere: #'+outgoing.num+' '+outgoing.name+' LE → #'+player.num+' '+player.name+' BE');
+                    if(exactAbs===null) return;
                     outgoing.onCourt = false;
                     player.onCourt = true;
                     pendingSubstitution[side] = null;
-                    recordLineupSnapshot(`Csere ${side}`);
+                    recordLineupSnapshot(`Csere ${side}`,exactAbs);
+                    syncRosterPlayTimesFromLineup(exactAbs);
                     refreshAfterSubstitution(side);
                     return;
                 }
@@ -3346,8 +3381,11 @@ KOVÁCS DÁVID MÁTÉ
                 }
                 return alert('A pálya tele van. Válaszd ki előbb a lejövő játékost!');
             }
+            const exactAbs=requestOfficialLineupAbs('Pályára lépés: #'+player.num+' '+player.name);
+            if(exactAbs===null) return;
             player.onCourt = true;
-            recordLineupSnapshot(`Belépés ${side}`);
+            recordLineupSnapshot(`Belépés ${side}`,exactAbs);
+            syncRosterPlayTimesFromLineup(exactAbs);
             refreshAfterSubstitution(side);
         }
         function renderRosterUI(containerId, players, numClass, side) {
@@ -3644,6 +3682,14 @@ KOVÁCS DÁVID MÁTÉ
             let currentActionPeriod = currentPeriod;
             let currentActionTime = document.getElementById('timer-text').innerText;
             let currentActionVideoTime = currentVideoTagTime();
+            let lineupAbsOverride = null;
+            if(!editingEventId && isVideoAnalysis && activeActionGroup==='penalty' && selSimpleAction==='2 perc') {
+                lineupAbsOverride=requestOfficialLineupAbs('2 perces kiállítás: #'+activePlayer.num+' '+activePlayer.name,currentPeriod);
+                if(lineupAbsOverride===null) return;
+                currentActionPeriod=lineupAbsOverride>=1800?2:1;
+                currentActionSeconds=currentActionPeriod===2?lineupAbsOverride-1800:lineupAbsOverride;
+                currentActionTime=formatTime(currentActionSeconds);
+            }
             
             if(document.getElementById('view-video-room').classList.contains('active')) {
                 const roomVid = document.getElementById('match-video');
@@ -3686,7 +3732,7 @@ KOVÁCS DÁVID MÁTÉ
                 editingEventId = null;
             } else {
                 const eventId = 'ev_' + Date.now(); const newEvent = { id: eventId, time: currentActionTime, seconds: currentActionSeconds, period: currentActionPeriod, videoTime: typeof currentActionVideoTime === 'number' ? currentActionVideoTime : null, team: activeTeamSide, playerNum: activePlayer.num, playerName: activePlayer.name, isGk: activePlayer.isGk, playerPosition: activePlayer.position || (activePlayer.isGk ? 'Kapus' : ''), group: activeActionGroup, action: actionText, result: resultText, detailsFrom: selFrom, detailsTo: selTo, shotType: activeActionGroup === 'shot' ? (selType || '') : '', assist: assistVal, defendingGk: activeActionGroup === 'shot' ? selDefendingGk : "", attackType: isAttackTypeGroup(activeActionGroup) ? selAttackType : '', defenseSide: defenseSideFor(activeActionGroup, activeTeamSide), defenseSystem: selDefenseSystem, homeCourt: activeMatch.homeRoster.filter(p=>p.onCourt).map(p=>p.num.toString()), awayCourt: activeMatch.awayRoster.filter(p=>p.onCourt).map(p=>p.num.toString()) };
-                if(selSimpleAction === '2 perc') { activePlayer.penaltyEnd = currentActionSeconds + 120; activePlayer.penaltyEndAbs = eventAbsoluteSeconds(currentActionPeriod, currentActionSeconds) + 120; activePlayer.onCourt = false; pendingSubstitution[activeTeamSide] = null; recordLineupSnapshot(`2 perc ${activeTeamSide}`); renderRosterUI(`roster-${activeTeamSide}`, activeTeamSide === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster, `${activeTeamSide}-num`, activeTeamSide); } globalEvents.unshift(newEvent); 
+                if(selSimpleAction === '2 perc') { const penaltyAbs=lineupAbsOverride===null?eventAbsoluteSeconds(currentActionPeriod,currentActionSeconds):lineupAbsOverride; activePlayer.penaltyEnd = currentActionSeconds + 120; activePlayer.penaltyEndAbs = penaltyAbs + 120; activePlayer.onCourt = false; pendingSubstitution[activeTeamSide] = null; recordLineupSnapshot(`2 perc ${activeTeamSide}`,penaltyAbs); syncRosterPlayTimesFromLineup(penaltyAbs); renderRosterUI(`roster-${activeTeamSide}`, activeTeamSide === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster, `${activeTeamSide}-num`, activeTeamSide); } globalEvents.unshift(newEvent); 
                 globalEvents.sort((a,b) => (b.period - a.period) || (b.seconds - a.seconds));
             }
             recalculateDerivedEventData(globalEvents);
