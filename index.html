@@ -1325,6 +1325,7 @@ KOVÁCS DÁVID MÁTÉ
                         <i class="fas fa-file-video"></i> Meccs videó betöltése (MP4)
                         <input type="file" id="video-file" accept="video/mp4,video/*" style="display:none;" onchange="loadVideoFile(event)">
                     </label>
+                    <button class="btn-stat-main" onclick="startPlayTimeCorrection()" style="font-size:11px;padding:9px 13px;"><i class="fas fa-stopwatch"></i> Játékidő pontosítás</button>
                 </div>
                 <div style="width:100%; background:#000; border-radius:12px; flex:1; display:flex; align-items:center; justify-content:center; min-height:300px; overflow:hidden;">
                     <video id="match-video" controls style="width:100%; max-height:100%; outline:none;"></video>
@@ -4437,6 +4438,49 @@ KOVÁCS DÁVID MÁTÉ
             if(id === 's2') { sync2_start = n; currentVideoMatch.videoSyncPoints['2'] = n; }
             if(id === 'e2') sync2_end = n;
             if(id === 's1' || id === 's2') persistVideoRoomMatch();
+        }
+
+        function startPlayTimeCorrection() {
+            if(!currentVideoMatch) return;
+            const videoNode=document.getElementById('match-video');
+            if(!videoNode || !videoNode.src || videoNode.src.endsWith('index.html')) return alert('Előbb töltsd be ehhez a meccshez a videót.');
+            const history=Array.isArray(currentVideoMatch.lineupHistory)?currentVideoMatch.lineupHistory:[];
+            const points=history.filter(s=>s && s.reason && s.reason!=='Kezdő felállás' && s.reason!=='Mérkőzés vége')
+                .sort((a,b)=>Number(a.abs)-Number(b.abs));
+            if(!points.length) return alert('Ehhez a meccshez nincs elmentett csere-/felállásidővonal.');
+            if(points.some(p=>Number(p.period)===2) && !(Number(currentVideoMatch.videoSyncPoints?.['2'])>0)) {
+                return alert('Előbb állítsd be a 2. félidő kezdősípszó szinkronpontját.');
+            }
+            if(!confirm('A program végigmegy '+points.length+' felállásváltozáson. Minden pontnál a videó odaugrik, te pedig beírod a képen látható hivatalos játékórát. Indulhat?')) return;
+            let idx=0;
+            const next=()=>{
+                if(idx>=points.length) {
+                    currentVideoMatch.matchEndAbs=3600;
+                    activeMatch=currentVideoMatch;
+                    syncRosterPlayTimesFromLineup(3600);
+                    currentVideoMatch.playTimeSource='official-clock-lineup';
+                    persistVideoRoomMatch();
+                    renderVideoEvents();
+                    alert('Kész! A játékosok játékideje a hivatalos játékóra alapján újraszámolva.');
+                    return;
+                }
+                const snap=points[idx], period=Number(snap.period)||(Number(snap.abs)>=1800?2:1);
+                const oldWithin=Number.isFinite(Number(snap.seconds))?Number(snap.seconds):Math.max(0,Number(snap.abs)-((period-1)*1800));
+                const sync=Number(currentVideoMatch.videoSyncPoints?.[String(period)])||0;
+                const target=Math.max(0,sync+oldWithin);
+                videoNode.pause(); videoNode.currentTime=Math.min(Number(videoNode.duration)||target,target);
+                setTimeout(()=>{
+                    const raw=prompt((idx+1)+'/'+points.length+' · '+(snap.reason||'Felállásváltozás')+'\nAdd meg a videón látható HIVATALOS játékórát (PP:MM).\nMégse = a pontosítás megszakítása.',formatTime(Math.min(1800,oldWithin)));
+                    if(raw===null) return;
+                    const abs=parseOfficialClockInput(raw,period);
+                    if(abs===null) { alert('Nem értelmezhető idő. Példa: 17:42'); return next(); }
+                    snap.abs=abs; snap.period=abs>=1800?2:1; snap.seconds=snap.period===2?abs-1800:abs;
+                    if(!Array.isArray(currentVideoMatch.officialClockPoints)) currentVideoMatch.officialClockPoints=[];
+                    currentVideoMatch.officialClockPoints.push({abs,period:snap.period,videoTime:target,reason:snap.reason||'Felállásváltozás'});
+                    idx++; next();
+                },350);
+            };
+            next();
         }
 
         function videoEventList() {
