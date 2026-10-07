@@ -3709,7 +3709,7 @@ KOVÁCS DÁVID MÁTÉ
             return strengthCodeForPerspective(e, side) === statStrengthFilter;
         }
         function updateStatStrengthFilterUI(perspectiveSide = statPerspectiveSide()) {
-            document.querySelectorAll('.strength-filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === statStrengthFilter));
+            document.querySelectorAll('.strength-filter-btn[data-filter]').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === statStrengthFilter));
             const context = document.getElementById('stat-strength-context');
             if(context) context.innerText = perspectiveSide === 'away' ? 'Ellenfél szemszögéből' : 'Saját csapat szemszögéből';
         }
