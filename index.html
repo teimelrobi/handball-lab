@@ -1340,6 +1340,7 @@ KOVÁCS DÁVID MÁTÉ
                             <div style="display:flex; flex-direction:column; gap:5px;">
                                 <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);">Kezdete (Sípszó): <span id="val-s1" style="color:#fff; font-family:monospace; font-weight:bold;">00:00</span></div>
                                 <input type="range" id="slide-s1" min="0" max="100" value="0" class="video-slider" oninput="seekVideo(this.value, 's1')">
+                                <button class="video-filter-btn" style="margin-top:8px;" onclick="setVideoSyncToCurrent(1)"><i class="fas fa-crosshairs"></i> Aktuális kép = 1. félidő kezdősípszó</button>
                             </div>
                             <div style="display:flex; flex-direction:column; gap:5px; margin-top:15px;">
                                 <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);">Vége (Duda): <span id="val-e1" style="color:#fff; font-family:monospace; font-weight:bold;">00:00</span></div>
@@ -1351,6 +1352,7 @@ KOVÁCS DÁVID MÁTÉ
                             <div style="display:flex; flex-direction:column; gap:5px;">
                                 <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);">Kezdete (Sípszó): <span id="val-s2" style="color:#fff; font-family:monospace; font-weight:bold;">00:00</span></div>
                                 <input type="range" id="slide-s2" min="0" max="100" value="0" class="video-slider" oninput="seekVideo(this.value, 's2')">
+                                <button class="video-filter-btn" style="margin-top:8px;" onclick="setVideoSyncToCurrent(2)"><i class="fas fa-crosshairs"></i> Aktuális kép = 2. félidő kezdősípszó</button>
                             </div>
                             <div style="display:flex; flex-direction:column; gap:5px; margin-top:15px;">
                                 <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-muted);">Vége (Duda): <span id="val-e2" style="color:#fff; font-family:monospace; font-weight:bold;">00:00</span></div>
@@ -4066,7 +4068,7 @@ KOVÁCS DÁVID MÁTÉ
             if(kind === 'attackType') return `${team} · ${value} · támadások · ${periodName} · ${strength}`;
             if(kind === 'defenseSystem') return `${team} · ${value} védekezés · ${periodName} · ${strength}`;
             if(kind === 'combo') return `${team} · kijelölt páros/sor eseményei · ${periodName} · ${strength}`;
-            if(kind === 'timeline') { const i=Number(value)||0; return `${i*5}–${(i+1)*5}. perc · teljes meccs`; }
+            if(kind === 'timeline') { const i=Number(value)||0; return `${i*5}–${(i+1)*5}. játékperc · félidő-szinkronnal`; }
             return `${team} · ${names[kind] || kind} · ${periodName} · ${strength}`;
         }
         function getSummaryVideoEvents(kind, side, value) {
@@ -4099,7 +4101,7 @@ KOVÁCS DÁVID MÁTÉ
         function openSummaryVideoFilter(kind, side, value='') {
             const evs = getSummaryVideoEvents(kind, side, value);
             if(!evs.length) return alert('Ehhez a statisztikához nincs visszanézhető esemény.');
-            const filter = { label: summaryVideoFilterLabel(kind, side, value), eventIds: evs.map(e=>e.id), preRoll: (kind === 'attacks' || kind === 'strengthAttack' || kind === 'attackType' || kind === 'defenseSystem') ? 8 : 5 };
+            const filter = { kind, value:String(value??''), label: summaryVideoFilterLabel(kind, side, value), eventIds: evs.map(e=>e.id), preRoll: (kind === 'attacks' || kind === 'strengthAttack' || kind === 'attackType' || kind === 'defenseSystem') ? 8 : (kind === 'timeline' ? 0 : 5) };
             document.getElementById('stat-dashboard').style.display = 'none';
             openVideoRoom(activeMatch && activeMatch.id ? activeMatch.id : null, filter, true);
         }
@@ -4303,6 +4305,40 @@ KOVÁCS DÁVID MÁTÉ
         }
 
         // --- VIDEÓSZOBA + STATISZTIKAI VIDEÓKAPCSOLAT ---
+        function timelineVideoTarget(index, match=currentVideoMatch) {
+            const i=Math.max(0,Math.min(11,Number(index)||0));
+            const points=(match&&match.videoSyncPoints)||{};
+            const period=i<6?1:2, within=(i%6)*300;
+            const sync=Number(points[String(period)])||0;
+            return {period,within,sync,target:sync+within,ready:period===1 || sync>0};
+        }
+        function seekTimelineFilterStart(videoNode, showWarning=true) {
+            if(!videoNode || !currentVideoFilter || currentVideoFilter.kind!=='timeline') return false;
+            const t=timelineVideoTarget(currentVideoFilter.value,currentVideoMatch);
+            if(t.period===2 && !t.ready) {
+                if(showWarning) alert('A 2. félidős idővonalhoz előbb állítsd be a 2. félidő KEZDŐSÍPSZÓ szinkronpontját.');
+                return false;
+            }
+            const dur=Number(videoNode.duration)||Infinity;
+            videoNode.currentTime=Math.max(0,Math.min(dur,t.target));
+            return true;
+        }
+        function setVideoSyncToCurrent(period) {
+            const videoNode=document.getElementById('match-video');
+            if(!videoNode || !videoNode.src || videoNode.src.endsWith('index.html')) return alert('Előbb tölts be egy videót!');
+            const id=Number(period)===2?'s2':'s1', n=Number(videoNode.currentTime)||0;
+            if(!currentVideoMatch.videoSyncPoints || typeof currentVideoMatch.videoSyncPoints!=='object') currentVideoMatch.videoSyncPoints={};
+            currentVideoMatch.videoSyncPoints[String(period)]=n;
+            if(Number(period)===1) sync1_start=n; else sync2_start=n;
+            const slider=document.getElementById('slide-'+id), val=document.getElementById('val-'+id);
+            if(slider) slider.value=n; if(val) val.innerText=formatTime(n);
+            persistVideoRoomMatch();
+            if(currentVideoFilter&&currentVideoFilter.kind==='timeline') {
+                const t=timelineVideoTarget(currentVideoFilter.value,currentVideoMatch);
+                if(t.period===Number(period)) { videoNode.currentTime=t.target; }
+            }
+        }
+
         function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const activeScreen = document.querySelector('.screen.active');
             videoRoomReturnScreen = activeScreen ? activeScreen.id : 'view-archive';
@@ -4323,7 +4359,7 @@ KOVÁCS DÁVID MÁTÉ
             const backBtn=document.getElementById('vr-back-btn'); if(backBtn) backBtn.innerHTML = returnToStats ? '<i class="fas fa-arrow-left"></i> Vissza a statisztikához' : '<i class="fas fa-arrow-left"></i> Archívum';
             showScreen('view-video-room');
             const videoNode = document.getElementById('match-video');
-            if(carryLiveSrc) { videoNode.src = carryLiveSrc; videoNode.onloadedmetadata = () => initializeVideoSliders(videoNode); }
+            if(carryLiveSrc) { videoNode.src = carryLiveSrc; videoNode.onloadedmetadata = () => { initializeVideoSliders(videoNode); seekTimelineFilterStart(videoNode, true); }; }
             renderVideoEvents(); updateVideoFilterBar();
         }
 
@@ -4344,7 +4380,7 @@ KOVÁCS DÁVID MÁTÉ
         function loadVideoFile(event) {
             const file = event.target.files[0]; if(!file) return;
             const videoNode = document.getElementById('match-video'); videoNode.src = URL.createObjectURL(file);
-            videoNode.onloadedmetadata = function() { initializeVideoSliders(videoNode); };
+            videoNode.onloadedmetadata = function() { initializeVideoSliders(videoNode); seekTimelineFilterStart(videoNode, true); };
         }
 
         function seekVideo(val, id) {
