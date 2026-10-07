@@ -2018,7 +2018,8 @@ KOVÁCS DÁVID MÁTÉ
                     out.players[key].playTime+=Number(p.playTime)||0;
                 });
                 let mGoals=0,mShots=0,mErrors=0,mSteals=0,mSaves=0,mFaced=0;
-                events.forEach(e=>{
+                const seenAttackPossessions=new Set(), seenDefensePossessions=new Set();
+                events.forEach((e,eventIndex)=>{
                     if(e.team===side) {
                         const pk=byNum[String(e.playerNum)], p=pk?out.players[pk]:null;
                         if(e.group==='shot') {
@@ -2042,11 +2043,15 @@ KOVÁCS DÁVID MÁTÉ
                             if(e.result==='Okozott 7m')out.caused7++;
                         }
                         if(e.group==='penalty'&&e.result==='2 perc')out.twoMin++;
-                        const at=e.possessionAttackType||e.attackType;if(at)out.attackTypes[at]=(out.attackTypes[at]||0)+1;
-                        const ds=e.possessionDefenseSystem||e.defenseSystem;if(ds)out.defenseSystems[ds]=(out.defenseSystems[ds]||0)+1;
+                        const at=e.possessionAttackType||e.attackType;
+                        if(at){const aKey=e.possessionId||('attack_'+eventIndex);if(!seenAttackPossessions.has(aKey)){seenAttackPossessions.add(aKey);out.attackTypes[at]=(out.attackTypes[at]||0)+1;}}
                         if(e.assist!==undefined&&e.assist!==null&&String(e.assist)!==''){
                             const ak=byNum[String(e.assist)];if(ak&&out.players[ak]){out.assists++;out.players[ak].assists++;}
                         }
+                    }
+                    if(e.team===oppSide){
+                        const ds=(e.defenseSide===side&&e.defenseSystem)?e.defenseSystem:(e.possessionDefenseSystem||e.defenseSystem);
+                        if(ds){const dKey=e.possessionId||('defense_'+eventIndex);if(!seenDefensePossessions.has(dKey)){seenDefensePossessions.add(dKey);out.defenseSystems[ds]=(out.defenseSystems[ds]||0)+1;}}
                     }
                     if(e.team===oppSide&&e.group==='shot'&&(e.result==='Gól'||e.result==='Védés')&&e.defendingGk!==undefined&&String(e.defendingGk)!==''){
                         const gkKey=byNum[String(e.defendingGk)];
