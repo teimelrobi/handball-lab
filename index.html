@@ -433,6 +433,25 @@
         .summary-combo-name { font-size:12px; font-weight:bold; line-height:1.45; }
         .summary-combo-metrics { display:flex; gap:12px; flex-wrap:wrap; color:var(--text-muted); font-size:10px; margin-top:6px; }
         .summary-combo-metrics b { color:#fff; }
+        .five-timeline-wrap { overflow-x:auto; padding:8px 2px 10px; }
+        .five-timeline { display:flex; gap:10px; min-width:max-content; align-items:stretch; }
+        .five-block { width:172px; flex:0 0 172px; background:rgba(255,255,255,.025); border:1px solid var(--border-color); border-radius:12px; padding:11px; cursor:pointer; transition:.15s ease; }
+        .five-block:hover { border-color:#8e44ad; transform:translateY(-1px); }
+        .five-block-minute { color:#cbb4d6; font-size:10px; font-weight:bold; text-align:center; letter-spacing:.4px; }
+        .five-block-score { display:grid; grid-template-columns:1fr auto 1fr; gap:6px; align-items:center; margin:8px 0 3px; font-size:20px; font-weight:900; }
+        .five-block-score .home { color:var(--green-accent); text-align:right; }
+        .five-block-score .away { color:var(--red-accent); text-align:left; }
+        .five-block-score .sep { color:var(--text-muted); font-size:11px; }
+        .five-block-running { text-align:center; color:var(--text-muted); font-size:9px; margin-bottom:9px; }
+        .five-block-grid { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+        .five-side { border-radius:8px; padding:6px; background:rgba(255,255,255,.025); }
+        .five-side.home { border-top:2px solid var(--green-accent); }
+        .five-side.away { border-top:2px solid var(--red-accent); }
+        .five-side-name { font-size:8px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:4px; }
+        .five-metric { display:flex; justify-content:space-between; gap:5px; font-size:9px; padding:2px 0; }
+        .five-metric span { color:var(--text-muted); }
+        .five-metric b { color:#fff; }
+        .five-timeline-note { color:var(--text-muted); font-size:10px; margin-top:7px; }
         @media (max-width: 1050px) { .summary-kpi-grid { grid-template-columns:repeat(2,minmax(170px,1fr)); } .summary-grid-2 { grid-template-columns:1fr; } }
         @media (max-width: 650px) { .summary-scoreline { grid-template-columns:1fr; gap:6px; text-align:center; } .summary-team.home,.summary-team.away { text-align:center; } .summary-score { font-size:34px; } .summary-kpi-grid { grid-template-columns:1fr; } .summary-leader-columns { grid-template-columns:1fr; } }
 
@@ -1050,6 +1069,12 @@ KOVÁCS DÁVID MÁTÉ
                 <div class="summary-kpi"><div class="summary-kpi-title">Hibák / labdavesztések</div><div class="summary-compare"><div id="sum-home-errors" class="summary-side-value home video-linkable" onclick="openSummaryVideoFilter('errors','home')" title="Videójelenetek">0</div><div class="summary-vs">VS</div><div id="sum-away-errors" class="summary-side-value away video-linkable" onclick="openSummaryVideoFilter('errors','away')" title="Videójelenetek">0</div></div><div class="summary-sub">rögzített hibaesemény</div></div>
                 <div class="summary-kpi"><div class="summary-kpi-title">Labdaszerzés</div><div class="summary-compare"><div id="sum-home-steals" class="summary-side-value home video-linkable" onclick="openSummaryVideoFilter('steals','home')" title="Videójelenetek">0</div><div class="summary-vs">VS</div><div id="sum-away-steals" class="summary-side-value away video-linkable" onclick="openSummaryVideoFilter('steals','away')" title="Videójelenetek">0</div></div><div class="summary-sub">labdaszerzés + kiharcolt belemenés</div></div>
                 <div class="summary-kpi"><div class="summary-kpi-title">2 perces kiállítás</div><div class="summary-compare"><div id="sum-home-2min" class="summary-side-value home video-linkable" onclick="openSummaryVideoFilter('penalties','home')" title="Videójelenetek">0</div><div class="summary-vs">VS</div><div id="sum-away-2min" class="summary-side-value away video-linkable" onclick="openSummaryVideoFilter('penalties','away')" title="Videójelenetek">0</div></div><div class="summary-sub">játékosra rögzített 2 perc</div></div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-title"><i class="fas fa-stream"></i> 5 perces meccsidővonal</div>
+                <div class="five-timeline-wrap"><div class="five-timeline" id="summary-five-timeline"></div></div>
+                <div class="five-timeline-note"><i class="fas fa-play-circle"></i> Teljes meccs, 5 perces blokkokban. Kattints egy blokkra az adott időszak videójeleneteihez.</div>
             </div>
 
             <div class="summary-grid-2">
@@ -2813,6 +2838,7 @@ KOVÁCS DÁVID MÁTÉ
                     try {
                         const rows = parseCSVTable(reader.result);
                         const calc = calculatePlayTimesFromCSVRows(rows, match);
+                        match.timeline5Csv = buildFiveMinuteTimelineFromCSVRows(rows);
                         const exact = applyExactArchivedPlayTimes(match);
                         if(!exact) {
                             ['home','away'].forEach(side => {
@@ -3667,6 +3693,63 @@ KOVÁCS DÁVID MÁTÉ
         function summaryEventMatches(e, code = statStrengthFilter) {
             return code === 'all' || strengthCodeForPerspective(e, 'home') === code;
         }
+        function emptyFiveMinuteTimeline() {
+            return Array.from({length:12},(_,i)=>({index:i,start:i*300,end:(i+1)*300,home:{goals:0,shots:0,errors:0,steals:0,twoMin:0},away:{goals:0,shots:0,errors:0,steals:0,twoMin:0}}));
+        }
+        function addFiveMinuteEvent(buckets, abs, team, group, result) {
+            if(team!=='home'&&team!=='away') return;
+            const idx=Math.max(0,Math.min(11,Math.floor(Math.max(0,Number(abs)||0)/300)));
+            const d=buckets[idx][team];
+            if(group==='shot'){d.shots++;if(result==='Gól')d.goals++;}
+            if(group==='error')d.errors++;
+            if(group==='defense'&&['Labdaszerzés','Kiharcolt belemenés'].includes(result))d.steals++;
+            if(group==='penalty'&&result==='2 perc')d.twoMin++;
+        }
+        function calculateFiveMinuteTimeline() {
+            const buckets=emptyFiveMinuteTimeline();
+            if(globalEvents&&globalEvents.length){
+                globalEvents.forEach(e=>addFiveMinuteEvent(buckets,eventAbsoluteSeconds(e.period,e.seconds),e.team,e.group,e.result));
+                return buckets;
+            }
+            if(activeMatch&&Array.isArray(activeMatch.timeline5Csv)&&activeMatch.timeline5Csv.length===12) return activeMatch.timeline5Csv;
+            return buckets;
+        }
+        function buildFiveMinuteTimelineFromCSVRows(rows) {
+            if(!rows||rows.length<2)return emptyFiveMinuteTimeline();
+            const headers=rows[0].map(h=>String(h).trim().replace(/^"|"$/g,''));
+            const idx=name=>headers.indexOf(name);
+            const iPeriod=idx('Felido'),iSeconds=idx('Masodperc'),iTeam=idx('Csapat'),iGroup=idx('Kategoria'),iResult=idx('Eredmeny');
+            if([iPeriod,iSeconds,iTeam,iGroup,iResult].some(i=>i<0)) return emptyFiveMinuteTimeline();
+            const buckets=emptyFiveMinuteTimeline();
+            rows.slice(1).forEach(r=>{
+                const period=Number(String(r[iPeriod]||'').replace(',','.'))||1;
+                const sec=Number(String(r[iSeconds]||'').replace(',','.'))||0;
+                addFiveMinuteEvent(buckets,eventAbsoluteSeconds(period,sec),String(r[iTeam]||'').trim(),String(r[iGroup]||'').trim(),String(r[iResult]||'').trim());
+            });
+            return buckets;
+        }
+        function renderFiveMinuteTimeline() {
+            const root=document.getElementById('summary-five-timeline');if(!root)return;
+            const buckets=calculateFiveMinuteTimeline();
+            let runHome=0,runAway=0;
+            const homeName=activeMatch.homeName||'Hazai',awayName=activeMatch.awayName||'Vendég';
+            root.innerHTML=buckets.map((b,i)=>{
+                runHome+=b.home.goals;runAway+=b.away.goals;
+                const hp=b.home.shots?Math.round(b.home.goals/b.home.shots*100):0,ap=b.away.shots?Math.round(b.away.goals/b.away.shots*100):0;
+                const start=i*5,end=(i+1)*5;
+                const side=(name,d,pct,cls)=>'<div class="five-side '+cls+'"><div class="five-side-name">'+name+'</div>'+
+                    '<div class="five-metric"><span>Lövés</span><b>'+d.goals+'/'+d.shots+' · '+pct+'%</b></div>'+
+                    '<div class="five-metric"><span>Hiba</span><b>'+d.errors+'</b></div>'+
+                    '<div class="five-metric"><span>Labda</span><b>'+d.steals+'</b></div>'+
+                    '<div class="five-metric"><span>2 perc</span><b>'+d.twoMin+'</b></div></div>';
+                return '<div class="five-block" onclick="openSummaryVideoFilter(\'timeline\',\'home\',\''+i+'\')" title="'+start+'–'+end+'. perc videójelenetei">'+
+                    '<div class="five-block-minute">'+start+'–'+end+'. PERC</div>'+
+                    '<div class="five-block-score"><div class="home">'+b.home.goals+'</div><div class="sep">:</div><div class="away">'+b.away.goals+'</div></div>'+
+                    '<div class="five-block-running">állás: '+runHome+'–'+runAway+'</div>'+
+                    '<div class="five-block-grid">'+side(homeName,b.home,hp,'home')+side(awayName,b.away,ap,'away')+'</div></div>';
+            }).join('');
+        }
+
         function calculateSummaryTeam(side) {
             const opp = side === 'home' ? 'away' : 'home';
             const evs = globalEvents.filter(e => summaryEventMatches(e));
@@ -3758,11 +3841,12 @@ KOVÁCS DÁVID MÁTÉ
         function summaryVideoTeamName(side) { return side === 'home' ? (activeMatch.homeName || 'Saját csapat') : (activeMatch.awayName || 'Ellenfél'); }
         function summaryVideoFilterLabel(kind, side, value) {
             const team = summaryVideoTeamName(side), strength = summaryStrengthName();
-            const names = {attacks:'Támadások',shots:'Lövések',goalkeeper:'Kapusteljesítmény',errors:'Hibák / labdavesztések',steals:'Labdaszerzések',penalties:'2 perces kiállítások',strengthAttack:'Támadások',attackType:'Támadástípus',defenseSystem:'Védekezési rendszer',combo:'Pályán együtt'};
+            const names = {attacks:'Támadások',shots:'Lövések',goalkeeper:'Kapusteljesítmény',errors:'Hibák / labdavesztések',steals:'Labdaszerzések',penalties:'2 perces kiállítások',strengthAttack:'Támadások',attackType:'Támadástípus',defenseSystem:'Védekezési rendszer',combo:'Pályán együtt',timeline:'5 perces időszak'};
             if(kind === 'strengthAttack') return `${team} · ${value === 'even' ? 'Azonos létszám' : value === 'advantage' ? 'Emberelőny' : 'Emberhátrány'} · támadások`;
             if(kind === 'attackType') return `${team} · ${value} · támadások · ${strength}`;
             if(kind === 'defenseSystem') return `${team} · ${value} védekezés · ${strength}`;
             if(kind === 'combo') return `${team} · kijelölt páros/sor eseményei · ${strength}`;
+            if(kind === 'timeline') { const i=Number(value)||0; return `${i*5}–${(i+1)*5}. perc · teljes meccs`; }
             return `${team} · ${names[kind] || kind} · ${strength}`;
         }
         function getSummaryVideoEvents(kind, side, value) {
@@ -3785,6 +3869,10 @@ KOVÁCS DÁVID MÁTÉ
             else if(kind === 'combo') {
                 const nums = String(value || '').split('|').filter(Boolean), key = side === 'home' ? 'homeCourt' : 'awayCourt';
                 evs = evs.filter(e => Array.isArray(e[key]) && nums.every(n => e[key].map(String).includes(String(n))));
+            }
+            else if(kind === 'timeline') {
+                const i=Math.max(0,Math.min(11,Number(value)||0)),start=i*300,end=(i+1)*300;
+                evs=globalEvents.filter(e=>{const t=eventAbsoluteSeconds(e.period,e.seconds);return t>=start&&(i===11?t<=end:t<end);});
             }
             return evs.slice().sort((a,b)=>eventAbsoluteSeconds(a.period,a.seconds)-eventAbsoluteSeconds(b.period,b.seconds));
         }
@@ -3810,7 +3898,7 @@ KOVÁCS DÁVID MÁTÉ
             const strengthBody=document.querySelector('#summary-strength-table tbody'); if(strengthBody){ strengthBody.innerHTML=''; [['even','Azonos'],['advantage','Emberelőny'],['disadvantage','Emberhátrány']].forEach(([code,label])=>{const r=calculateSummaryStrengthRow(code); strengthBody.innerHTML+=`<tr><td><strong>${label}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','home','${code}')">${r.homeGoals}/${r.homeAtt}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','home','${code}')">${r.homePct.toFixed(1)}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','away','${code}')">${r.awayGoals}/${r.awayAtt}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','away','${code}')">${r.defensePct.toFixed(1)}%</td></tr>`;}); }
             const hA=calculateSummaryAttackTypes('home'), aA=calculateSummaryAttackTypes('away'), attackBody=document.querySelector('#summary-attack-table tbody'); if(attackBody){attackBody.innerHTML=''; const types=[...ATTACK_TYPES,'Nem jelölt']; types.forEach(type=>{const h=hA[type]||{attacks:0,goals:0},a=aA[type]||{attacks:0,goals:0}; if(h.attacks+a.attacks===0 && type==='Nem jelölt') return; attackBody.innerHTML+=`<tr><td><strong>${type}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','home','${type}')">${h.attacks}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','home','${type}')">${h.attacks?(h.goals/h.attacks*100).toFixed(1):'0.0'}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','away','${type}')">${a.attacks}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','away','${type}')">${a.attacks?(a.goals/a.attacks*100).toFixed(1):'0.0'}%</td></tr>`;}); }
             const hD=calculateSummaryDefenseSystems('home'), aD=calculateSummaryDefenseSystems('away'), defenseBody=document.querySelector('#summary-defense-table tbody'); if(defenseBody){defenseBody.innerHTML=''; const systems=[...DEFENSE_SYSTEMS,'Nem jelölt']; systems.forEach(system=>{const h=hD[system]||{defenses:0,conceded:0},a=aD[system]||{defenses:0,conceded:0}; if(h.defenses+a.defenses===0 && system==='Nem jelölt') return; const hp=h.defenses?(h.defenses-h.conceded)/h.defenses*100:0, ap=a.defenses?(a.defenses-a.conceded)/a.defenses*100:0; defenseBody.innerHTML+=`<tr><td><strong>${system}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','home','${system}')">${h.defenses}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','home','${system}')">${hp.toFixed(1)}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','away','${system}')">${a.defenses}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','away','${system}')">${ap.toFixed(1)}%</td></tr>`;}); }
-            set('summary-leader-home-title',activeMatch.homeName||'Saját csapat'); set('summary-leader-away-title',activeMatch.awayName||'Ellenfél'); renderSummaryLeaders('home','summary-leaders-home'); renderSummaryLeaders('away','summary-leaders-away'); renderSummaryCombos();
+            set('summary-leader-home-title',activeMatch.homeName||'Saját csapat'); set('summary-leader-away-title',activeMatch.awayName||'Ellenfél'); renderSummaryLeaders('home','summary-leaders-home'); renderSummaryLeaders('away','summary-leaders-away'); renderSummaryCombos(); renderFiveMinuteTimeline();
         }
 
         function populateStatDashboard(side) {
