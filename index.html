@@ -3792,7 +3792,7 @@ KOVÁCS DÁVID MÁTÉ
             const twoMin = evs.filter(e => e.team === side && e.group === 'penalty' && e.result === '2 perc').length;
             const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster;
             const gkNums = (roster || []).filter(p => p.isGk).map(p => String(p.num));
-            const faced = evs.filter(e => e.group === 'shot' && gkNums.includes(String(e.defendingGk)) && ['Gól','Védés'].includes(e.result));
+            const faced = evs.filter(e => e.team === opp && e.group === 'shot' && gkNums.includes(String(e.defendingGk)) && ['Gól','Védés'].includes(e.result));
             const saves = faced.filter(e => e.result === 'Védés').length;
             return {
                 shots:shots.length, goals, shotPct:shots.length ? goals/shots.length*100 : 0,
@@ -3833,7 +3833,7 @@ KOVÁCS DÁVID MÁTÉ
                     if(e.team===side && String(e.assist||'')===String(p.num)) assists++;
                     if(e.team===side && e.playerNum==p.num && e.group==='defense' && ['Labdaszerzés','Kiharcolt belemenés'].includes(e.result)) steals++;
                     if(e.group==='shot' && e.result==='Gól' && Array.isArray(e[courtKey]) && e[courtKey].map(String).includes(String(p.num))) pm += e.team===side ? 1 : -1;
-                    if(p.isGk && String(e.defendingGk||'')===String(p.num) && ['Gól','Védés'].includes(e.result)) { faced++; if(e.result==='Védés') saves++; }
+                    if(p.isGk && e.team!==side && String(e.defendingGk||'')===String(p.num) && ['Gól','Védés'].includes(e.result)) { faced++; if(e.result==='Védés') saves++; }
                 });
                 return {p,goals,assists,steals,pm,saves,faced,gkPct:faced?saves/faced*100:0};
             });
@@ -3885,7 +3885,7 @@ KOVÁCS DÁVID MÁTÉ
             else if(kind === 'goalkeeper') {
                 const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster;
                 const gks = (roster || []).filter(p=>p.isGk).map(p=>String(p.num));
-                evs = evs.filter(e => e.group === 'shot' && gks.includes(String(e.defendingGk || '')) && ['Gól','Védés'].includes(e.result));
+                evs = evs.filter(e => e.team === opp && e.group === 'shot' && gks.includes(String(e.defendingGk || '')) && ['Gól','Védés'].includes(e.result));
             }
             else if(kind === 'errors') evs = evs.filter(e => e.team === side && e.group === 'error');
             else if(kind === 'steals') evs = evs.filter(e => e.team === side && e.group === 'defense' && ['Labdaszerzés','Kiharcolt belemenés'].includes(e.result));
@@ -3962,7 +3962,7 @@ KOVÁCS DÁVID MÁTÉ
                     const pct = pShots > 0 ? Math.round((pGoals / pShots) * 100) : 0; const valClass = valIndex > 0 ? 'val-positive' : (valIndex < 0 ? 'val-negative' : '');
                     tbodyPlayers.innerHTML += `<tr class="${rowClass}" onclick="selectPlayerForStats('${player.num}')"><td><strong>#${player.num} ${player.name}</strong></td><td>${timeStr}</td><td><strong>${pGoals}</strong> / ${pShots}</td><td style="color:${pct>50 ? 'var(--green-accent)' : '#fff'}">${pct}%</td><td>${pAssists}</td><td>${pKeyPass}</td><td>${pWon7}</td><td>${pWon2}</td><td>${pSteals}</td><td>${pErrors}</td><td class="${pmClass}">${pmStr}</td><td class="${valClass}">${valIndex}</td></tr>`;
                 } else {
-                    let gkSaves = 0, gkShotsFaced = 0; globalEvents.forEach(e => { if(!eventMatchesStatStrength(e, side)) return; if(e.group === 'shot' && e.defendingGk == player.num) { if(e.result === 'Gól' || e.result === 'Védés') gkShotsFaced++; if(e.result === 'Védés') { gkSaves++; valIndex++; } } });
+                    let gkSaves = 0, gkShotsFaced = 0; globalEvents.forEach(e => { if(!eventMatchesStatStrength(e, side)) return; if(e.team === oppSide && e.group === 'shot' && e.defendingGk == player.num) { if(e.result === 'Gól' || e.result === 'Védés') gkShotsFaced++; if(e.result === 'Védés') { gkSaves++; valIndex++; } } });
                     const gkPct = gkShotsFaced > 0 ? Math.round((gkSaves / gkShotsFaced) * 100) : 0; const valClass = valIndex > 0 ? 'val-positive' : (valIndex < 0 ? 'val-negative' : '');
                     tbodyGk.innerHTML += `<tr class="${rowClass}" onclick="selectPlayerForStats('${player.num}')"><td><strong>#${player.num} ${player.name}</strong> <span style="color:var(--gk-accent); font-size:10px;">(K)</span></td><td>${timeStr}</td><td><strong>${gkSaves}</strong> / ${gkShotsFaced}</td><td style="color:var(--gk-accent)">${gkPct}%</td><td class="${pmClass}">${pmStr}</td><td class="${valClass}">${valIndex}</td></tr>`;
                 }
