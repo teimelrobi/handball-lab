@@ -1927,14 +1927,55 @@ KOVÁCS DÁVID MÁTÉ
         function careerNorm(value) {
             return String(value || '').trim().toLocaleLowerCase('hu-HU').replace(/\s+/g,' ');
         }
+        function careerAgeGroup(value) {
+            const v=String(value||'').toUpperCase().replace(/\s+/g,'');
+            if(v.includes('18')) return 'FU18';
+            if(v.includes('16')) return 'FU16';
+            return '';
+        }
+        function careerTeamRef(label) {
+            const raw=String(label||'').trim();
+            const m=raw.match(/^\[(?:F?U)?(16|18)\]\s*(.*)$/i);
+            return {label:raw,name:m?m[2].trim():raw,ageGroup:m?('FU'+m[1]):''};
+        }
+        function careerTeamLabel(name, ageGroup) {
+            const age=careerAgeGroup(ageGroup);
+            return (age?'['+age.replace('FU','U')+'] ':'')+String(name||'');
+        }
+        function careerInferMatchAgeGroup(match, side) {
+            const name=side==='home'?match.homeName:match.awayName;
+            const roster=(side==='home'?match.homeRoster:match.awayRoster)||[];
+            const candidates=Object.entries(db.teams||{}).filter(([id,t])=>careerNorm(t?.name)===careerNorm(name)&&careerAgeGroup(t?.ageGroup));
+            if(!candidates.length) return '';
+            if(candidates.length===1) return careerAgeGroup(candidates[0][1].ageGroup);
+            const rosterNames=new Set(roster.map(p=>careerNorm(p.name)).filter(Boolean));
+            const scored=candidates.map(([id,t])=>{
+                const teamNames=new Set((t.players||[]).map(p=>careerNorm(p.name)).filter(Boolean));
+                let overlap=0; rosterNames.forEach(n=>{if(teamNames.has(n))overlap++;});
+                return {age:careerAgeGroup(t.ageGroup),overlap,total:Math.max(1,rosterNames.size)};
+            }).sort((a,b)=>b.overlap-a.overlap);
+            if(!scored[0]||scored[0].overlap===0) return '';
+            if(scored[1]&&scored[1].overlap===scored[0].overlap) return '';
+            return scored[0].age;
+        }
         function careerTeamNames() {
-            const names = new Map();
-            Object.values(db.teams || {}).forEach(t => { if(t && t.name) names.set(careerNorm(t.name), t.name); });
-            (db.matches || []).forEach(m => {
-                if(m.homeName) names.set(careerNorm(m.homeName), m.homeName);
-                if(m.awayName) names.set(careerNorm(m.awayName), m.awayName);
+            const labels=new Map(), knownNames=new Set();
+            Object.values(db.teams||{}).forEach(t=>{
+                if(!t||!t.name)return;
+                knownNames.add(careerNorm(t.name));
+                const label=careerTeamLabel(t.name,t.ageGroup);
+                labels.set(careerNorm(label),label);
             });
-            return Array.from(names.values()).sort((a,b)=>a.localeCompare(b,'hu'));
+            (db.matches||[]).forEach(m=>{
+                [['home',m.homeName],['away',m.awayName]].forEach(([side,name])=>{
+                    if(!name)return;
+                    if(knownNames.has(careerNorm(name))) return;
+                    const age=careerAgeGroup(side==='home'?m.homeAgeGroup:m.awayAgeGroup);
+                    const label=careerTeamLabel(name,age);
+                    labels.set(careerNorm(label),label);
+                });
+            });
+            return Array.from(labels.values()).sort((a,b)=>a.localeCompare(b,'hu'));
         }
         function loadCareerStatsUI() {
             const teamSel=document.getElementById('career-team-select');
@@ -1949,21 +1990,32 @@ KOVÁCS DÁVID MÁTÉ
             const el=document.getElementById('career-team-select');
             return el && el.value ? decodeURIComponent(el.value) : '';
         }
-        function careerTeamSide(match, teamName) {
-            const key=careerNorm(teamName);
-            if(careerNorm(match.homeName)===key) return 'home';
-            if(careerNorm(match.awayName)===key) return 'away';
-            return '';
+        function careerTeamSide(match, teamLabel) {
+            const ref=careerTeamRef(teamLabel), key=careerNorm(ref.name);
+            let side='';
+            if(careerNorm(match.homeName)===key) side='home';
+            else if(careerNorm(match.awayName)===key) side='away';
+            if(!side) return '';
+            if(!ref.ageGroup) return side;
+
+            const savedAge=careerAgeGroup(side==='home'?match.homeAgeGroup:match.awayAgeGroup);
+            if(savedAge) return savedAge===ref.ageGroup?side:'';
+
+            const savedId=String(side==='home'?(match.homeTeamId||''):(match.awayTeamId||''));
+            if(savedId && db.teams?.[savedId]) return careerAgeGroup(db.teams[savedId].ageGroup)===ref.ageGroup?side:'';
+
+            const inferred=careerInferMatchAgeGroup(match,side);
+            return inferred===ref.ageGroup?side:'';
         }
         function careerPlayersForTeam(teamName) {
-            const map=new Map(), teamKey=careerNorm(teamName);
+            const map=new Map(), ref=careerTeamRef(teamName), teamKey=careerNorm(ref.name);
             const add=p=>{
                 if(!p || !p.name || !String(p.name).trim()) return;
                 const key=careerNorm(p.name);
                 if(!map.has(key)) map.set(key,{key:key,name:p.name,nums:new Set(),isGk:!!p.isGk,position:p.position||''});
                 const item=map.get(key); if(p.num!==undefined && p.num!==null && p.num!=='') item.nums.add(String(p.num)); item.isGk=item.isGk||!!p.isGk; if(!item.position && p.position) item.position=p.position;
             };
-            Object.values(db.teams || {}).forEach(t=>{ if(careerNorm(t.name)===teamKey) (t.players||[]).forEach(add); });
+            Object.values(db.teams || {}).forEach(t=>{ if(careerNorm(t.name)===teamKey && (!ref.ageGroup || careerAgeGroup(t.ageGroup)===ref.ageGroup)) (t.players||[]).forEach(add); });
             (db.matches || []).forEach(m=>{ const side=careerTeamSide(m,teamName); if(side) ((side==='home'?m.homeRoster:m.awayRoster)||[]).forEach(add); });
             return Array.from(map.values()).sort((a,b)=>{
                 const an=Math.min(...Array.from(a.nums).map(Number).filter(Number.isFinite),999), bn=Math.min(...Array.from(b.nums).map(Number).filter(Number.isFinite),999);
@@ -2097,7 +2149,7 @@ KOVÁCS DÁVID MÁTÉ
                 return '<tr><td>'+r.date+'</td><td>'+r.opponent+'</td><td><b>'+r.gf+'–'+r.ga+'</b></td><td>'+res+'</td><td>'+r.goals+'/'+r.shots+' ('+r.shotPct+'%)</td><td>'+r.errors+'</td><td>'+r.steals+'</td><td>'+r.saves+'/'+r.faced+' ('+r.savePct+'%)</td></tr>';
             }).join('');
             root.innerHTML=
-                '<div class="career-player-head"><h2>'+teamName+' · TELJES CSAPAT</h2><p>Összes elmentett mérkőzés alapján</p></div>'+
+                '<div class="career-player-head"><h2>'+careerTeamRef(teamName).label+' · TELJES CSAPAT</h2><p>Összes elmentett mérkőzés alapján</p></div>'+
                 '<div class="career-kpis">'+
                     '<div class="career-kpi"><span>Meccs</span><strong>'+d.matches+'</strong></div>'+
                     '<div class="career-kpi"><span>Mérleg</span><strong>'+d.wins+'–'+d.draws+'–'+d.losses+'</strong></div>'+
@@ -2265,7 +2317,7 @@ KOVÁCS DÁVID MÁTÉ
                 return '<tr><td>'+r.date+'</td><td>'+r.opponent+'</td><td>'+formatPlayTime(r.time)+'</td><td><b>'+r.goals+'</b>/'+r.shots+' ('+rpct+'%)</td><td>'+r.assists+'</td><td>'+r.faults+'</td><td>'+r.blocks+'</td><td>'+r.steals+'</td><td>'+r.errors+'</td><td>'+rpm+'</td></tr>';
             }).join('');
 
-            const header='<div class="career-player-head"><h2>'+(nums?'#'+nums+' ':'')+meta.name+(meta.isGk?' · Kapus':'')+'</h2><p>'+teamName+' · összes elmentett mérkőzés alapján</p></div>';
+            const header='<div class="career-player-head"><h2>'+(nums?'#'+nums+' ':'')+meta.name+(meta.isGk?' · Kapus':'')+'</h2><p>'+careerTeamRef(teamName).label+' · összes elmentett mérkőzés alapján</p></div>';
             if(meta.isGk) {
                 root.innerHTML=header+
                     '<div class="career-kpis">'+
@@ -2553,7 +2605,7 @@ KOVÁCS DÁVID MÁTÉ
             if(!db.matches) db.matches = [];
             db.matches.push({ 
                 id: 'm_' + Date.now(), matchName: matchName, league: 'MKSZ Import', location: '', date: dateStr, 
-                homeName: homeName, awayName: awayName, homeScore: currentHomeScore.toString(), awayScore: currentAwayScore.toString(), 
+                homeName: homeName, awayName: awayName, homeTeamId:hId, awayTeamId:aId, homeAgeGroup:careerAgeGroup(db.teams[hId]?.ageGroup), awayAgeGroup:careerAgeGroup(db.teams[aId]?.ageGroup), homeScore: currentHomeScore.toString(), awayScore: currentAwayScore.toString(), 
                 events: mkszEvents, homeRoster: JSON.parse(JSON.stringify(db.teams[hId].players)), awayRoster: JSON.parse(JSON.stringify(db.teams[aId].players)) 
             });
             saveDB();
@@ -2643,7 +2695,7 @@ KOVÁCS DÁVID MÁTÉ
             if(timer) toggleTimer();
             if(!db.matches) db.matches = [];
             activeMatch.matchEndAbs = currentMatchAbsoluteSeconds(); if(isVideoAnalysis) syncRosterPlayTimesFromLineup(activeMatch.matchEndAbs); recordLineupSnapshot('Mérkőzés vége');
-            db.matches.push({ id: 'm_' + Date.now(), matchName: activeMatch.matchName, league: activeMatch.league, location: activeMatch.location, date: activeMatch.date, homeName: activeMatch.homeName, awayName: activeMatch.awayName, homeScore: document.getElementById('score-home').innerText, awayScore: document.getElementById('score-away').innerText, events: globalEvents, homeRoster: activeMatch.homeRoster, awayRoster: activeMatch.awayRoster, lineupHistory: activeMatch.lineupHistory || [], lineupHistoryComplete: activeMatch.lineupHistoryComplete === true, matchEndAbs: activeMatch.matchEndAbs || 0, videoSyncPoints: activeMatch.videoSyncPoints || {} });
+            db.matches.push({ id: 'm_' + Date.now(), matchName: activeMatch.matchName, league: activeMatch.league, location: activeMatch.location, date: activeMatch.date, homeName: activeMatch.homeName, awayName: activeMatch.awayName, homeTeamId: activeMatch.homeTeamId || '', awayTeamId: activeMatch.awayTeamId || '', homeAgeGroup: careerAgeGroup(db.teams?.[activeMatch.homeTeamId]?.ageGroup), awayAgeGroup: careerAgeGroup(db.teams?.[activeMatch.awayTeamId]?.ageGroup), homeScore: document.getElementById('score-home').innerText, awayScore: document.getElementById('score-away').innerText, events: globalEvents, homeRoster: activeMatch.homeRoster, awayRoster: activeMatch.awayRoster, lineupHistory: activeMatch.lineupHistory || [], lineupHistoryComplete: activeMatch.lineupHistoryComplete === true, matchEndAbs: activeMatch.matchEndAbs || 0, videoSyncPoints: activeMatch.videoSyncPoints || {} });
             saveDB(); discardMatch(); location.reload();
         }
 
