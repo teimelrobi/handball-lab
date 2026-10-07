@@ -3802,9 +3802,21 @@ KOVÁCS DÁVID MÁTÉ
         }
         window.addEventListener('afterprint', clearStatPrintMode);
 
-        function openStatDashboard() { document.getElementById('stat-dashboard').style.display = 'flex'; filterPlayerNum = null; lineupSelectedPlayers = []; lineupStatSide = 'home'; statStrengthFilter = 'all'; statPeriodFilter = 'all'; recalculateDerivedEventData(globalEvents); updateStatPeriodFilterUI(); updateStatStrengthFilterUI('home'); switchStatTab('summary'); }
+        function openStatDashboard() { document.getElementById('stat-dashboard').style.display = 'flex'; filterPlayerNum = null; lineupSelectedPlayers = []; lineupStatSide = summaryOwnSide(); statStrengthFilter = 'all'; statPeriodFilter = 'all'; recalculateDerivedEventData(globalEvents); updateStatPeriodFilterUI(); updateStatStrengthFilterUI(summaryOwnSide()); switchStatTab('summary'); }
         function closeStatDashboard() { document.getElementById('stat-dashboard').style.display = 'none'; }
-        function statPerspectiveSide() { if(currentStatView === 'lineup') return lineupStatSide; return currentStatView === 'away' ? 'away' : 'home'; }
+        function isBudaiFarkasokTeam(name) {
+            const n=careerNorm(name);
+            return n.includes('budai farkas');
+        }
+        function summaryOwnSide() {
+            if(activeMatch){
+                if(isBudaiFarkasokTeam(activeMatch.homeName)) return 'home';
+                if(isBudaiFarkasokTeam(activeMatch.awayName)) return 'away';
+            }
+            return 'home';
+        }
+        function summaryOpponentSide() { return summaryOwnSide()==='home'?'away':'home'; }
+        function statPerspectiveSide() { if(currentStatView === 'lineup') return lineupStatSide; if(currentStatView === 'summary') return summaryOwnSide(); return currentStatView === 'away' ? 'away' : 'home'; }
         function refreshCurrentStatView() {
             if(document.getElementById('stat-dashboard').style.display !== 'flex') return;
             updateStatPeriodFilterUI();
@@ -3855,7 +3867,7 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('classic-stat-view').style.display = 'none';
             document.getElementById('lineup-view').style.display = 'none';
             currentStatView = tab; filterPlayerNum = null;
-            if(tab === 'summary') { document.getElementById('summary-view').style.display = 'flex'; updateStatStrengthFilterUI('home'); updateMatchSummary(); }
+            if(tab === 'summary') { document.getElementById('summary-view').style.display = 'flex'; updateStatStrengthFilterUI(summaryOwnSide()); updateMatchSummary(); }
             else if(tab === 'lineup') { document.getElementById('lineup-view').style.display = 'flex'; updateStatStrengthFilterUI(lineupStatSide); renderLineupSelectors(); }
             else { document.getElementById('classic-stat-view').style.display = 'flex'; updateStatStrengthFilterUI(tab); populateStatDashboard(tab); }
         }
@@ -3878,7 +3890,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function summaryEventMatches(e, code = statStrengthFilter) {
             if(!eventMatchesStatPeriod(e)) return false;
-            return code === 'all' || strengthCodeForPerspective(e, 'home') === code;
+            return code === 'all' || strengthCodeForPerspective(e, summaryOwnSide()) === code;
         }
         function emptyFiveMinuteTimeline() {
             return Array.from({length:12},(_,i)=>({index:i,start:i*300,end:(i+1)*300,home:{goals:0,shots:0,errors:0,steals:0,twoMin:0},away:{goals:0,shots:0,errors:0,steals:0,twoMin:0}}));
@@ -3983,11 +3995,12 @@ KOVÁCS DÁVID MÁTÉ
         }
         function calculateSummaryStrengthRow(code) {
             const evs = globalEvents.filter(e => summaryEventMatches(e, code));
-            const homeEnds = evs.filter(e => e.possessionEnd && e.possessionTeam === 'home');
-            const awayEnds = evs.filter(e => e.possessionEnd && e.possessionTeam === 'away');
-            const hg = homeEnds.filter(e => e.group === 'shot' && e.result === 'Gól').length;
-            const ag = awayEnds.filter(e => e.group === 'shot' && e.result === 'Gól').length;
-            return { homeAtt:homeEnds.length, homeGoals:hg, homePct:homeEnds.length ? hg/homeEnds.length*100 : 0, awayAtt:awayEnds.length, awayGoals:ag, defensePct:awayEnds.length ? (awayEnds.length-ag)/awayEnds.length*100 : 0 };
+            const own=summaryOwnSide(), opp=summaryOpponentSide();
+            const ownEnds = evs.filter(e => e.possessionEnd && e.possessionTeam === own);
+            const oppEnds = evs.filter(e => e.possessionEnd && e.possessionTeam === opp);
+            const ownGoals = ownEnds.filter(e => e.group === 'shot' && e.result === 'Gól').length;
+            const oppGoals = oppEnds.filter(e => e.group === 'shot' && e.result === 'Gól').length;
+            return { ownAtt:ownEnds.length, ownGoals, ownPct:ownEnds.length ? ownGoals/ownEnds.length*100 : 0, oppAtt:oppEnds.length, oppGoals, defensePct:oppEnds.length ? (oppEnds.length-oppGoals)/oppEnds.length*100 : 0 };
         }
         function calculateSummaryAttackTypes(side) {
             const rows = {}; [...ATTACK_TYPES,'Nem jelölt'].forEach(type => rows[type]={type,attacks:0,goals:0});
@@ -4030,13 +4043,13 @@ KOVÁCS DÁVID MÁTÉ
         }
         function renderSummaryCombos() {
             const pairEl=document.getElementById('summary-best-pair'), lineEl=document.getElementById('summary-best-line'); if(!pairEl||!lineEl) return;
-            const data=buildComboStats('home');
+            const own=summaryOwnSide(), data=buildComboStats(own);
             const activity=r=>r.attacks+r.defenses;
             const bestPair=data.pairs.slice().sort((a,b)=>b.pm-a.pm || activity(b)-activity(a) || b.duration-a.duration)[0];
             const bestLine=data.lines.slice().sort((a,b)=>b.pm-a.pm || activity(b)-activity(a) || b.duration-a.duration)[0];
             const render=(r,isLine)=>{
                 if(!r) return 'Nincs még elegendő adat.';
-                const names=r.nums.map(n=>playerLabelForCombo('home',n)).join(isLine?' · ':' + '); const time=data.durationExact?formatPlayTime(r.duration):'—';
+                const names=r.nums.map(n=>playerLabelForCombo(own,n)).join(isLine?' · ':' + '); const time=data.durationExact?formatPlayTime(r.duration):'—';
                 return `<div class="summary-combo-name">${names}</div><div class="summary-combo-metrics"><span>+/- <b>${r.pm>0?'+':''}${r.pm}</b></span><span>Együtt <b>${time}</b></span><span>Tám. <b>${r.attackPct.toFixed(1)}%</b></span><span>Véd. <b>${r.defensePct.toFixed(1)}%</b></span></div>`;
             };
             pairEl.innerHTML=render(bestPair,false); lineEl.innerHTML=render(bestLine,true);
@@ -4070,7 +4083,7 @@ KOVÁCS DÁVID MÁTÉ
             else if(kind === 'errors') evs = evs.filter(e => e.team === side && e.group === 'error');
             else if(kind === 'steals') evs = evs.filter(e => e.team === side && e.group === 'defense' && ['Labdaszerzés','Kiharcolt belemenés'].includes(e.result));
             else if(kind === 'penalties') evs = evs.filter(e => e.team === side && e.group === 'penalty' && e.result === '2 perc');
-            else if(kind === 'strengthAttack') evs = globalEvents.filter(e => eventMatchesStatPeriod(e) && strengthCodeForPerspective(e,'home') === value && e.possessionEnd && e.possessionTeam === side);
+            else if(kind === 'strengthAttack') evs = globalEvents.filter(e => eventMatchesStatPeriod(e) && strengthCodeForPerspective(e,summaryOwnSide()) === value && e.possessionEnd && e.possessionTeam === side);
             else if(kind === 'attackType') evs = evs.filter(e => e.possessionEnd && e.possessionTeam === side && (e.possessionAttackType || e.attackType || 'Nem jelölt') === value);
             else if(kind === 'defenseSystem') evs = evs.filter(e => e.possessionEnd && e.possessionTeam === opp && (e.possessionDefenseSystem || e.defenseSystem || 'Nem jelölt') === value);
             else if(kind === 'combo') {
@@ -4092,7 +4105,7 @@ KOVÁCS DÁVID MÁTÉ
         }
 
         function updateMatchSummary() {
-            recalculateDerivedEventData(globalEvents); updateStatStrengthFilterUI('home');
+            recalculateDerivedEventData(globalEvents); const ownSide=summaryOwnSide(), oppSide=summaryOpponentSide(); updateStatStrengthFilterUI(ownSide);
             const home=calculateSummaryTeam('home'), away=calculateSummaryTeam('away');
             const totalHomeGoals=globalEvents.filter(e=>eventMatchesStatPeriod(e)&&e.team==='home'&&e.group==='shot'&&e.result==='Gól').length, totalAwayGoals=globalEvents.filter(e=>eventMatchesStatPeriod(e)&&e.team==='away'&&e.group==='shot'&&e.result==='Gól').length;
             const set=(id,val)=>{const el=document.getElementById(id); if(el) el.innerText=val;};
@@ -4102,9 +4115,9 @@ KOVÁCS DÁVID MÁTÉ
             set('sum-home-shot-eff',`${home.shotPct.toFixed(1)}%`); set('sum-away-shot-eff',`${away.shotPct.toFixed(1)}%`); set('sum-shot-sub',`${home.goals}/${home.shots} lövés · ${away.goals}/${away.shots} lövés`);
             set('sum-home-gk-eff',`${home.gkPct.toFixed(1)}%`); set('sum-away-gk-eff',`${away.gkPct.toFixed(1)}%`); set('sum-gk-sub',`${home.saves}/${home.faced} · ${away.saves}/${away.faced} védés`);
             set('sum-home-errors',home.errors); set('sum-away-errors',away.errors); set('sum-home-steals',home.steals); set('sum-away-steals',away.steals); set('sum-home-2min',home.twoMin); set('sum-away-2min',away.twoMin);
-            const strengthBody=document.querySelector('#summary-strength-table tbody'); if(strengthBody){ strengthBody.innerHTML=''; [['even','Azonos'],['advantage','Emberelőny'],['disadvantage','Emberhátrány']].forEach(([code,label])=>{const r=calculateSummaryStrengthRow(code); strengthBody.innerHTML+=`<tr><td><strong>${label}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','home','${code}')">${r.homeGoals}/${r.homeAtt}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','home','${code}')">${r.homePct.toFixed(1)}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','away','${code}')">${r.awayGoals}/${r.awayAtt}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','away','${code}')">${r.defensePct.toFixed(1)}%</td></tr>`;}); }
-            const hA=calculateSummaryAttackTypes('home'), aA=calculateSummaryAttackTypes('away'), attackBody=document.querySelector('#summary-attack-table tbody'); if(attackBody){attackBody.innerHTML=''; const types=[...ATTACK_TYPES,'Nem jelölt']; types.forEach(type=>{const h=hA[type]||{attacks:0,goals:0},a=aA[type]||{attacks:0,goals:0}; if(h.attacks+a.attacks===0 && type==='Nem jelölt') return; attackBody.innerHTML+=`<tr><td><strong>${type}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','home','${type}')">${h.attacks}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','home','${type}')">${h.attacks?(h.goals/h.attacks*100).toFixed(1):'0.0'}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','away','${type}')">${a.attacks}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','away','${type}')">${a.attacks?(a.goals/a.attacks*100).toFixed(1):'0.0'}%</td></tr>`;}); }
-            const hD=calculateSummaryDefenseSystems('home'), aD=calculateSummaryDefenseSystems('away'), defenseBody=document.querySelector('#summary-defense-table tbody'); if(defenseBody){defenseBody.innerHTML=''; const systems=[...DEFENSE_SYSTEMS,'Nem jelölt']; systems.forEach(system=>{const h=hD[system]||{defenses:0,conceded:0},a=aD[system]||{defenses:0,conceded:0}; if(h.defenses+a.defenses===0 && system==='Nem jelölt') return; const hp=h.defenses?(h.defenses-h.conceded)/h.defenses*100:0, ap=a.defenses?(a.defenses-a.conceded)/a.defenses*100:0; defenseBody.innerHTML+=`<tr><td><strong>${system}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','home','${system}')">${h.defenses}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','home','${system}')">${hp.toFixed(1)}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','away','${system}')">${a.defenses}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','away','${system}')">${ap.toFixed(1)}%</td></tr>`;}); }
+            const strengthBody=document.querySelector('#summary-strength-table tbody'); if(strengthBody){ strengthBody.innerHTML=''; [['even','Azonos'],['advantage','Emberelőny'],['disadvantage','Emberhátrány']].forEach(([code,label])=>{const r=calculateSummaryStrengthRow(code); strengthBody.innerHTML+=`<tr><td><strong>${label}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','${ownSide}','${code}')">${r.ownGoals}/${r.ownAtt}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','${ownSide}','${code}')">${r.ownPct.toFixed(1)}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','${oppSide}','${code}')">${r.oppGoals}/${r.oppAtt}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('strengthAttack','${oppSide}','${code}')">${r.defensePct.toFixed(1)}%</td></tr>`;}); }
+            const hA=calculateSummaryAttackTypes(ownSide), aA=calculateSummaryAttackTypes(oppSide), attackBody=document.querySelector('#summary-attack-table tbody'); if(attackBody){attackBody.innerHTML=''; const types=[...ATTACK_TYPES,'Nem jelölt']; types.forEach(type=>{const h=hA[type]||{attacks:0,goals:0},a=aA[type]||{attacks:0,goals:0}; if(h.attacks+a.attacks===0 && type==='Nem jelölt') return; attackBody.innerHTML+=`<tr><td><strong>${type}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','${ownSide}','${type}')">${h.attacks}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','${ownSide}','${type}')">${h.attacks?(h.goals/h.attacks*100).toFixed(1):'0.0'}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','${oppSide}','${type}')">${a.attacks}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('attackType','${oppSide}','${type}')">${a.attacks?(a.goals/a.attacks*100).toFixed(1):'0.0'}%</td></tr>`;}); }
+            const hD=calculateSummaryDefenseSystems(ownSide), aD=calculateSummaryDefenseSystems(oppSide), defenseBody=document.querySelector('#summary-defense-table tbody'); if(defenseBody){defenseBody.innerHTML=''; const systems=[...DEFENSE_SYSTEMS,'Nem jelölt']; systems.forEach(system=>{const h=hD[system]||{defenses:0,conceded:0},a=aD[system]||{defenses:0,conceded:0}; if(h.defenses+a.defenses===0 && system==='Nem jelölt') return; const hp=h.defenses?(h.defenses-h.conceded)/h.defenses*100:0, ap=a.defenses?(a.defenses-a.conceded)/a.defenses*100:0; defenseBody.innerHTML+=`<tr><td><strong>${system}</strong></td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','${ownSide}','${system}')">${h.defenses}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','${ownSide}','${system}')">${hp.toFixed(1)}%</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','${oppSide}','${system}')">${a.defenses}</td><td class="video-link-cell" onclick="openSummaryVideoFilter('defenseSystem','${oppSide}','${system}')">${ap.toFixed(1)}%</td></tr>`;}); }
             set('summary-leader-home-title',activeMatch.homeName||'Saját csapat'); set('summary-leader-away-title',activeMatch.awayName||'Ellenfél'); renderSummaryLeaders('home','summary-leaders-home'); renderSummaryLeaders('away','summary-leaders-away'); renderSummaryCombos(); renderFiveMinuteTimeline();
         }
 
