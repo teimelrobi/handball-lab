@@ -1050,6 +1050,13 @@ KOVÁCS DÁVID MÁTÉ
                 <button class="btn-close-stat" onclick="closeStatDashboard()"><i class="fas fa-times"></i> Bezárás</button>
             </div>
         </div>
+        <div class="strength-filter-bar" id="stat-period-filter">
+            <span class="strength-filter-label"><i class="fas fa-clock"></i> Meccsrész</span>
+            <button class="strength-filter-btn stat-period-btn active" data-period="all" onclick="setStatPeriodFilter('all')">TELJES MECCS</button>
+            <button class="strength-filter-btn stat-period-btn" data-period="1" onclick="setStatPeriodFilter('1')">1. FÉLIDŐ</button>
+            <button class="strength-filter-btn stat-period-btn" data-period="2" onclick="setStatPeriodFilter('2')">2. FÉLIDŐ</button>
+            <span class="strength-filter-context" id="stat-period-context">60 perc</span>
+        </div>
         <div class="strength-filter-bar" id="stat-strength-filter">
             <span class="strength-filter-label"><i class="fas fa-user-friends"></i> Létszámhelyzet</span>
             <button class="strength-filter-btn active" data-filter="all" onclick="setStatStrengthFilter('all')">ÖSSZES</button>
@@ -1788,7 +1795,7 @@ KOVÁCS DÁVID MÁTÉ
         let globalEvents = []; let seconds = 0, timer = null, currentPeriod = 1;
         let activePlayer = null, activeTeamSide = null, activeActionGroup = 'shot';
         let selFrom = null, selTo = null, selResult = null, selType = null, selSimpleAction = null, selDefendingGk = "", selAttackType = '', selDefenseSystem = '';
-        let currentStatView = 'summary'; let filterPlayerNum = null; let lineupSelectedPlayers = []; let lineupStatSide = 'home'; let statStrengthFilter = 'all';
+        let currentStatView = 'summary'; let filterPlayerNum = null; let lineupSelectedPlayers = []; let lineupStatSide = 'home'; let statStrengthFilter = 'all'; let statPeriodFilter = 'all';
         let pendingSubstitution = { home: null, away: null };
         
         let currentVideoMatch = null; 
@@ -3089,8 +3096,12 @@ KOVÁCS DÁVID MÁTÉ
             if(history.length === 0) return { pairDur, lineDur, exact:false };
             const endAbs = Math.max(Number(history[history.length-1].abs)||0, getLineupEndAbs());
             history.forEach((snap, i) => {
-                const start = Number(snap.abs)||0;
-                const next = i+1 < history.length ? Number(history[i+1].abs)||start : endAbs;
+                const rawStart = Number(snap.abs)||0;
+                const rawNext = i+1 < history.length ? Number(history[i+1].abs)||rawStart : endAbs;
+                const rangeStart = statPeriodFilter==='2' ? 1800 : 0;
+                const rangeEnd = statPeriodFilter==='1' ? 1800 : Infinity;
+                const start = Math.max(rawStart, rangeStart);
+                const next = Math.min(rawNext, rangeEnd);
                 const dur = Math.max(0, next-start);
                 if(dur <= 0) return;
                 const court = ((side === 'home' ? snap.homeCourt : snap.awayCourt) || []).map(String).sort((a,b)=>Number(a)-Number(b));
@@ -3101,6 +3112,22 @@ KOVÁCS DÁVID MÁTÉ
                 for(let a=0;a<field.length;a++) for(let b=a+1;b<field.length;b++) { const key=[field[a],field[b]].sort((x,y)=>Number(x)-Number(y)).join('|'); pairDur[key]=(pairDur[key]||0)+dur; }
             });
             return { pairDur, lineDur, exact:activeMatch.lineupHistoryComplete === true };
+        }
+        function statPlayerPlayTime(side, playerNum, fallback) {
+            if(statPeriodFilter==='all') return Number(fallback)||0;
+            const history=Array.isArray(activeMatch.lineupHistory)?activeMatch.lineupHistory.slice().sort((a,b)=>Number(a.abs)-Number(b.abs)):[];
+            if(!history.length) return Number(fallback)||0;
+            const rangeStart=statPeriodFilter==='2'?1800:0, rangeEnd=statPeriodFilter==='1'?1800:Math.max(3600,getLineupEndAbs());
+            const endAbs=Math.max(Number(history[history.length-1].abs)||0,getLineupEndAbs());
+            let total=0;
+            history.forEach((snap,i)=>{
+                const rawStart=Number(snap.abs)||0,rawNext=i+1<history.length?(Number(history[i+1].abs)||rawStart):endAbs;
+                const start=Math.max(rawStart,rangeStart),stop=Math.min(rawNext,rangeEnd);
+                if(stop<=start)return;
+                const court=side==='home'?(snap.homeCourt||[]):(snap.awayCourt||[]);
+                if(court.map(String).includes(String(playerNum))) total+=stop-start;
+            });
+            return total;
         }
         function formatPlayTime(totalSeconds) { const safe = Math.max(0, Math.floor(totalSeconds || 0)); return `${Math.floor(safe/60).toString().padStart(2,'0')}:${(safe%60).toString().padStart(2,'0')}`; }
         function updateRosterPlayTimeUI() {
@@ -3645,11 +3672,12 @@ KOVÁCS DÁVID MÁTÉ
         }
         function toggleTimer() { const btn = document.getElementById('start-btn'); if (timer) { clearInterval(timer); timer = null; btn.innerHTML = '<i class="fas fa-play"></i> Indítás'; btn.classList.remove('running'); } else { timer = setInterval(() => { adjustTime(1); }, 1000); btn.innerHTML = '<i class="fas fa-pause"></i> Szünet'; btn.classList.add('running'); } }
 
-        function openStatDashboard() { document.getElementById('stat-dashboard').style.display = 'flex'; filterPlayerNum = null; lineupSelectedPlayers = []; lineupStatSide = 'home'; statStrengthFilter = 'all'; recalculateDerivedEventData(globalEvents); updateStatStrengthFilterUI('home'); switchStatTab('summary'); }
+        function openStatDashboard() { document.getElementById('stat-dashboard').style.display = 'flex'; filterPlayerNum = null; lineupSelectedPlayers = []; lineupStatSide = 'home'; statStrengthFilter = 'all'; statPeriodFilter = 'all'; recalculateDerivedEventData(globalEvents); updateStatPeriodFilterUI(); updateStatStrengthFilterUI('home'); switchStatTab('summary'); }
         function closeStatDashboard() { document.getElementById('stat-dashboard').style.display = 'none'; }
         function statPerspectiveSide() { if(currentStatView === 'lineup') return lineupStatSide; return currentStatView === 'away' ? 'away' : 'home'; }
         function refreshCurrentStatView() {
             if(document.getElementById('stat-dashboard').style.display !== 'flex') return;
+            updateStatPeriodFilterUI();
             if(currentStatView === 'lineup') updateLineupStats();
             else if(currentStatView === 'summary') updateMatchSummary();
             else populateStatDashboard(currentStatView);
@@ -3658,7 +3686,25 @@ KOVÁCS DÁVID MÁTÉ
             const ctx = buildStrengthContext(side, Number(e.homeSuspensions) || 0, Number(e.awaySuspensions) || 0);
             return ctx.code;
         }
+        function eventMatchesStatPeriod(e) {
+            if(statPeriodFilter === 'all') return true;
+            return Number(e.period) === Number(statPeriodFilter);
+        }
+        function statPeriodName() {
+            return statPeriodFilter === '1' ? '1. félidő' : (statPeriodFilter === '2' ? '2. félidő' : 'Teljes meccs');
+        }
+        function updateStatPeriodFilterUI() {
+            document.querySelectorAll('.stat-period-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.period === statPeriodFilter));
+            const context=document.getElementById('stat-period-context');
+            if(context) context.innerText=statPeriodFilter==='all'?'60 perc':(statPeriodFilter==='1'?'0–30. perc':'30–60. perc');
+        }
+        function setStatPeriodFilter(code) {
+            statPeriodFilter=['all','1','2'].includes(String(code))?String(code):'all';
+            updateStatPeriodFilterUI();
+            refreshCurrentStatView();
+        }
         function eventMatchesStatStrength(e, side) {
+            if(!eventMatchesStatPeriod(e)) return false;
             if(statStrengthFilter === 'all') return true;
             return strengthCodeForPerspective(e, side) === statStrengthFilter;
         }
@@ -3701,6 +3747,7 @@ KOVÁCS DÁVID MÁTÉ
             return code === 'all' ? 'Összes létszámhelyzet' : (code === 'even' ? 'Azonos létszám' : (code === 'advantage' ? 'Emberelőny' : 'Emberhátrány'));
         }
         function summaryEventMatches(e, code = statStrengthFilter) {
+            if(!eventMatchesStatPeriod(e)) return false;
             return code === 'all' || strengthCodeForPerspective(e, 'home') === code;
         }
         function emptyFiveMinuteTimeline() {
@@ -3742,7 +3789,10 @@ KOVÁCS DÁVID MÁTÉ
             const root=document.getElementById('summary-five-timeline');if(!root)return;
             const buckets=calculateFiveMinuteTimeline();
             const maxGoals=Math.max(1,...buckets.flatMap(b=>[b.home.goals,b.away.goals]));
-            root.innerHTML=buckets.map((b,i)=>{
+            const visibleIndexes=statPeriodFilter==='1'?[0,1,2,3,4,5]:(statPeriodFilter==='2'?[6,7,8,9,10,11]:buckets.map((_,i)=>i));
+            root.style.gridTemplateColumns='repeat('+visibleIndexes.length+',minmax(48px,1fr))';
+            root.style.minWidth=visibleIndexes.length===6?'430px':'760px';
+            root.innerHTML=visibleIndexes.map(i=>{ const b=buckets[i];
                 const hh=Math.max(5,Math.round(b.home.goals/maxGoals*100)),ah=Math.max(5,Math.round(b.away.goals/maxGoals*100));
                 const start=i*5,end=(i+1)*5;
                 return '<div class="five-bar-group" id="five-bar-group-'+i+'" onclick="toggleFiveMinuteDetail('+i+')" title="'+start+'–'+end+'. perc">'+
@@ -3867,14 +3917,14 @@ KOVÁCS DÁVID MÁTÉ
         }
         function summaryVideoTeamName(side) { return side === 'home' ? (activeMatch.homeName || 'Saját csapat') : (activeMatch.awayName || 'Ellenfél'); }
         function summaryVideoFilterLabel(kind, side, value) {
-            const team = summaryVideoTeamName(side), strength = summaryStrengthName();
+            const team = summaryVideoTeamName(side), strength = summaryStrengthName(), periodName = statPeriodName();
             const names = {attacks:'Támadások',shots:'Lövések',goalkeeper:'Kapusteljesítmény',errors:'Hibák / labdavesztések',steals:'Labdaszerzések',penalties:'2 perces kiállítások',strengthAttack:'Támadások',attackType:'Támadástípus',defenseSystem:'Védekezési rendszer',combo:'Pályán együtt',timeline:'5 perces időszak'};
             if(kind === 'strengthAttack') return `${team} · ${value === 'even' ? 'Azonos létszám' : value === 'advantage' ? 'Emberelőny' : 'Emberhátrány'} · támadások`;
-            if(kind === 'attackType') return `${team} · ${value} · támadások · ${strength}`;
-            if(kind === 'defenseSystem') return `${team} · ${value} védekezés · ${strength}`;
-            if(kind === 'combo') return `${team} · kijelölt páros/sor eseményei · ${strength}`;
+            if(kind === 'attackType') return `${team} · ${value} · támadások · ${periodName} · ${strength}`;
+            if(kind === 'defenseSystem') return `${team} · ${value} védekezés · ${periodName} · ${strength}`;
+            if(kind === 'combo') return `${team} · kijelölt páros/sor eseményei · ${periodName} · ${strength}`;
             if(kind === 'timeline') { const i=Number(value)||0; return `${i*5}–${(i+1)*5}. perc · teljes meccs`; }
-            return `${team} · ${names[kind] || kind} · ${strength}`;
+            return `${team} · ${names[kind] || kind} · ${periodName} · ${strength}`;
         }
         function getSummaryVideoEvents(kind, side, value) {
             const strengthOk = e => summaryEventMatches(e);
@@ -3890,7 +3940,7 @@ KOVÁCS DÁVID MÁTÉ
             else if(kind === 'errors') evs = evs.filter(e => e.team === side && e.group === 'error');
             else if(kind === 'steals') evs = evs.filter(e => e.team === side && e.group === 'defense' && ['Labdaszerzés','Kiharcolt belemenés'].includes(e.result));
             else if(kind === 'penalties') evs = evs.filter(e => e.team === side && e.group === 'penalty' && e.result === '2 perc');
-            else if(kind === 'strengthAttack') evs = globalEvents.filter(e => strengthCodeForPerspective(e,'home') === value && e.possessionEnd && e.possessionTeam === side);
+            else if(kind === 'strengthAttack') evs = globalEvents.filter(e => eventMatchesStatPeriod(e) && strengthCodeForPerspective(e,'home') === value && e.possessionEnd && e.possessionTeam === side);
             else if(kind === 'attackType') evs = evs.filter(e => e.possessionEnd && e.possessionTeam === side && (e.possessionAttackType || e.attackType || 'Nem jelölt') === value);
             else if(kind === 'defenseSystem') evs = evs.filter(e => e.possessionEnd && e.possessionTeam === opp && (e.possessionDefenseSystem || e.defenseSystem || 'Nem jelölt') === value);
             else if(kind === 'combo') {
@@ -3914,10 +3964,10 @@ KOVÁCS DÁVID MÁTÉ
         function updateMatchSummary() {
             recalculateDerivedEventData(globalEvents); updateStatStrengthFilterUI('home');
             const home=calculateSummaryTeam('home'), away=calculateSummaryTeam('away');
-            const totalHomeGoals=globalEvents.filter(e=>e.team==='home'&&e.group==='shot'&&e.result==='Gól').length, totalAwayGoals=globalEvents.filter(e=>e.team==='away'&&e.group==='shot'&&e.result==='Gól').length;
+            const totalHomeGoals=globalEvents.filter(e=>eventMatchesStatPeriod(e)&&e.team==='home'&&e.group==='shot'&&e.result==='Gól').length, totalAwayGoals=globalEvents.filter(e=>eventMatchesStatPeriod(e)&&e.team==='away'&&e.group==='shot'&&e.result==='Gól').length;
             const set=(id,val)=>{const el=document.getElementById(id); if(el) el.innerText=val;};
             set('summary-home-name',activeMatch.homeName||'Hazai'); set('summary-away-name',activeMatch.awayName||'Vendég'); set('summary-home-score',totalHomeGoals); set('summary-away-score',totalAwayGoals);
-            const meta=[activeMatch.matchName,activeMatch.league,activeMatch.date,activeMatch.location].filter(Boolean).join(' · '); set('summary-meta',meta||'Mérkőzés összegzése'); set('summary-context',`${summaryStrengthName()} · a saját csapat szemszögéből`);
+            const meta=[activeMatch.matchName,activeMatch.league,activeMatch.date,activeMatch.location].filter(Boolean).join(' · '); set('summary-meta',meta||'Mérkőzés összegzése'); set('summary-context',`${statPeriodName()} · ${summaryStrengthName()} · a saját csapat szemszögéből`);
             set('sum-home-att-eff',`${home.attackPct.toFixed(1)}%`); set('sum-away-att-eff',`${away.attackPct.toFixed(1)}%`); set('sum-att-sub',`${home.attackGoals}/${home.attacks} támadás · ${away.attackGoals}/${away.attacks} támadás`);
             set('sum-home-shot-eff',`${home.shotPct.toFixed(1)}%`); set('sum-away-shot-eff',`${away.shotPct.toFixed(1)}%`); set('sum-shot-sub',`${home.goals}/${home.shots} lövés · ${away.goals}/${away.shots} lövés`);
             set('sum-home-gk-eff',`${home.gkPct.toFixed(1)}%`); set('sum-away-gk-eff',`${away.gkPct.toFixed(1)}%`); set('sum-gk-sub',`${home.saves}/${home.faced} · ${away.saves}/${away.faced} védés`);
@@ -3955,7 +4005,7 @@ KOVÁCS DÁVID MÁTÉ
                     }
                     if(e.assist == player.num) { pAssists++; valIndex++; }
                 });
-                const timeStr = formatPlayTime(player.playTime);
+                const timeStr = formatPlayTime(statPlayerPlayTime(side, player.num, player.playTime));
                 const pm = calculatePlayerPlusMinus(side, player.num); const pmStr = pm > 0 ? `+${pm}` : `${pm}`; const pmClass = pm > 0 ? 'val-positive' : (pm < 0 ? 'val-negative' : '');
                 const rowClass = filterPlayerNum == player.num ? 'selected-row' : ''; if(filterPlayerNum == player.num) filteredName = player.name;
                 if(!player.isGk) {
@@ -3968,7 +4018,7 @@ KOVÁCS DÁVID MÁTÉ
                 }
             });
 
-            const strengthText = statStrengthFilter === 'all' ? '' : ` · ${statStrengthFilter === 'even' ? 'Azonos' : (statStrengthFilter === 'advantage' ? 'Emberelőny' : 'Emberhátrány')}`;
+            const strengthText = ` · ${statPeriodName()}` + (statStrengthFilter === 'all' ? '' : ` · ${statStrengthFilter === 'even' ? 'Azonos' : (statStrengthFilter === 'advantage' ? 'Emberelőny' : 'Emberhátrány')}`);
             document.getElementById('title-heat-court').innerHTML = `<i class="fas fa-bullseye"></i> Lövőtérkép (${filteredName}${strengthText})`; if(showOffensiveGoal) document.getElementById('title-heat-goal').innerHTML = `<i class="fas fa-bullseye"></i> Kapura lövések helye (${filteredName}${strengthText})`; else document.getElementById('title-heat-goal').innerHTML = `<i class="fas fa-hands"></i> Kapus Hőtérkép (${filteredName}${strengthText})`;
             globalEvents.forEach(e => {
                 if(!eventMatchesStatStrength(e, side)) return;
@@ -4075,7 +4125,7 @@ KOVÁCS DÁVID MÁTÉ
             if(bp) bp.innerText=bestPair ? (bestPair.pm>0?`+${bestPair.pm}`:bestPair.pm) : '—';
             if(bl) bl.innerText=bestLine ? (bestLine.pm>0?`+${bestLine.pm}`:bestLine.pm) : '—';
             const ctx=document.getElementById('combo-strength-context');
-            if(ctx) { const strengthName=statStrengthFilter==='all'?'Összes létszámhelyzet':(statStrengthFilter==='even'?'Azonos létszám':(statStrengthFilter==='advantage'?'Emberelőny':'Emberhátrány')); ctx.innerText=`${side==='home'?'Saját csapat':'Ellenfél'} · ${strengthName}`; }
+            if(ctx) { const strengthName=statStrengthFilter==='all'?'Összes létszámhelyzet':(statStrengthFilter==='even'?'Azonos létszám':(statStrengthFilter==='advantage'?'Emberelőny':'Emberhátrány')); ctx.innerText=`${side==='home'?'Saját csapat':'Ellenfél'} · ${statPeriodName()} · ${strengthName}`; }
         }
         function renderLineupSelectors() {
             const container = document.getElementById('lineup-selectors'); container.innerHTML = "";
