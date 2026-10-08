@@ -3331,6 +3331,15 @@ KOVÁCS DÁVID MÁTÉ
                 e.time=formatTime(e.seconds);
             });
             events.sort((a,b)=>(Number(b.period)-Number(a.period))||(Number(b.seconds)-Number(a.seconds)));
+            if(events.length) recalculateDerivedEventData(events);
+            ['home','away'].forEach(side=>{
+                const roster=side==='home'?match.homeRoster:match.awayRoster;
+                if(!Array.isArray(roster)) return;
+                roster.forEach(player=>{
+                    const penalty=events.find(e=>e.team===side && String(e.playerNum)===String(player.num) && e.group==='penalty' && e.result==='2 perc');
+                    if(penalty) player.penaltyEndAbs=eventAbsoluteSeconds(penalty.period,penalty.seconds)+120;
+                });
+            });
             if(match===activeMatch) {
                 const video=document.getElementById('view-video-room').classList.contains('active')
                     ?document.getElementById('match-video'):document.getElementById('live-video-player');
@@ -3838,7 +3847,7 @@ KOVÁCS DÁVID MÁTÉ
             let currentActionTime = document.getElementById('timer-text').innerText;
             let currentActionVideoTime = currentVideoTagTime();
             let lineupAbsOverride = null;
-            if(!editingEventId && isVideoAnalysis && activeActionGroup==='penalty' && selSimpleAction==='2 perc') {
+            if(!editingEventId && isVideoAnalysis && !document.getElementById('view-video-room').classList.contains('active') && activeActionGroup==='penalty' && selSimpleAction==='2 perc') {
                 lineupAbsOverride=requestOfficialLineupAbs('2 perces kiállítás: #'+activePlayer.num+' '+activePlayer.name,currentPeriod);
                 if(lineupAbsOverride===null) return;
                 currentActionPeriod=lineupAbsOverride>=1800?2:1;
@@ -4540,6 +4549,7 @@ KOVÁCS DÁVID MÁTÉ
             persistVideoRoomMatch();
             recalculateVideoClockData(currentVideoMatch);
             updateOfficialClockStatus('room');
+            renderVideoEvents();
             if(currentVideoFilter&&currentVideoFilter.kind==='timeline') {
                 const t=timelineVideoTarget(currentVideoFilter.value,currentVideoMatch);
                 if(t.period===Number(period)) { videoNode.currentTime=t.target; }
