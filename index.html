@@ -2000,7 +2000,7 @@ KOVÁCS DÁVID MÁTÉ
         let globalEvents = []; let seconds = 0, timer = null, currentPeriod = 1;
         let activePlayer = null, activeTeamSide = null, activeActionGroup = 'shot';
         let selFrom = null, selTo = null, selResult = null, selType = null, selSimpleAction = null, selDefendingGk = "", selAttackType = '', selDefenseSystem = '';
-        let selShotZone = null, selShotSituation = [];
+        let selShotZone = null, selShotWing = null, selShotFinish = null, selShotSituation = [];
         const SHOT_ZONES = ['Jobb átlövő · 9–11 m','Közép · 9–11 m','Bal átlövő · 9–11 m','Jobb átlövő · 6–9 m','Közép · 6–9 m','Bal átlövő · 6–9 m'];
         let currentStatView = 'summary'; let filterPlayerNum = null; let lineupSelectedPlayers = []; let lineupStatSide = 'home'; let statStrengthFilter = 'all'; let statPeriodFilter = 'all';
         let pendingSubstitution = { home: null, away: null };
@@ -3815,18 +3815,16 @@ KOVÁCS DÁVID MÁTÉ
             if(panel) panel.style.display = isAttackTypeGroup(activeActionGroup) ? 'block' : 'none';
         }
         function markAttackTypeButton(value, suggested=false) {
-            document.querySelectorAll('.attack-type-btn').forEach(b => { b.classList.remove('selected','suggested'); });
-            if(!value) return;
-            const btn = Array.from(document.querySelectorAll('.attack-type-btn')).find(b => b.textContent.trim() === value);
-            if(btn) btn.classList.add(suggested ? 'suggested' : 'selected');
+            document.querySelectorAll('.attack-type-btn').forEach(b=>b.classList.remove('selected','suggested'));
+            const btn=Array.from(document.querySelectorAll('.attack-type-btn')).find(b=>b.textContent.trim()===value);
+            if(btn)btn.classList.add(suggested?'suggested':'selected');
             const quick=document.querySelector('.shot-quick-ler');
             if(quick)quick.classList.toggle('selected',value==='Lerohanás');
         }
-        function selectAttackType(el, val) {
-            selAttackType = val;
-            document.querySelectorAll('.attack-type-btn').forEach(b => b.classList.remove('selected','suggested'));
-            if(el) el.classList.add('selected');
-            const hint = document.getElementById('attack-type-hint'); if(hint) hint.innerText = 'Rögzítve ehhez a támadáshoz.';
+        function selectAttackType(el,val) {
+            selAttackType=val;markAttackTypeButton(val);
+            const hint=document.getElementById('attack-type-hint');
+            if(hint)hint.innerText='Rögzítve ehhez a támadáshoz.';
             updateShotZoneDescription();checkReady();
         }
         function inferSevenSix(side) {
@@ -3932,13 +3930,15 @@ KOVÁCS DÁVID MÁTÉ
             if(ev.playerNum === '?') { activePlayer = {num: '?', name: 'Ismeretlen', isGk: false}; } else { activePlayer = roster.find(p => p.num == ev.playerNum) || {num: ev.playerNum, name: ev.playerName, isGk: ev.isGk}; }
             
             populateModalHeader(roster, activePlayer.num, ev.time + ' · SZERKESZTÉS');
-            document.querySelectorAll('.shot-zone, .shot-situation-btn, .c-node, .opt-btn-left, .g-node, .goal-miss-zone, .opt-btn, .simple-btn, .gk-btn').forEach(e => e.classList.remove('selected'));
-            activeActionGroup = ev.group; selSimpleAction = ev.group !== 'shot' ? ev.result : null; selFrom = ev.detailsFrom; selShotZone = ev.shotZone || null; selShotSituation = Array.isArray(ev.shotSituation)?[...ev.shotSituation]:(ev.shotSituation?[ev.shotSituation]:[]); selTo = ev.detailsTo; selResult = ev.group === 'shot' ? ev.result : null; selType = ev.shotType || null; selDefendingGk = ev.defendingGk; selAttackType = ev.possessionAttackType || ev.attackType || ''; selDefenseSystem = ev.possessionDefenseSystem || ev.defenseSystem || ''; const evAssist = ev.assist;
+            document.querySelectorAll('.shot-zone, .shot-wing-btn, .shot-finish-btn, .shot-situation-btn, .c-node, .opt-btn-left, .g-node, .goal-miss-zone, .opt-btn, .simple-btn, .gk-btn').forEach(e => e.classList.remove('selected'));
+            activeActionGroup = ev.group; selSimpleAction = ev.group !== 'shot' ? ev.result : null; selFrom = ev.detailsFrom; selShotZone = ev.shotZone || null; selShotWing = ev.shotWing || (['Bal szél','Jobb szél'].includes(ev.detailsFrom)?ev.detailsFrom:null); selShotFinish = ev.shotFinish || (['Átlövés','Betörés','Beálló','7 méteres'].includes(ev.detailsFrom)?ev.detailsFrom:null); selShotSituation = Array.isArray(ev.shotSituation)?[...ev.shotSituation]:(ev.shotSituation?[ev.shotSituation]:[]); selTo = ev.detailsTo; selResult = ev.group === 'shot' ? ev.result : null; selType = ev.shotType || null; selDefendingGk = ev.defendingGk; selAttackType = ev.possessionAttackType || ev.attackType || ''; selDefenseSystem = ev.possessionDefenseSystem || ev.defenseSystem || ''; const evAssist = ev.assist;
             switchModalTabSilently(ev.group); setAttackTypePanelVisibility(); markAttackTypeButton(selAttackType); markDefenseSystemButton(selDefenseSystem); const ath = document.getElementById('attack-type-hint'); if(ath && selAttackType) ath.innerText = `Támadás: ${selAttackType}`; const dsh = document.getElementById('defense-system-hint'); if(dsh && selDefenseSystem) dsh.innerText = `${defenseSideName(defenseSideFor(ev.group, ev.team))} védekezése · ${selDefenseSystem}`;
             const assistSelect = document.getElementById('assist-select'); assistSelect.innerHTML = '<option value="">Nincs gólpassz</option>'; roster.forEach(p => { if(p.num != activePlayer.num && p.name.trim() !== "") assistSelect.innerHTML += `<option value="${p.num}">#${p.num} ${p.name}</option>`; }); if(evAssist) assistSelect.value = evAssist;
             const gkContainer = document.getElementById('gk-buttons-container'); gkContainer.innerHTML = ''; const oppRoster = ev.team === 'home' ? activeMatch.awayRoster : activeMatch.homeRoster; oppRoster.forEach(p => { if(p.isGk && p.name.trim() !== "") gkContainer.innerHTML += `<button class="gk-btn" id="gk-btn-${p.num}" onclick="selectDefendingGk(this, '${p.num}')">${p.name}</button>`; });
             document.querySelectorAll('[onclick]').forEach(el => { const oc = el.getAttribute('onclick'); if(oc) { if (selFrom && oc === `selectFrom(this, '${selFrom}')`) el.classList.add('selected'); if (selTo && (oc === `selectTo(this, '${selTo}')` || oc.startsWith(`selectMissTarget(this, '${selTo}',`))) el.classList.add('selected'); if (selResult && oc === `selectResult(this, '${selResult}')`) el.classList.add('selected'); if (selType && oc === `selectType(this, '${selType}')`) el.classList.add('selected'); if (selSimpleAction && oc === `selectSimpleAction(this, '${selSimpleAction}')`) el.classList.add('selected'); } });
             if(selShotZone) { const z=Array.from(document.querySelectorAll('.shot-zone')).find(el=>el.dataset.shotZone===selShotZone); if(z) z.classList.add('selected'); }
+            if(selShotWing) { const w=Array.from(document.querySelectorAll('.shot-wing-btn')).find(el=>el.dataset.shotWing===selShotWing); if(w)w.classList.add('selected'); }
+            if(selShotFinish) { const b=Array.from(document.querySelectorAll('.shot-finish-btn')).find(el=>el.dataset.shotFinish===selShotFinish); if(b)b.classList.add('selected'); }
             selShotSituation.forEach(value=>{ const b=Array.from(document.querySelectorAll('.shot-situation-btn[data-shot-situation]')).find(el=>el.dataset.shotSituation===value); if(b)b.classList.add('selected'); });
             updateShotZoneDescription();
             if(selDefendingGk) { const gkBtn = document.getElementById(`gk-btn-${selDefendingGk}`); if(gkBtn) gkBtn.classList.add('selected'); }
@@ -3969,40 +3969,74 @@ KOVÁCS DÁVID MÁTÉ
             resumeVideoAfterSavedTag();
         }
         function changeActionGroup(group, btn) { activeActionGroup = group; document.querySelectorAll('.u-btn-action').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active')); document.getElementById(`tab-${group}`).classList.add('active'); resetSelections(false); setAttackTypePanelVisibility(); markAttackTypeButton(selAttackType); applyDefenseSystemSuggestion(); if(group === 'shot') updatePlayerPositionHint(); checkReady(); }
+        function deriveShotOrigin() {
+            if(selShotFinish) return selShotFinish;
+            if(selShotWing) return selShotWing;
+            if(selShotZone) {
+                const position=selShotZone.split(' · ')[0];
+                return position==='Közép'?'Irányító':position;
+            }
+            return null;
+        }
         function updateShotZoneDescription() {
             const hint=document.getElementById('shot-zone-description');
             if(!hint)return;
-            const finish=selShotZone?(selShotZone.includes('6–9 m')?'Betörés':'Átlövés'):(selFrom||'Nincs kijelölt hely');
+            const place=selShotZone||selShotWing||(selShotFinish==='7 méteres'?'7 méteres':'Nincs kijelölve');
+            const finish=selShotFinish||(selShotWing?'Szélről':'Nincs kiválasztva');
             const extras=[...selShotSituation];
             if(selAttackType==='Lerohanás')extras.push('Lerohanás');
-            hint.innerText=(selShotZone||selFrom||'Jelöld a lövés helyét')+' · '+finish+(extras.length?' · '+extras.join(' + '):'');
+            hint.innerText='Hely: '+place+' · Befejezés: '+finish+(extras.length?' · '+extras.join(' + '):'');
         }
         function selectShotZone(el,position,range) {
-            document.querySelectorAll('.shot-zone.selected,.c-node.selected,.opt-btn-left.selected').forEach(e=>e.classList.remove('selected'));
+            document.querySelectorAll('.shot-zone.selected,.shot-wing-btn.selected').forEach(e=>e.classList.remove('selected'));
             el.classList.add('selected');
-            selShotZone=position+' · '+range;
-            selFrom=range==='6–9 m'?'Betörés':(position==='Közép'?'Irányító':position);
+            selShotZone=position+' · '+range;selShotWing=null;
+            if(selShotFinish==='7 méteres') {
+                selShotFinish=null;
+                document.querySelectorAll('.shot-finish-btn.selected').forEach(b=>b.classList.remove('selected'));
+            }
+            selFrom=deriveShotOrigin();
             updateShotZoneDescription();checkReady();
         }
-        function selectFrom(el,val) {
-            document.querySelectorAll('.shot-zone.selected,.c-node.selected,.opt-btn-left.selected').forEach(e=>e.classList.remove('selected'));
+        function selectShotWing(el,value) {
+            document.querySelectorAll('.shot-zone.selected,.shot-wing-btn.selected').forEach(e=>e.classList.remove('selected'));
             el.classList.add('selected');
-            selFrom=val;selShotZone=null;
-            if(val==='7 méteres') {
-                selShotSituation=[];
-                document.querySelectorAll('.shot-situation-btn[data-shot-situation].selected').forEach(b=>b.classList.remove('selected'));
+            selShotZone=null;selShotWing=value;
+            if(selShotFinish==='7 méteres') {
+                selShotFinish=null;
+                document.querySelectorAll('.shot-finish-btn.selected').forEach(b=>b.classList.remove('selected'));
             }
+            selFrom=deriveShotOrigin();
             updateShotZoneDescription();checkReady();
+        }
+        function selectShotFinish(el,value) {
+            selShotFinish=selShotFinish===value?null:value;
+            document.querySelectorAll('.shot-finish-btn.selected').forEach(b=>b.classList.remove('selected'));
+            if(selShotFinish)el.classList.add('selected');
+            if(selShotFinish==='7 méteres') {
+                selShotZone=null;selShotWing=null;selShotSituation=[];
+                document.querySelectorAll('.shot-zone.selected,.shot-wing-btn.selected,.shot-situation-btn.selected').forEach(b=>b.classList.remove('selected'));
+                if(selAttackType==='Lerohanás') {
+                    selAttackType='Pozíciós támadás';
+                    markAttackTypeButton(selAttackType);
+                }
+            }
+            selFrom=deriveShotOrigin();
+            updateShotZoneDescription();checkReady();
+        }
+        function selectFrom(el,value) {
+            if(value==='Bal szél'||value==='Jobb szél')return selectShotWing(el,value);
+            if(['Átlövés','Betörés','Beálló','7 méteres'].includes(value))return selectShotFinish(el,value);
         }
         function toggleShotSituation(el,value) {
-            if(selFrom==='7 méteres')return alert('A hétméteres lövés nem kombinálható indítással vagy üres kapus lövéssel.');
+            if(selShotFinish==='7 méteres')return alert('A 7m lövés nem kombinálható indítással vagy üres kapus lövéssel.');
             if(selShotSituation.includes(value))selShotSituation=selShotSituation.filter(x=>x!==value);
             else selShotSituation.push(value);
             el.classList.toggle('selected',selShotSituation.includes(value));
             updateShotZoneDescription();checkReady();
         }
         function selectShotLerohanas(el) {
-            if(selFrom==='7 méteres')return alert('A hétmétereshez ne jelölj lerohanást.');
+            if(selShotFinish==='7 méteres')return alert('A 7m lövéshez ne jelölj lerohanást.');
             const target=selAttackType==='Lerohanás'?'Pozíciós támadás':'Lerohanás';
             selAttackType=target;markAttackTypeButton(target);
             const hint=document.getElementById('attack-type-hint');if(hint)hint.innerText='Támadástípus: '+target;
@@ -4028,8 +4062,32 @@ KOVÁCS DÁVID MÁTÉ
         function selectType(el, val) { document.querySelectorAll('#shot-type-options .opt-btn').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); selType = val; checkReady(); }
         function selectSimpleAction(el, val) { document.querySelectorAll('.simple-btn').forEach(e => e.classList.remove('selected')); el.classList.add('selected'); selSimpleAction = val; checkReady(); }
         function selectDefendingGk(el, val) { document.querySelectorAll('.gk-btn').forEach(e => e.classList.remove('selected')); if(el) el.classList.add('selected'); selDefendingGk = val; }
-        function resetSelections(resetAttackType=false) { selFrom = selTo = selResult = selType = selSimpleAction = null; selShotZone=null; selShotSituation=[]; if(resetAttackType) { selAttackType = ''; markAttackTypeButton(''); selDefenseSystem = ''; markDefenseSystemButton(''); } document.querySelectorAll('.shot-zone.selected, .shot-situation-btn.selected, .c-node.selected, .opt-btn-left.selected, .g-node.selected, .goal-miss-zone.selected, #shot-result-options .opt-btn.selected, #shot-type-options .opt-btn.selected, .simple-btn.selected').forEach(el => el.classList.remove('selected')); document.getElementById('btn-save-event').classList.remove('active'); document.getElementById('assist-panel').style.display = 'none'; setShotAutoResultLabel(''); document.getElementById('assist-select').value = ""; updateShotZoneDescription(); }
-        function checkReady() { const btn = document.getElementById('btn-save-event'); btn.classList.remove('active'); const shotTargetOk = selResult === 'Sánc' || !!selTo; const defenseOk = !!selDefenseSystem; if (activeActionGroup === 'shot' && selFrom && selResult && shotTargetOk && selAttackType && defenseOk) btn.classList.add('active'); else if (['attack','error'].includes(activeActionGroup) && selSimpleAction && selAttackType && defenseOk) btn.classList.add('active'); else if (['defense','penalty'].includes(activeActionGroup) && selSimpleAction && defenseOk) btn.classList.add('active'); }
+        function resetSelections(resetAttackType=false) {
+            selFrom=selTo=selResult=selType=selSimpleAction=null;
+            selShotZone=null;selShotWing=null;selShotFinish=null;selShotSituation=[];
+            if(resetAttackType) {
+                selAttackType='';markAttackTypeButton('');
+                selDefenseSystem='';markDefenseSystemButton('');
+            }
+            document.querySelectorAll('.shot-zone.selected,.shot-wing-btn.selected,.shot-finish-btn.selected,.shot-situation-btn.selected,.c-node.selected,.opt-btn-left.selected,.g-node.selected,.goal-miss-zone.selected,#shot-result-options .opt-btn.selected,#shot-type-options .opt-btn.selected,.simple-btn.selected').forEach(el=>el.classList.remove('selected'));
+            document.getElementById('btn-save-event').classList.remove('active');
+            document.getElementById('assist-panel').style.display='none';
+            setShotAutoResultLabel('');
+            document.getElementById('assist-select').value='';
+            updateShotZoneDescription();
+        }
+        function checkReady() {
+            const btn=document.getElementById('btn-save-event');
+            btn.classList.remove('active');
+            const shotTargetOk=selResult==='Sánc'||!!selTo;
+            const defenseOk=!!selDefenseSystem;
+            const legacyEdit=!!editingEventId&&!selShotZone&&!selShotWing&&!selShotFinish&&!!selFrom;
+            const shotLocationOk=!!selShotZone||!!selShotWing||selShotFinish==='7 méteres'||legacyEdit;
+            const shotFinishOk=!!selShotFinish||!!selShotWing||legacyEdit;
+            if(activeActionGroup==='shot'&&shotLocationOk&&shotFinishOk&&selResult&&shotTargetOk&&selAttackType&&defenseOk)btn.classList.add('active');
+            else if(['attack','error'].includes(activeActionGroup)&&selSimpleAction&&selAttackType&&defenseOk)btn.classList.add('active');
+            else if(['defense','penalty'].includes(activeActionGroup)&&selSimpleAction&&defenseOk)btn.classList.add('active');
+        }
 
         function currentVideoTagTime() {
             const roomActive = document.getElementById('view-video-room').classList.contains('active');
@@ -4086,7 +4144,7 @@ KOVÁCS DÁVID MÁTÉ
                 if (ev) { 
                     ev.playerNum = activePlayer.num; ev.playerName = activePlayer.name; ev.isGk = activePlayer.isGk; ev.playerPosition = activePlayer.position || (activePlayer.isGk ? 'Kapus' : ''); 
                     ev.group = activeActionGroup; ev.action = actionText; ev.result = resultText; 
-                    ev.detailsFrom = selFrom; ev.detailsTo = selTo; ev.shotZone = activeActionGroup==='shot'?(selShotZone||''):''; ev.shotSituation = activeActionGroup==='shot'?[...selShotSituation]:[]; ev.shotType = activeActionGroup === 'shot' ? (selType || '') : ''; ev.assist = assistVal; 
+                    ev.detailsFrom = selFrom; ev.detailsTo = selTo; ev.shotZone = activeActionGroup==='shot'?(selShotZone||''):''; ev.shotWing = activeActionGroup==='shot'?(selShotWing||''):''; ev.shotFinish = activeActionGroup==='shot'?(selShotFinish||''):''; ev.shotSituation = activeActionGroup==='shot'?[...selShotSituation]:[]; ev.shotType = activeActionGroup === 'shot' ? (selType || '') : ''; ev.assist = assistVal; 
                     ev.defendingGk = activeActionGroup === 'shot' ? selDefendingGk : ""; 
                     const oldPossessionId = ev.possessionId; ev.attackType = isAttackTypeGroup(activeActionGroup) ? selAttackType : ''; ev.defenseSide = defenseSideFor(activeActionGroup, activeTeamSide); ev.defenseSystem = selDefenseSystem;
                     if(oldPossessionId && ev.attackType) globalEvents.forEach(x => { if(x.possessionId === oldPossessionId && x.team === ev.team && isPossessionOffenseEvent(x)) x.attackType = ev.attackType; });
@@ -4098,7 +4156,7 @@ KOVÁCS DÁVID MÁTÉ
                 }
                 editingEventId = null;
             } else {
-                const eventId = 'ev_' + Date.now(); const newEvent = { id: eventId, time: currentActionTime, seconds: currentActionSeconds, period: currentActionPeriod, videoTime: typeof currentActionVideoTime === 'number' ? currentActionVideoTime : null, team: activeTeamSide, playerNum: activePlayer.num, playerName: activePlayer.name, isGk: activePlayer.isGk, playerPosition: activePlayer.position || (activePlayer.isGk ? 'Kapus' : ''), group: activeActionGroup, action: actionText, result: resultText, detailsFrom: selFrom, detailsTo: selTo, shotZone:activeActionGroup==='shot'?(selShotZone||''):'', shotSituation:activeActionGroup==='shot'?[...selShotSituation]:[], shotType: activeActionGroup === 'shot' ? (selType || '') : '', assist: assistVal, defendingGk: activeActionGroup === 'shot' ? selDefendingGk : "", attackType: isAttackTypeGroup(activeActionGroup) ? selAttackType : '', defenseSide: defenseSideFor(activeActionGroup, activeTeamSide), defenseSystem: selDefenseSystem, homeCourt: activeMatch.homeRoster.filter(p=>p.onCourt).map(p=>p.num.toString()), awayCourt: activeMatch.awayRoster.filter(p=>p.onCourt).map(p=>p.num.toString()) };
+                const eventId = 'ev_' + Date.now(); const newEvent = { id: eventId, time: currentActionTime, seconds: currentActionSeconds, period: currentActionPeriod, videoTime: typeof currentActionVideoTime === 'number' ? currentActionVideoTime : null, team: activeTeamSide, playerNum: activePlayer.num, playerName: activePlayer.name, isGk: activePlayer.isGk, playerPosition: activePlayer.position || (activePlayer.isGk ? 'Kapus' : ''), group: activeActionGroup, action: actionText, result: resultText, detailsFrom: selFrom, detailsTo: selTo, shotZone:activeActionGroup==='shot'?(selShotZone||''):'', shotWing:activeActionGroup==='shot'?(selShotWing||''):'', shotFinish:activeActionGroup==='shot'?(selShotFinish||''):'', shotSituation:activeActionGroup==='shot'?[...selShotSituation]:[], shotType: activeActionGroup === 'shot' ? (selType || '') : '', assist: assistVal, defendingGk: activeActionGroup === 'shot' ? selDefendingGk : "", attackType: isAttackTypeGroup(activeActionGroup) ? selAttackType : '', defenseSide: defenseSideFor(activeActionGroup, activeTeamSide), defenseSystem: selDefenseSystem, homeCourt: activeMatch.homeRoster.filter(p=>p.onCourt).map(p=>p.num.toString()), awayCourt: activeMatch.awayRoster.filter(p=>p.onCourt).map(p=>p.num.toString()) };
                 if(selSimpleAction === '2 perc') { const penaltyAbs=lineupAbsOverride===null?eventAbsoluteSeconds(currentActionPeriod,currentActionSeconds):lineupAbsOverride; activePlayer.penaltyEnd = currentActionSeconds + 120; activePlayer.penaltyEndAbs = penaltyAbs + 120; activePlayer.onCourt = false; pendingSubstitution[activeTeamSide] = null; recordLineupSnapshot(`2 perc ${activeTeamSide}`,penaltyAbs); syncRosterPlayTimesFromLineup(penaltyAbs); renderRosterUI(`roster-${activeTeamSide}`, activeTeamSide === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster, `${activeTeamSide}-num`, activeTeamSide); } globalEvents.unshift(newEvent); 
                 globalEvents.sort((a,b) => (b.period - a.period) || (b.seconds - a.seconds));
             }
