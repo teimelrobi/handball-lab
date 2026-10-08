@@ -4081,8 +4081,9 @@ KOVÁCS DÁVID MÁTÉ
             btn.classList.remove('active');
             const shotTargetOk=selResult==='Sánc'||!!selTo;
             const defenseOk=!!selDefenseSystem;
-            const legacyEdit=!!editingEventId&&!selShotZone&&!selShotWing&&!selShotFinish&&!!selFrom;
-            const shotLocationOk=!!selShotZone||!!selShotWing||selShotFinish==='7 méteres'||legacyEdit;
+            const originalEvent=editingEventId?globalEvents.find(e=>e.id===editingEventId):null;
+            const legacyEdit=!!originalEvent&&!originalEvent.shotFinish&&!!selFrom;
+            const shotLocationOk=!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish)||legacyEdit;
             const shotFinishOk=!!selShotFinish||!!selShotWing||legacyEdit;
             if(activeActionGroup==='shot'&&shotLocationOk&&shotFinishOk&&selResult&&shotTargetOk&&selAttackType&&defenseOk)btn.classList.add('active');
             else if(['attack','error'].includes(activeActionGroup)&&selSimpleAction&&selAttackType&&defenseOk)btn.classList.add('active');
@@ -4099,6 +4100,7 @@ KOVÁCS DÁVID MÁTÉ
         function persistVideoRoomMatch() { if(videoRoomIsLive) saveLiveState(); else saveDB(); }
 
         function saveEvent() {
+            if(!document.getElementById('btn-save-event').classList.contains('active'))return;
             const assistVal = (activeActionGroup === 'shot' && selResult === 'Gól') ? document.getElementById('assist-select').value : ""; const groupLabels = {attack:'Támadás', error:'Hiba', defense:'Védekezés', penalty:'Büntetés'}; const actionText = activeActionGroup === 'shot' ? "Lövés" : (groupLabels[activeActionGroup] || activeActionGroup); const resultText = activeActionGroup === 'shot' ? selResult : selSimpleAction;
             
             let currentActionSeconds = seconds;
