@@ -1035,6 +1035,7 @@ KOVÁCS DÁVID MÁTÉ
                     <div class="team-score-block right"><div style="display:flex; justify-content:flex-end; align-items:center; width:100%;"><button class="btn-timeout" style="margin-right:auto; margin-left:0;" onclick="callTimeout('away')">T</button><div class="team-badge away-badge">ELLENFÉL</div></div><div class="team-name" id="sb-name-away">Vendég</div></div>
                 </div>
                 
+                <div id="auto-sub-panel" style="display:none;background:var(--bg-panel);border:1px solid var(--green-accent);border-radius:10px;padding:10px;margin-top:7px;font-size:12px;"></div>
                 <div class="main-controls">
                     <button class="btn-undo" onclick="undoLastEvent()" title="Utolsó esemény visszavonása"><i class="fas fa-undo"></i></button>
                     <button class="btn-start" onclick="toggleTimer()" id="start-btn"><i class="fas fa-play"></i> Indítás</button>
@@ -1925,6 +1926,7 @@ KOVÁCS DÁVID MÁTÉ
         let selFrom = null, selTo = null, selResult = null, selType = null, selSimpleAction = null, selDefendingGk = "", selAttackType = '', selDefenseSystem = '';
         let currentStatView = 'summary'; let filterPlayerNum = null; let lineupSelectedPlayers = []; let lineupStatSide = 'home'; let statStrengthFilter = 'all'; let statPeriodFilter = 'all';
         let pendingSubstitution = { home: null, away: null };
+        let autoSubLastPossession = null;
         
         let currentVideoMatch = null; 
         let sync1_start = 0; let sync1_end = 0; let sync2_start = 0; let sync2_end = 0;
@@ -2815,6 +2817,7 @@ KOVÁCS DÁVID MÁTÉ
 
             globalEvents = []; seconds = 0; currentPeriod = 1; pendingSubstitution = { home: null, away: null }; activeMatch.lineupHistory = []; activeMatch.lineupHistoryComplete = true; activeMatch.matchEndAbs = 0; activeMatch.videoSyncPoints = {}; activeMatch.officialClockPoints = []; document.getElementById('timer-text').innerText = "00:00"; recordLineupSnapshot('Kezdő felállás'); updateLiveUI(); saveLiveState();
             showScreen('view-main-app');
+            autoSubLastPossession=null;renderAutoSubPanel();
             updateOfficialClockStatus('live');
         }
 
@@ -2871,6 +2874,7 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('btn-period-toggle').innerText = `${currentPeriod}. FÉLIDŐ`; updateTimerDisplay();
             renderRosterUI('roster-home', activeMatch.homeRoster, 'home-num', 'home'); renderRosterUI('roster-away', activeMatch.awayRoster, 'away-num', 'away'); updateLiveUI(); 
             showScreen('view-main-app');
+            autoSubLastPossession=null;renderAutoSubPanel();
             updateOfficialClockStatus('live');
         }
         function discardMatch() { localStorage.removeItem('live_match_state'); document.getElementById('resume-panel').style.display = 'none'; localStorage.setItem('handball_db_updated_at', new Date().toISOString()); scheduleCloudSync(); }
@@ -3471,6 +3475,72 @@ KOVÁCS DÁVID MÁTÉ
             });
             updateRosterPlayTimeUI();
         }
+        function autoSubPairs(side) {
+            if(!activeMatch.autoSubPairs) activeMatch.autoSubPairs={home:[],away:[]};
+            if(!Array.isArray(activeMatch.autoSubPairs[side])) activeMatch.autoSubPairs[side]=[];
+            return activeMatch.autoSubPairs[side];
+        }
+        function autoSubPlan(side) {
+            if(!activeMatch.autoSubPlan) activeMatch.autoSubPlan={home:null,away:null};
+            return activeMatch.autoSubPlan[side];
+        }
+        function renderAutoSubPanel() {
+            const panel=document.getElementById('auto-sub-panel');
+            if(!panel||!activeMatch)return;
+            const esc=x=>String(x??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+            const parts=['home','away'].map(side=>{
+                const roster=side==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
+                const pairs=autoSubPairs(side),plan=autoSubPlan(side);
+                const name=side==='home'?activeMatch.homeName:activeMatch.awayName;
+                const choices=roster.filter(p=>!p.isGk).map(p=>'<option value="'+esc(p.num)+'">#'+esc(p.num)+' '+esc(p.name)+'</option>').join('');
+                const entries=pairs.map((pair,i)=>'<div style="margin:3px 0;">#'+esc(pair.attack)+' támadó ⇄ #'+esc(pair.defense)+' védő <button onclick="removeAutoSubPair(\''+side+'\','+i+')" style="cursor:pointer;">×</button></div>').join('');
+                const planText=plan?'<div style="margin-top:6px;color:var(--green-accent);">Előkészítve: '+plan.changes.map(c=>'#'+esc(c.out)+' LE → #'+esc(c.in)+' BE').join(', ')+'<div style="margin-top:6px;"><button onclick="approveAutoSub(\''+side+'\')" class="btn-stat-main">Csere jóváhagyása</button> <button onclick="rejectAutoSub(\''+side+'\')" class="btn-stat-main">Elvetés</button></div></div>':'';
+                return '<div style="flex:1;min-width:220px;"><b>'+esc(name)+'</b><div style="margin:5px 0;">Támadó: <select id="auto-attack-'+side+'">'+choices+'</select> Védő: <select id="auto-defense-'+side+'">'+choices+'</select> <button onclick="addAutoSubPair(\''+side+'\')">Pár mentése</button></div>'+entries+planText+'</div>';
+            });
+            panel.style.display=isVideoAnalysis?'flex':'none';
+            panel.style.flexWrap='wrap';panel.style.gap='12px';
+            panel.innerHTML='<div style="width:100%;font-weight:bold;">Támadó–védő cserepárok · a labdabirtoklás csak előkészít, jóváhagyás szükséges</div>'+parts.join('');
+        }
+        function addAutoSubPair(side) {
+            const attack=document.getElementById('auto-attack-'+side)?.value,defense=document.getElementById('auto-defense-'+side)?.value;
+            if(!attack||!defense||attack===defense)return alert('Két különböző játékost válassz.');
+            const pairs=autoSubPairs(side);
+            if(pairs.some(p=>[p.attack,p.defense].some(n=>n===attack||n===defense)))return alert('Ez a játékos már szerepel egy cserepárban.');
+            pairs.push({attack,defense});renderAutoSubPanel();saveLiveState();
+        }
+        function removeAutoSubPair(side,index) {autoSubPairs(side).splice(index,1);activeMatch.autoSubPlan[side]=null;renderAutoSubPanel();saveLiveState();}
+        function prepareAutoSubForPossession(attackingSide) {
+            if(!isVideoAnalysis||!activeMatch||!['home','away'].includes(attackingSide))return;
+            ['home','away'].forEach(side=>{
+                const roster=side==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
+                const changes=[];
+                autoSubPairs(side).forEach(pair=>{
+                    const wanted=side===attackingSide?pair.attack:pair.defense;
+                    const unwanted=side===attackingSide?pair.defense:pair.attack;
+                    const incoming=roster.find(p=>String(p.num)===String(wanted));
+                    const outgoing=roster.find(p=>String(p.num)===String(unwanted));
+                    if(incoming&&!incoming.onCourt&&outgoing&&outgoing.onCourt&&getPlayerPenaltyRemaining(incoming)===0)
+                        changes.push({out:String(unwanted),in:String(wanted)});
+                });
+                if(!activeMatch.autoSubPlan)activeMatch.autoSubPlan={home:null,away:null};
+                activeMatch.autoSubPlan[side]=changes.length?{changes,attackingSide}:null;
+            });
+            renderAutoSubPanel();saveLiveState();
+        }
+        function rejectAutoSub(side) {if(activeMatch.autoSubPlan)activeMatch.autoSubPlan[side]=null;renderAutoSubPanel();saveLiveState();}
+        function approveAutoSub(side) {
+            const plan=autoSubPlan(side);if(!plan)return;
+            const roster=side==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
+            if(!plan.changes.every(c=>{const out=roster.find(p=>String(p.num)===c.out),inn=roster.find(p=>String(p.num)===c.in);return out&&out.onCourt&&inn&&!inn.onCourt&&getPlayerPenaltyRemaining(inn)===0;}))
+                return alert('A felállás időközben megváltozott. Kérlek ellenőrizd a cserepárokat.');
+            const abs=requestOfficialLineupAbs('Támadó–védő csere');
+            if(abs===null)return;
+            plan.changes.forEach(c=>{roster.find(p=>String(p.num)===c.out).onCourt=false;roster.find(p=>String(p.num)===c.in).onCourt=true;});
+            activeMatch.autoSubPlan[side]=null;
+            recordLineupSnapshot('Jóváhagyott támadó–védő csere '+side,abs);
+            syncRosterPlayTimesFromLineup(abs);
+            refreshAfterSubstitution(side);renderAutoSubPanel();updatePenaltiesUI();
+        }
         function refreshAfterSubstitution(side) {
             const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster;
             renderRosterUI(`roster-${side}`, roster, `${side}-num`, side);
@@ -3902,6 +3972,13 @@ KOVÁCS DÁVID MÁTÉ
                 globalEvents.sort((a,b) => (b.period - a.period) || (b.seconds - a.seconds));
             }
             recalculateDerivedEventData(globalEvents);
+            if(isVideoAnalysis&&!document.getElementById('view-video-room').classList.contains('active')) {
+                const latest=globalEvents.find(e=>isPossessionOffenseEvent(e));
+                if(latest && latest.team!==autoSubLastPossession) {
+                    autoSubLastPossession=latest.team;
+                    prepareAutoSubForPossession(latest.team);
+                }
+            }
             
             if(document.getElementById('view-video-room').classList.contains('active')) { 
                 currentVideoMatch.events = globalEvents;
