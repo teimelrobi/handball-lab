@@ -277,6 +277,7 @@
         .shot-option-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
         .shot-option-label { color:var(--text-muted); font-size:10px; font-weight:700; letter-spacing:.25px; }
         .shot-finish-btn, .shot-situation-btn { min-height:40px; min-width:0; background:#15232e; border:1px solid #34495a; color:#edf4f7; padding:7px 6px; border-radius:7px; cursor:pointer; font-size:11px; font-weight:700; text-align:center; line-height:1.2; }
+        .shot-finish-btn[data-shot-finish="Beálló"], .shot-finish-btn[data-shot-finish="7 méteres"], .shot-quick-ler { grid-column:1/-1; }
         .shot-finish-btn:hover, .shot-situation-btn:hover { border-color:#a9c0cb; }
         .shot-finish-btn.selected, .shot-situation-btn.selected { background:rgba(28,216,138,.22); border-color:var(--green-accent); color:var(--green-accent); }
         .shot-zone-hint { font-size:11px; color:var(--text-muted); margin:10px 0 0; line-height:1.45; }
