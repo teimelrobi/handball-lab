@@ -1885,15 +1885,33 @@ KOVÁCS DÁVID MÁTÉ
                 const row = await fetchCloudState();
 
                 if(rosterLoaded) {
+                    const localMatches=Array.isArray(db.matches)?db.matches:[];
+                    const remoteMatches=Array.isArray(row?.data?.matches)?row.data.matches:[];
+                    const merged=new Map();
+                    remoteMatches.forEach(m=>{if(m&&m.id!=null)merged.set(String(m.id),m);});
+                    localMatches.forEach(m=>{if(m&&m.id!=null&&!merged.has(String(m.id)))merged.set(String(m.id),m);});
+                    db.matches=[...merged.values()];
                     if(row?.live_state) localStorage.setItem('live_match_state',JSON.stringify(row.live_state));
                     const resume=document.getElementById('resume-panel');
                     if(resume) resume.style.display=row?.live_state?'block':'none';
-                    updateCloudUI('MKSZ keretek betöltve a felhőből.');
+                    saveDB({skipCloud:true});
+                    if(document.getElementById('view-archive')?.classList.contains('active')) loadArchive();
+                    updateCloudUI('MKSZ keretek és '+db.matches.length+' archivált mérkőzés betöltve.');
+                    if(!row?.data || localMatches.some(m=>m&&m.id!=null&&!remoteMatches.some(r=>r&&String(r.id)===String(m.id))))
+                        await syncDatabaseToCloud(false);
                     return;
                 }
-
                 if(!row?.data) { await syncDatabaseToCloud(true); return; }
+                const localMatches=Array.isArray(db.matches)?db.matches:[];
                 await applyCloudState(row);
+                const ids=new Set((db.matches||[]).map(m=>String(m.id)));
+                const missing=localMatches.filter(m=>m&&m.id!=null&&!ids.has(String(m.id)));
+                if(missing.length) {
+                    db.matches.push(...missing);
+                    saveDB({skipCloud:true});
+                    await syncDatabaseToCloud(false);
+                }
+                if(document.getElementById('view-archive')?.classList.contains('active')) loadArchive();
             } catch(err){ setCloudMessage('cloud-sync-message','Szinkronellenőrzési hiba: '+(err.message||err),'err'); }
         }
 
