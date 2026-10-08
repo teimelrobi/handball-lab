@@ -1021,6 +1021,12 @@ KOVÁCS DÁVID MÁTÉ
                         <button class="btn-stat-main" onclick="setLiveVideoSync()" style="font-size:12px; padding:8px 15px;"><i class="fas fa-link"></i> Kezdősípszó Szinkron</button>
                     </div>
                     <video id="live-video-player" controls style="width:100%; border-radius:8px; display:none; max-height: 40vh; outline: none;"></video>
+                    <div class="official-clock-strip" style="margin-top:8px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 11px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px;">
+                        <label for="live-official-clock" style="font-size:12px;font-weight:bold;white-space:nowrap;"><i class="far fa-clock"></i> Játékóra-szinkron</label>
+                        <input id="live-official-clock" type="text" inputmode="numeric" placeholder="pl. 18:42" maxlength="5" style="width:90px;padding:7px;border:1px solid var(--border-color);background:var(--bg-card);color:#fff;border-radius:6px;font:14px monospace;" onfocus="captureOfficialSyncFrame('live')" onkeydown="if(event.key==='Enter') saveOfficialClockAnchor('live')">
+                        <button class="btn-stat-main" style="font-size:11px;padding:7px 10px;" onclick="saveOfficialClockAnchor('live')"><i class="fas fa-link"></i> Rögzít</button>
+                        <span id="live-official-status" style="font-size:11px;color:var(--text-muted);">Az időt csak akkor írd be, amikor látható a videón. A köztes idő becsült.</span>
+                    </div>
                 </div>
 
                 <div class="scoreboard">
@@ -2800,6 +2806,7 @@ KOVÁCS DÁVID MÁTÉ
 
             globalEvents = []; seconds = 0; currentPeriod = 1; pendingSubstitution = { home: null, away: null }; activeMatch.lineupHistory = []; activeMatch.lineupHistoryComplete = true; activeMatch.matchEndAbs = 0; activeMatch.videoSyncPoints = {}; activeMatch.officialClockPoints = []; document.getElementById('timer-text').innerText = "00:00"; recordLineupSnapshot('Kezdő felállás'); updateLiveUI(); saveLiveState();
             showScreen('view-main-app');
+            updateOfficialClockStatus('live');
         }
 
         function loadLiveVideo(event) {
@@ -2809,11 +2816,15 @@ KOVÁCS DÁVID MÁTÉ
             videoNode.style.display = 'block';
             document.getElementById('live-video-label').style.display = 'none';
             videoNode.ontimeupdate = function() {
-                if(isVideoAnalysis && document.getElementById('unified-modal-overlay').style.display !== 'flex') { 
-                    seconds = Math.max(0, Math.floor(this.currentTime - videoSyncOffset)); 
-                    updateTimerDisplay();
-                    // A videó a játékóra megállásakor is fut, ezért ebből nem számolunk játékidőt.
-                    // A pontos játékidő a cserék/kiállítások hivatalos játékóra-pontjaiból készül.
+                if(isVideoAnalysis && document.getElementById('unified-modal-overlay').style.display !== 'flex') {
+                    const mapped=officialGameTimeAtVideo(this.currentTime,currentPeriod,activeMatch);
+                    const next= mapped ? Math.floor(mapped.abs-(currentPeriod-1)*1800) : Math.max(0,Math.floor(this.currentTime-videoSyncOffset));
+                    if(next!==seconds) {
+                        seconds=Math.max(0,Math.min(1800,next));
+                        updateTimerDisplay();
+                        syncRosterPlayTimesFromLineup(currentMatchAbsoluteSeconds());
+                        updateOfficialClockStatus('live');
+                    }
                 }
             };
         }
@@ -2824,8 +2835,17 @@ KOVÁCS DÁVID MÁTÉ
             videoSyncOffset = vid.currentTime;
             if(!activeMatch.videoSyncPoints || typeof activeMatch.videoSyncPoints !== 'object') activeMatch.videoSyncPoints = {};
             activeMatch.videoSyncPoints[String(currentPeriod)] = videoSyncOffset;
-            seconds = 0; updateTimerDisplay(); syncRosterPlayTimesFromLineup(currentMatchAbsoluteSeconds()); saveLiveState();
-            alert(`${currentPeriod}. Félidő szinkronpont beállítva!`);
+            seconds = 0; updateTimerDisplay();
+            if(currentPeriod===1) {
+                const first=(activeMatch.lineupHistory||[]).find(x=>x.reason==='Kezdő felállás');
+                if(first) { first.videoTime=Number(vid.currentTime); first.period=1; first.abs=0; first.seconds=0; }
+            } else {
+                recordLineupSnapshot('2. félidő kezdete',1800);
+            }
+            recalculateVideoClockData(activeMatch);
+            updateOfficialClockStatus('live');
+            saveLiveState();
+            alert(`${currentPeriod}. félidő kezdősípszója elmentve. A játékidő automatikusan ehhez igazodik.`);
         }
 
         function updateTimerDisplay() {
@@ -2842,6 +2862,7 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('btn-period-toggle').innerText = `${currentPeriod}. FÉLIDŐ`; updateTimerDisplay();
             renderRosterUI('roster-home', activeMatch.homeRoster, 'home-num', 'home'); renderRosterUI('roster-away', activeMatch.awayRoster, 'away-num', 'away'); updateLiveUI(); 
             showScreen('view-main-app');
+            updateOfficialClockStatus('live');
         }
         function discardMatch() { localStorage.removeItem('live_match_state'); document.getElementById('resume-panel').style.display = 'none'; localStorage.setItem('handball_db_updated_at', new Date().toISOString()); scheduleCloudSync(); }
         function saveLiveState() { const state = { activeMatch, globalEvents, seconds, currentPeriod }; localStorage.setItem('live_match_state', JSON.stringify(state)); localStorage.setItem('handball_db_updated_at', new Date().toISOString()); updateCloudCounts(); scheduleCloudSync(); }
@@ -3192,37 +3213,159 @@ KOVÁCS DÁVID MÁTÉ
         function currentCourtNumbers(side) { const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster; return (roster || []).filter(p => p.onCourt).map(p => p.num.toString()).sort((a,b) => Number(a)-Number(b)); }
         function ensureLineupHistory() { if(!Array.isArray(activeMatch.lineupHistory)) activeMatch.lineupHistory = []; }
         function parseOfficialClockInput(value, period=currentPeriod) {
-            const raw=String(value??'').trim(); if(!raw) return null;
-            const parts=raw.split(':'); if(parts.length>2) return null;
-            let sec=0;
-            if(parts.length===2) sec=(Number(parts[0])||0)*60+(Number(parts[1])||0);
-            else sec=Number(parts[0]); 
-            if(!Number.isFinite(sec)||sec<0) return null;
-            // 2. félidőben 30:00–60:00 formátumot is elfogadunk.
-            if(Number(period)===2 && sec>=1800) return Math.min(3600,sec);
-            sec=Math.min(1800,sec);
-            return eventAbsoluteSeconds(period,sec);
+            const raw=String(value??'').trim();
+            if(!/^\\d{1,2}:\\d{2}$/.test(raw)) return null;
+            const [mm,ss]=raw.split(':').map(Number);
+            if(ss>59) return null;
+            let within=mm*60+ss;
+            if(Number(period)===2 && within>=1800) within-=1800;
+            if(within<0 || within>1800) return null;
+            return eventAbsoluteSeconds(period,within);
         }
-        function officialClockPromptDefault(period=currentPeriod) {
-            const within=Math.max(0,Math.min(1800,Number(seconds)||0));
-            return formatTime(within);
+        // A videóóra és a játékóra közötti kapcsolat: ismert kezdősípszók és
+        // alkalmanként leolvasott hivatalos játékidők. A köztes érték BECSLÉS.
+        function officialClockAnchors(match,period) {
+            if(!match) return [];
+            const p=Number(period), anchors=[];
+            const sync=match.videoSyncPoints||{};
+            if(Number.isFinite(Number(sync[String(p)])) && sync[String(p)]!==undefined && sync[String(p)]!==null)
+                anchors.push({videoTime:Number(sync[String(p)]),abs:(p-1)*1800,source:'whistle'});
+            (match.officialClockPoints||[]).forEach(x=>{
+                if(Number(x.period)===p && x.videoTime!==null && Number.isFinite(Number(x.videoTime)) && Number.isFinite(Number(x.abs)))
+                    anchors.push({videoTime:Number(x.videoTime),abs:Number(x.abs),source:'clock'});
+            });
+            anchors.sort((a,b)=>a.videoTime-b.videoTime);
+            return anchors;
+        }
+        function officialGameTimeAtVideo(videoTime,period,match=activeMatch) {
+            const t=Number(videoTime), p=Number(period), anchors=officialClockAnchors(match,p);
+            if(!Number.isFinite(t)||!anchors.length) return null;
+            const lower=(p-1)*1800,upper=p*1800;
+            let abs,exact=false;
+            const first=anchors[0],last=anchors[anchors.length-1];
+            if(t<=first.videoTime) { abs=first.abs-(first.videoTime-t); exact=t===first.videoTime; }
+            else if(t>=last.videoTime) { abs=last.abs+(t-last.videoTime); exact=t===last.videoTime; }
+            else {
+                for(let i=0;i<anchors.length-1;i++) {
+                    const a=anchors[i],b=anchors[i+1];
+                    if(t>=a.videoTime && t<=b.videoTime) {
+                        const ratio=(t-a.videoTime)/(b.videoTime-a.videoTime);
+                        abs=a.abs+ratio*(b.abs-a.abs);
+                        exact=t===a.videoTime || t===b.videoTime;
+                        break;
+                    }
+                }
+            }
+            return {abs:Math.max(lower,Math.min(upper,abs)),estimated:!exact,anchorCount:anchors.length};
+        }
+        function officialVideoTimeAtGame(abs,period,match=activeMatch) {
+            const target=Number(abs), anchors=officialClockAnchors(match,period);
+            if(!anchors.length) return null;
+            if(target<=anchors[0].abs) return Math.max(0,anchors[0].videoTime-(anchors[0].abs-target));
+            const last=anchors[anchors.length-1];
+            if(target>=last.abs) return last.videoTime+(target-last.abs);
+            for(let i=0;i<anchors.length-1;i++) {
+                const a=anchors[i],b=anchors[i+1];
+                if(target>=a.abs && target<=b.abs) {
+                    if(b.abs===a.abs) return b.videoTime;
+                    return a.videoTime+(target-a.abs)/(b.abs-a.abs)*(b.videoTime-a.videoTime);
+                }
+            }
+            return null;
         }
         function requestOfficialLineupAbs(reason='Felállásváltozás', period=currentPeriod) {
             if(!isVideoAnalysis) return currentMatchAbsoluteSeconds();
-            const raw=prompt(reason+' – add meg a videón látható HIVATALOS JÁTÉKÓRÁT (PP:MM).\n2. félidőben jó a 05:20 és a 35:20 forma is.',officialClockPromptDefault(period));
-            if(raw===null) return null;
-            const abs=parseOfficialClockInput(raw,period);
-            if(abs===null) { alert('Nem értelmezhető játékidő. Példa: 17:42'); return requestOfficialLineupAbs(reason,period); }
-            if(!Array.isArray(activeMatch.officialClockPoints)) activeMatch.officialClockPoints=[];
-            activeMatch.officialClockPoints.push({abs,period:Number(period),videoTime:currentVideoTagTime(),reason});
-            activeMatch.officialClockPoints.sort((a,b)=>Number(a.abs)-Number(b.abs));
-            return abs;
+            const videoTime=currentVideoTagTime();
+            const mapped=officialGameTimeAtVideo(videoTime,period,activeMatch);
+            return mapped?Math.floor(mapped.abs):currentMatchAbsoluteSeconds();
+        }
+        function captureOfficialSyncFrame(where) {
+            const input=document.getElementById(where==='room'?'room-official-clock':'live-official-clock');
+            const video=document.getElementById(where==='room'?'match-video':'live-video-player');
+            if(!input||!video||!video.src||video.src.endsWith('index.html')) return;
+            video.pause();
+            input.dataset.videoTime=String(video.currentTime);
+        }
+        function updateOfficialClockStatus(where) {
+            const room=where==='room';
+            const match=room?currentVideoMatch:activeMatch;
+            const label=document.getElementById(room?'room-official-status':'live-official-status');
+            if(!label||!match) return;
+            const period=room?Number(document.getElementById('room-official-half')?.value||1):currentPeriod;
+            const anchors=officialClockAnchors(match,period);
+            const vid=document.getElementById(room?'match-video':'live-video-player');
+            const mapped=vid&&vid.src?officialGameTimeAtVideo(vid.currentTime,period,match):null;
+            label.innerText=anchors.length
+                ? (mapped?'Becsült játékóra: '+formatTime(mapped.abs-(period-1)*1800)+' · ':'')+
+                  anchors.filter(a=>a.source==='clock').length+' leolvasott pont · Köztes idők becsültek'
+                : 'Előbb a félidő kezdősípszóját állítsd be. Köztes idők becsültek.';
+        }
+        function recalculateVideoClockData(match) {
+            if(!match) return;
+            const history=Array.isArray(match.lineupHistory)?match.lineupHistory:[];
+            history.forEach(snap=>{
+                if(typeof snap.videoTime!=='number'||!Number.isFinite(snap.videoTime)) return;
+                const p=Number(snap.period)||1;
+                const mapped=officialGameTimeAtVideo(snap.videoTime,p,match);
+                if(!mapped) return;
+                snap.abs=Math.floor(mapped.abs);
+                snap.seconds=snap.abs-(p-1)*1800;
+            });
+            history.sort((a,b)=>Number(a.abs)-Number(b.abs));
+            (match.events||[]).forEach(e=>{
+                if(typeof e.videoTime!=='number'||!Number.isFinite(e.videoTime)) return;
+                const p=Number(e.period)||1;
+                const mapped=officialGameTimeAtVideo(e.videoTime,p,match);
+                if(!mapped) return;
+                e.seconds=Math.floor(mapped.abs-(p-1)*1800);
+                e.time=formatTime(e.seconds);
+            });
+            if(match===activeMatch) {
+                const video=document.getElementById('view-video-room').classList.contains('active')
+                    ?document.getElementById('match-video'):document.getElementById('live-video-player');
+                const mapped=video&&video.src?officialGameTimeAtVideo(video.currentTime,currentPeriod,match):null;
+                if(mapped && !document.getElementById('view-video-room').classList.contains('active')) {
+                    seconds=Math.floor(mapped.abs-(currentPeriod-1)*1800);
+                    updateTimerDisplay();
+                }
+                const end=Number(match.matchEndAbs)>0?Number(match.matchEndAbs):currentMatchAbsoluteSeconds();
+                syncRosterPlayTimesFromLineup(end);
+                if(document.getElementById('view-main-app').classList.contains('active')) updateLiveUI();
+                refreshCurrentStatView();
+            }
+        }
+        function saveOfficialClockAnchor(where) {
+            const room=where==='room', match=room?currentVideoMatch:activeMatch;
+            const input=document.getElementById(room?'room-official-clock':'live-official-clock');
+            const vid=document.getElementById(room?'match-video':'live-video-player');
+            if(!match||!input||!vid||!vid.src||vid.src.endsWith('index.html')) return alert('Előbb tölts be egy videót.');
+            const period=room?Number(document.getElementById('room-official-half')?.value||1):currentPeriod;
+            const abs=parseOfficialClockInput(input.value,period);
+            if(abs===null) return alert('Hibás játékóra. Például 18:42 vagy a 2. félidőben 48:42.');
+            const t=input.dataset.videoTime!==undefined?Number(input.dataset.videoTime):Number(vid.currentTime);
+            if(!Number.isFinite(t)) return alert('Nincs érvényes videóidő.');
+            const existing=officialClockAnchors(match,period).filter(x=>Math.abs(x.videoTime-t)>0.5);
+            if(!existing.some(x=>x.source==='whistle')) return alert('Előbb állítsd be a félidő kezdősípszóját.');
+            const before=existing.filter(x=>x.videoTime<t).pop(),after=existing.find(x=>x.videoTime>t);
+            if((before && (abs<before.abs || abs-before.abs>t-before.videoTime+2)) ||
+               (after && (abs>after.abs || after.abs-abs>after.videoTime-t+2)))
+                return alert('A megadott játékóra nem illeszkedik a többi szinkronponthoz. Ellenőrizd a félidőt és az időt.');
+            if(!Array.isArray(match.officialClockPoints)) match.officialClockPoints=[];
+            match.officialClockPoints=match.officialClockPoints.filter(x=>Number(x.period)!==period || Math.abs(Number(x.videoTime)-t)>0.5);
+            match.officialClockPoints.push({period,abs,videoTime:t,reason:'Kézi játékóra-szinkron'});
+            match.officialClockPoints.sort((a,b)=>Number(a.videoTime)-Number(b.videoTime));
+            input.value=''; delete input.dataset.videoTime;
+            recalculateVideoClockData(match);
+            if(room) { persistVideoRoomMatch(); renderVideoEvents(); }
+            else saveLiveState();
+            updateOfficialClockStatus(where);
         }
         function recordLineupSnapshot(reason = '', absOverride = null) {
             ensureLineupHistory();
             const snapAbs=absOverride===null?currentMatchAbsoluteSeconds():Number(absOverride);
             const snapPeriod=snapAbs>=1800?2:1, snapSeconds=snapPeriod===2?snapAbs-1800:snapAbs;
-            const snap = { abs: snapAbs, period: snapPeriod, seconds: snapSeconds, homeCourt: currentCourtNumbers('home'), awayCourt: currentCourtNumbers('away'), reason };
+            const tagVideoTime=isVideoAnalysis?currentVideoTagTime():null;
+            const snap = { abs: snapAbs, period: snapPeriod, seconds: snapSeconds, videoTime:typeof tagVideoTime==='number'?tagVideoTime:null, homeCourt: currentCourtNumbers('home'), awayCourt: currentCourtNumbers('away'), reason };
             const last = activeMatch.lineupHistory[activeMatch.lineupHistory.length - 1];
             const same = last && last.abs === snap.abs && JSON.stringify(last.homeCourt) === JSON.stringify(snap.homeCourt) && JSON.stringify(last.awayCourt) === JSON.stringify(snap.awayCourt);
             if(same) return;
@@ -3772,7 +3915,8 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('btn-period-toggle').innerText = `${currentPeriod}. FÉLIDŐ`; 
             seconds = 0; 
             if(isVideoAnalysis) {
-                alert(`Kérlek állítsd be az új szinkronpontot a(z) ${currentPeriod}. félidőhöz a videó alatti gombbal!`);
+                updateOfficialClockStatus('live');
+                alert(`A ${currentPeriod}. félidő kezdősípszójánál nyomd meg a Kezdősípszó Szinkron gombot. A cseréknél nem kell játékidőt megadnod.`);
             } else {
                 adjustTime(0); 
             }
