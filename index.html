@@ -3121,7 +3121,7 @@ KOVÁCS DÁVID MÁTÉ
         function deleteMatch(id) { if((db.matches||[]).find(m=>m.id===id)?.locked) return alert('Lezárt mérkőzés nem törölhető.'); if(confirm("Biztosan törlöd a mérkőzést az archívumból?")) { db.matches = db.matches.filter(m => m.id !== id); saveDB(); loadArchive(); } }
         function openArchivedStats(id) {
             const m = db.matches.find(x => x.id === id); if(!m) return;
-            activeMatch = m; globalEvents = m.events || []; recalculateDerivedEventData(globalEvents);
+            activeMatch = m.locked ? {...m,events:JSON.parse(JSON.stringify(m.events||[]))} : m; globalEvents = activeMatch.events || []; recalculateDerivedEventData(globalEvents);
             const hb = document.getElementById('tab-btn-home'), ab = document.getElementById('tab-btn-away'); if(hb) hb.innerText = m.homeName || 'Saját Csapat'; if(ab) ab.innerText = m.awayName || 'Ellenfél';
             openStatDashboard();
         }
@@ -4983,7 +4983,7 @@ KOVÁCS DÁVID MÁTÉ
             if(matchId) currentVideoMatch = db.matches.find(m => m.id === matchId);
             else { currentVideoMatch = activeMatch; if(currentVideoMatch) currentVideoMatch.events = globalEvents; }
             if(!currentVideoMatch) return;
-            activeMatch = currentVideoMatch; globalEvents = currentVideoMatch.events || []; recalculateDerivedEventData(globalEvents);
+            activeMatch = currentVideoMatch.locked ? {...currentVideoMatch,events:JSON.parse(JSON.stringify(currentVideoMatch.events||[]))} : currentVideoMatch; globalEvents = activeMatch.events || []; recalculateDerivedEventData(globalEvents);
             if(!currentVideoMatch.videoSyncPoints || typeof currentVideoMatch.videoSyncPoints !== 'object') currentVideoMatch.videoSyncPoints = {};
             sync1_start = Number(currentVideoMatch.videoSyncPoints['1']) || 0; sync2_start = Number(currentVideoMatch.videoSyncPoints['2']) || 0; sync1_end = 0; sync2_end = 0;
             currentVideoFilter = filterSpec || null; videoPlaylistIndex = -1;
