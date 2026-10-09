@@ -1873,6 +1873,16 @@ KOVÁCS DÁVID MÁTÉ
             cloudSyncPending=false;
             if(showMessage) setCloudMessage('cloud-sync-message','Mentés a felhőbe…');
             try {
+                // Always retain server-side locked matches, even when a stale browser cache syncs.
+                const remote=await fetchCloudState();
+                const releaseIds=new Set((db.matches||[]).filter(m=>m.lockReleaseRequested===true&&m.locked===false).map(m=>String(m.id)));
+                const protectedMatches=(remote?.data?.matches||[]).filter(m=>m?.locked&&!releaseIds.has(String(m.id)));
+                const protectedIds=new Set(protectedMatches.map(m=>String(m.id)));
+                if(protectedIds.size) {
+                    db.matches=(db.matches||[]).filter(m=>!protectedIds.has(String(m.id))).concat(protectedMatches);
+                    localStorage.setItem('handball_db',JSON.stringify(db));
+                }
+                (db.matches||[]).forEach(m=>{delete m.lockReleaseRequested;});
                 const payload = { user_id:cloudUser.id, data:db, live_state:getLiveStateForCloud(), client_updated_at:new Date().toISOString() };
                 let { error } = await cloudClient.from('handball_state').upsert(payload,{onConflict:'user_id'}); if(error) throw error;
                 if(showMessage || Date.now()-cloudNormalizedLastSync > 30000) { await syncNormalizedCloudTables(); cloudNormalizedLastSync=Date.now(); }
@@ -1902,16 +1912,39 @@ KOVÁCS DÁVID MÁTÉ
             });
             const matchRows=(db.matches||[]).map(m=>({user_id:uid,match_id:String(m.id),match_date:m.date||null,match_name:m.matchName||'',league:m.league||'',location:m.location||'',home_name:m.homeName||'',away_name:m.awayName||'',home_score:Number(m.homeScore)||0,away_score:Number(m.awayScore)||0,data:m}));
             const eventRows=[]; (db.matches||[]).forEach(m=>(m.events||[]).forEach((e,i)=>eventRows.push({user_id:uid,match_id:String(m.id),event_id:String(e.id||`${m.id}_${i}`),period:Number(e.period)||1,seconds:Number(e.seconds)||0,team_side:e.team||'',event_group:e.group||'',action:e.action||'',result:e.result||'',data:e})));
-            // Full refresh per user keeps deletes/renames consistent; canonical state is already safely stored above.
-            let res=await cloudClient.from('handball_events').delete().eq('user_id',uid); if(res.error) throw res.error;
-            res=await cloudClient.from('handball_matches').delete().eq('user_id',uid); if(res.error) throw res.error;
+            // Rebuild only unlocked matches. A freshly locked match is upserted,
+            // while its events remain untouched unless the archive is unlocked.
+            const lockedIds=(db.matches||[]).filter(m=>m.locked).map(m=>String(m.id));
+            const unlockedMatchRows=matchRows.filter(m=>!lockedIds.includes(m.match_id));
+            const unlockedEventRows=eventRows.filter(e=>!lockedIds.includes(e.match_id));
+            const protectedIds=lockedIds.map(id=>'"'+id.replace(/"/g,'')+'"');
+            let res;
+            if(protectedIds.length) {
+                const excluded='('+protectedIds.join(',')+')';
+                res=await cloudClient.from('handball_events').delete().eq('user_id',uid).not('match_id','in',excluded);
+                if(res.error) throw res.error;
+                res=await cloudClient.from('handball_matches').delete().eq('user_id',uid).not('match_id','in',excluded);
+            } else {
+                res=await cloudClient.from('handball_events').delete().eq('user_id',uid);
+                if(res.error) throw res.error;
+                res=await cloudClient.from('handball_matches').delete().eq('user_id',uid);
+            }
+            if(res.error) throw res.error;
             res=await cloudClient.from('handball_players').delete().eq('user_id',uid); if(res.error) throw res.error;
             res=await cloudClient.from('handball_teams').delete().eq('user_id',uid); if(res.error) throw res.error;
             if(teamRows.length){res=await cloudClient.from('handball_teams').insert(teamRows); if(res.error) throw res.error;}
             if(playerRows.length){res=await cloudClient.from('handball_players').insert(playerRows); if(res.error) throw res.error;}
-            if(matchRows.length){res=await cloudClient.from('handball_matches').insert(matchRows); if(res.error) throw res.error;}
-            // Supabase/PostgREST payloads can be large; insert events in chunks.
-            for(let i=0;i<eventRows.length;i+=400){ res=await cloudClient.from('handball_events').insert(eventRows.slice(i,i+400)); if(res.error) throw res.error; }
+            if(unlockedMatchRows.length){res=await cloudClient.from('handball_matches').insert(unlockedMatchRows); if(res.error) throw res.error;}
+            // Save newly locked flags without replacing archived event rows.
+            const lockedMatchRows=matchRows.filter(m=>lockedIds.includes(m.match_id));
+            if(lockedMatchRows.length){res=await cloudClient.from('handball_matches').upsert(lockedMatchRows,{onConflict:'user_id,match_id'}); if(res.error) throw res.error;}
+            for(let i=0;i<unlockedEventRows.length;i+=400){res=await cloudClient.from('handball_events').insert(unlockedEventRows.slice(i,i+400));if(res.error)throw res.error;}
+            // A first-time locked match may not have normalized events yet.
+            for(const id of lockedIds){
+                const {count,error}=await cloudClient.from('handball_events').select('event_id',{count:'exact',head:true}).eq('user_id',uid).eq('match_id',id);
+                if(error)throw error;
+                if(count===0){const rows=eventRows.filter(e=>e.match_id===id);for(let i=0;i<rows.length;i+=400){res=await cloudClient.from('handball_events').insert(rows.slice(i,i+400));if(res.error)throw res.error;}}
+            }
         }
         async function cloudSyncNow() { await syncDatabaseToCloud(true); updateCloudCounts(); }
         async function fetchCloudState() {
@@ -3049,17 +3082,27 @@ KOVÁCS DÁVID MÁTÉ
             saveDB(); discardMatch(); location.reload();
         }
 
+        function toggleArchiveLock(id) {
+            const m=(db.matches||[]).find(x=>x.id===id); if(!m)return;
+            if(!confirm(m.locked?'Feloldod a mérkőzést?':'Lezárod a mérkőzést?'))return;
+            m.locked=!m.locked;
+            if(!m.locked) m.lockReleaseRequested=true;
+            saveDB();loadArchive();
+        }
         function loadArchive() {
             const list = document.getElementById('archive-grid-container'); list.innerHTML = "";
             if(!db.matches || db.matches.length === 0) { list.innerHTML = "<div style='color:var(--text-muted); text-align:center; font-size:16px; margin-top:20px; grid-column: 1 / -1;'>Nincs elmentett mérkőzés.</div>"; return; }
             db.matches.slice().reverse().forEach(m => {
                 const displayName = m.matchName && m.matchName !== 'Mérkőzés' ? m.matchName : `${m.homeName} vs ${m.awayName}`;
-                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions"><button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveTeams('${m.id}')" title="A mérkőzés csapatneveinek javítása"><i class="fas fa-edit"></i> Csapatnevek</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
+                const lockLabel=m.locked?' 🔒 Lezárt':'';
+                const lockAction=`<button class="btn-arch-action btn-arch-csv" onclick="toggleArchiveLock('${m.id}')">${m.locked?'🔓 Feloldás':'🔒 Lezárás'}</button>`;
+                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}${lockLabel}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions">${lockAction}<button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveTeams('${m.id}')" title="A mérkőzés csapatneveinek javítása"><i class="fas fa-edit"></i> Csapatnevek</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
             });
         }
         function editArchiveTeams(id) {
             const m=db.matches.find(x=>x.id===id);
             if(!m)return;
+            if(m.locked) return alert('A lezárt mérkőzés nem módosítható.');
             const home=prompt('Hazai csapat neve:',m.homeName||'');
             if(home===null)return;
             const away=prompt('Vendégcsapat neve:',m.awayName||'');
@@ -3075,10 +3118,10 @@ KOVÁCS DÁVID MÁTÉ
             saveDB();
             loadArchive();
         }
-        function deleteMatch(id) { if(confirm("Biztosan törlöd a mérkőzést az archívumból?")) { db.matches = db.matches.filter(m => m.id !== id); saveDB(); loadArchive(); } }
+        function deleteMatch(id) { if((db.matches||[]).find(m=>m.id===id)?.locked) return alert('Lezárt mérkőzés nem törölhető.'); if(confirm("Biztosan törlöd a mérkőzést az archívumból?")) { db.matches = db.matches.filter(m => m.id !== id); saveDB(); loadArchive(); } }
         function openArchivedStats(id) {
             const m = db.matches.find(x => x.id === id); if(!m) return;
-            activeMatch = m; globalEvents = m.events || []; recalculateDerivedEventData(globalEvents);
+            activeMatch = m.locked ? {...m,events:JSON.parse(JSON.stringify(m.events||[]))} : m; globalEvents = activeMatch.events || []; recalculateDerivedEventData(globalEvents);
             const hb = document.getElementById('tab-btn-home'), ab = document.getElementById('tab-btn-away'); if(hb) hb.innerText = m.homeName || 'Saját Csapat'; if(ab) ab.innerText = m.awayName || 'Ellenfél';
             openStatDashboard();
         }
@@ -3173,6 +3216,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function importPlayTimeCSV(matchId) {
             const match = (db.matches || []).find(m => m.id === matchId); if(!match) return alert('A mérkőzés nem található.');
+            if(match.locked) return alert('Lezárt mérkőzés nem módosítható.');
             const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv,text/csv';
             input.onchange = () => {
                 const file = input.files && input.files[0]; if(!file) return;
@@ -4009,6 +4053,7 @@ KOVÁCS DÁVID MÁTÉ
         }
 
         function editEvent(id) {
+            if(activeMatch?.locked) return alert('Lezárt mérkőzés eseményei nem módosíthatók.');
             const ev = globalEvents.find(e => e.id === id); if(!ev || ev.group === 'timeout') return;
             
             pauseVideoForTagging();
@@ -4185,9 +4230,10 @@ KOVÁCS DÁVID MÁTÉ
             return Number(vid.currentTime);
         }
 
-        function persistVideoRoomMatch() { if(videoRoomIsLive) saveLiveState(); else saveDB(); }
+        function persistVideoRoomMatch() { if(!videoRoomIsLive && currentVideoMatch?.locked) return; if(videoRoomIsLive) saveLiveState(); else saveDB(); }
 
         function saveEvent() {
+            if(activeMatch?.locked) return alert('Lezárt mérkőzés eseményei nem módosíthatók.');
             if(!document.getElementById('btn-save-event').classList.contains('active'))return;
             const assistVal = (activeActionGroup === 'shot' && selResult === 'Gól') ? document.getElementById('assist-select').value : ""; const groupLabels = {attack:'Támadás', error:'Hiba', defense:'Védekezés', penalty:'Büntetés'}; const actionText = activeActionGroup === 'shot' ? "Lövés" : (groupLabels[activeActionGroup] || activeActionGroup); const resultText = activeActionGroup === 'shot' ? selResult : selSimpleAction;
             
@@ -4268,6 +4314,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function undoLastEvent() { if(globalEvents.length === 0) return; globalEvents.shift(); recalculateDerivedEventData(globalEvents); updateLiveUI(); saveLiveState(); }
         function deleteEvent(id) { 
+            if(activeMatch?.locked) return alert('Lezárt mérkőzés eseményei nem törölhetők.');
             globalEvents = globalEvents.filter(e => e.id !== id); recalculateDerivedEventData(globalEvents); 
             if(document.getElementById('view-video-room').classList.contains('active')) { currentVideoMatch.events = globalEvents; renderVideoEvents(); persistVideoRoomMatch(); return; }
             updateLiveUI(); saveLiveState(); 
@@ -4936,7 +4983,7 @@ KOVÁCS DÁVID MÁTÉ
             if(matchId) currentVideoMatch = db.matches.find(m => m.id === matchId);
             else { currentVideoMatch = activeMatch; if(currentVideoMatch) currentVideoMatch.events = globalEvents; }
             if(!currentVideoMatch) return;
-            activeMatch = currentVideoMatch; globalEvents = currentVideoMatch.events || []; recalculateDerivedEventData(globalEvents);
+            activeMatch = currentVideoMatch.locked ? {...currentVideoMatch,events:JSON.parse(JSON.stringify(currentVideoMatch.events||[]))} : currentVideoMatch; globalEvents = activeMatch.events || []; recalculateDerivedEventData(globalEvents);
             if(!currentVideoMatch.videoSyncPoints || typeof currentVideoMatch.videoSyncPoints !== 'object') currentVideoMatch.videoSyncPoints = {};
             sync1_start = Number(currentVideoMatch.videoSyncPoints['1']) || 0; sync2_start = Number(currentVideoMatch.videoSyncPoints['2']) || 0; sync1_end = 0; sync2_end = 0;
             currentVideoFilter = filterSpec || null; videoPlaylistIndex = -1;
