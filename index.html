@@ -1873,6 +1873,14 @@ KOVÁCS DÁVID MÁTÉ
             cloudSyncPending=false;
             if(showMessage) setCloudMessage('cloud-sync-message','Mentés a felhőbe…');
             try {
+                // Always retain server-side locked matches, even when a stale browser cache syncs.
+                const remote=await fetchCloudState();
+                const protectedMatches=(remote?.data?.matches||[]).filter(m=>m?.locked);
+                const protectedIds=new Set(protectedMatches.map(m=>String(m.id)));
+                if(protectedIds.size) {
+                    db.matches=(db.matches||[]).filter(m=>!protectedIds.has(String(m.id))).concat(protectedMatches);
+                    localStorage.setItem('handball_db',JSON.stringify(db));
+                }
                 const payload = { user_id:cloudUser.id, data:db, live_state:getLiveStateForCloud(), client_updated_at:new Date().toISOString() };
                 let { error } = await cloudClient.from('handball_state').upsert(payload,{onConflict:'user_id'}); if(error) throw error;
                 if(showMessage || Date.now()-cloudNormalizedLastSync > 30000) { await syncNormalizedCloudTables(); cloudNormalizedLastSync=Date.now(); }
@@ -1902,16 +1910,22 @@ KOVÁCS DÁVID MÁTÉ
             });
             const matchRows=(db.matches||[]).map(m=>({user_id:uid,match_id:String(m.id),match_date:m.date||null,match_name:m.matchName||'',league:m.league||'',location:m.location||'',home_name:m.homeName||'',away_name:m.awayName||'',home_score:Number(m.homeScore)||0,away_score:Number(m.awayScore)||0,data:m}));
             const eventRows=[]; (db.matches||[]).forEach(m=>(m.events||[]).forEach((e,i)=>eventRows.push({user_id:uid,match_id:String(m.id),event_id:String(e.id||`${m.id}_${i}`),period:Number(e.period)||1,seconds:Number(e.seconds)||0,team_side:e.team||'',event_group:e.group||'',action:e.action||'',result:e.result||'',data:e})));
-            // Full refresh per user keeps deletes/renames consistent; canonical state is already safely stored above.
-            let res=await cloudClient.from('handball_events').delete().eq('user_id',uid); if(res.error) throw res.error;
-            res=await cloudClient.from('handball_matches').delete().eq('user_id',uid); if(res.error) throw res.error;
+            // Preserve locked rows and their events; refresh only unlocked match data.
+            const lockedIds=(db.matches||[]).filter(m=>m.locked).map(m=>String(m.id));
+            let res=await cloudClient.from('handball_events').delete().eq('user_id',uid);
+            if(lockedIds.length) res=await cloudClient.from('handball_events').delete().eq('user_id',uid).not('match_id','in','('+lockedIds.map(id=>'"'+id.replace(/"/g,'')+'"').join(',')+')');
+            if(res.error) throw res.error;
+            res=await cloudClient.from('handball_matches').delete().eq('user_id',uid);
+            if(lockedIds.length) res=await cloudClient.from('handball_matches').delete().eq('user_id',uid).not('match_id','in','('+lockedIds.map(id=>'"'+id.replace(/"/g,'')+'"').join(',')+')');
+            if(res.error) throw res.error;
             res=await cloudClient.from('handball_players').delete().eq('user_id',uid); if(res.error) throw res.error;
             res=await cloudClient.from('handball_teams').delete().eq('user_id',uid); if(res.error) throw res.error;
             if(teamRows.length){res=await cloudClient.from('handball_teams').insert(teamRows); if(res.error) throw res.error;}
             if(playerRows.length){res=await cloudClient.from('handball_players').insert(playerRows); if(res.error) throw res.error;}
-            if(matchRows.length){res=await cloudClient.from('handball_matches').insert(matchRows); if(res.error) throw res.error;}
-            // Supabase/PostgREST payloads can be large; insert events in chunks.
-            for(let i=0;i<eventRows.length;i+=400){ res=await cloudClient.from('handball_events').insert(eventRows.slice(i,i+400)); if(res.error) throw res.error; }
+            const unlockedMatchRows=matchRows.filter(m=>!lockedIds.includes(m.match_id));
+            if(unlockedMatchRows.length){res=await cloudClient.from('handball_matches').insert(unlockedMatchRows); if(res.error) throw res.error;}
+            const unlockedEventRows=eventRows.filter(e=>!lockedIds.includes(e.match_id));
+            for(let i=0;i<unlockedEventRows.length;i+=400){ res=await cloudClient.from('handball_events').insert(unlockedEventRows.slice(i,i+400)); if(res.error) throw res.error; }
         }
         async function cloudSyncNow() { await syncDatabaseToCloud(true); updateCloudCounts(); }
         async function fetchCloudState() {
