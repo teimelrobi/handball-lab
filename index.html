@@ -274,6 +274,28 @@
         .shot-wing-btn.selected { background:var(--green-accent); color:#061c13; border:2px solid #fff; }
         .shot-pitch-goal { grid-column:2; grid-row:2; justify-self:center; align-self:end; width:70px; height:14px; border:2px solid #ff6478; border-bottom:0; border-radius:3px 3px 0 0; background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(255,77,100,.24) 5px,rgba(255,77,100,.24) 8px); pointer-events:none; }
         .shot-options { flex:1; min-width:205px; display:flex; flex-direction:column; gap:8px; }
+        /* A rajz alapján kialakított valódi íves lövéshely-térkép. */
+        .shot-pitch { position:relative; display:block; width:100%; max-width:510px; height:auto; min-height:0; padding:5px 0; border:1px solid #355065; border-radius:12px; background:#101d28; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04); }
+        .shot-fan-svg { display:block; width:100%; height:auto; overflow:visible; }
+        .shot-fan-base { fill:#10232e; stroke:none; }
+        .shot-fan-svg .shot-zone { cursor:pointer; stroke:#0d1b25; stroke-width:2; stroke-linejoin:round; transition:fill .15s,opacity .15s; outline:none; }
+        .shot-fan-svg .shot-zone.zone-right.outer { fill:#284f78; }
+        .shot-fan-svg .shot-zone.zone-right.inner { fill:#396a99; }
+        .shot-fan-svg .shot-zone.zone-center.outer { fill:#176b65; }
+        .shot-fan-svg .shot-zone.zone-center.inner { fill:#259a87; }
+        .shot-fan-svg .shot-zone.zone-left.outer { fill:#634a82; }
+        .shot-fan-svg .shot-zone.zone-left.inner { fill:#8d65a8; }
+        .shot-fan-svg .shot-zone:hover,.shot-fan-svg .shot-zone:focus-visible { stroke:#fff; stroke-width:3; filter:brightness(1.3); }
+        .shot-fan-svg .shot-zone.selected { fill:#12d896!important; stroke:#fff; stroke-width:4; filter:none; }
+        .shot-fan-arc { fill:none; pointer-events:none; stroke:#d8e4ed; stroke-width:2; }
+        .shot-fan-nine { stroke-dasharray:8 5; stroke-width:2.5; }
+        .shot-fan-eleven { stroke:#8095a4; stroke-width:1.5; }
+        .shot-fan-goal { fill:none; stroke:#ff6478; stroke-width:5; stroke-linecap:round; pointer-events:none; }
+        .shot-fan-mark { font-size:11px; font-weight:700; fill:#c7d7e0; paint-order:stroke; stroke:#12222e; stroke-width:4; stroke-linejoin:round; text-anchor:middle; pointer-events:none; }
+        .shot-pitch .shot-wing-btn { position:absolute; top:30%; width:14%; min-height:54px; padding:6px 3px; z-index:3; font-size:11px; }
+        .shot-pitch .shot-wing-left { left:1.2%; }
+        .shot-pitch .shot-wing-right { right:1.2%; }
+        @media(max-width:430px) { .shot-pitch .shot-wing-btn { font-size:9px; min-height:45px; } }
         .shot-option-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
         .shot-option-label { color:var(--text-muted); font-size:10px; font-weight:700; letter-spacing:.25px; }
         .shot-finish-btn, .shot-situation-btn { min-height:40px; min-width:0; background:#15232e; border:1px solid #34495a; color:#edf4f7; padding:7px 6px; border-radius:7px; cursor:pointer; font-size:11px; font-weight:700; text-align:center; line-height:1.2; }
@@ -1469,18 +1491,25 @@ KOVÁCS DÁVID MÁTÉ
                     <div class="u-section-title"><div class="u-step-num">1</div> Honnan? <span id="shot-position-hint" style="font-size:11px; color:var(--text-muted); font-weight:normal; margin-left:8px;"></span></div>
                     <div class="shot-source-layout">
                         <div class="shot-pitch-wrap">
-                            <div class="shot-pitch" aria-label="Lövés helye: hat különálló zóna és két szél">
-                                <div class="shot-wing shot-wing-left"><button type="button" class="shot-wing-btn" data-shot-wing="Jobb szél" onclick="selectShotWing(this, 'Jobb szél')">Jobb<br>szél</button></div>
-                                <div class="shot-zone-map">
-                                    <button type="button" class="shot-zone zone-right outer" data-shot-zone="Jobb átlövő · 9–11 m" onclick="selectShotZone(this, 'Jobb átlövő', '9–11 m')"><span>Jobb</span><span class="zone-distance">9–11 m</span></button>
-                                    <button type="button" class="shot-zone zone-center outer" data-shot-zone="Közép · 9–11 m" onclick="selectShotZone(this, 'Közép', '9–11 m')"><span>Közép</span><span class="zone-distance">9–11 m</span></button>
-                                    <button type="button" class="shot-zone zone-left outer" data-shot-zone="Bal átlövő · 9–11 m" onclick="selectShotZone(this, 'Bal átlövő', '9–11 m')"><span>Bal</span><span class="zone-distance">9–11 m</span></button>
-                                    <button type="button" class="shot-zone zone-right inner" data-shot-zone="Jobb átlövő · 6–9 m" onclick="selectShotZone(this, 'Jobb átlövő', '6–9 m')"><span>Jobb</span><span class="zone-distance">6–9 m</span></button>
-                                    <button type="button" class="shot-zone zone-center inner" data-shot-zone="Közép · 6–9 m" onclick="selectShotZone(this, 'Közép', '6–9 m')"><span>Közép</span><span class="zone-distance">6–9 m</span></button>
-                                    <button type="button" class="shot-zone zone-left inner" data-shot-zone="Bal átlövő · 6–9 m" onclick="selectShotZone(this, 'Bal átlövő', '6–9 m')"><span>Bal</span><span class="zone-distance">6–9 m</span></button>
-                                </div>
-                                <div class="shot-wing shot-wing-right"><button type="button" class="shot-wing-btn" data-shot-wing="Bal szél" onclick="selectShotWing(this, 'Bal szél')">Bal<br>szél</button></div>
-                                <div class="shot-pitch-goal" aria-hidden="true"></div>
+                            <div class="shot-pitch" aria-label="Íves kézilabdapálya, hat kattintható zónával és két szélső pozícióval">
+                                <svg class="shot-fan-svg" viewBox="0 0 600 290" preserveAspectRatio="xMidYMid meet" role="group" aria-label="Lövéshely kiválasztása">
+                                    <path class="shot-fan-base" d="M371.01,53.00 L529.50,144.50 A265,265 0 0 1 70.50,144.50 L228.99,53.00 A82,82 0 0 0 371.01,53.00 Z"/>
+                                    <path class="shot-zone zone-right outer" d="M453.05,102.88 L526.14,146.27 A263,263 0 0 1 392.96,258.02 L362.92,178.51 A178,178 0 0 0 453.05,102.88 Z" data-shot-zone="Jobb átlövő · 9–11 m" role="button" tabindex="0" aria-label="Jobb átlövő · 9–11 m" onclick="selectShotZone(this, 'Jobb átlövő', '9–11 m')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectShotZone(this, 'Jobb átlövő', '9–11 m');}"><title>Jobb átlövő · 9–11 m</title></path>
+                                    <path class="shot-zone zone-center outer" d="M358.83,180.00 L386.93,260.22 A263,263 0 0 1 213.07,260.22 L241.17,180.00 A178,178 0 0 0 358.83,180.00 Z" data-shot-zone="Közép · 9–11 m" role="button" tabindex="0" aria-label="Közép · 9–11 m" onclick="selectShotZone(this, 'Közép', '9–11 m')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectShotZone(this, 'Közép', '9–11 m');}"><title>Közép · 9–11 m</title></path>
+                                    <path class="shot-zone zone-left outer" d="M237.08,178.51 L207.04,258.02 A263,263 0 0 1 73.86,146.27 L146.95,102.88 A178,178 0 0 0 237.08,178.51 Z" data-shot-zone="Bal átlövő · 9–11 m" role="button" tabindex="0" aria-label="Bal átlövő · 9–11 m" onclick="selectShotZone(this, 'Bal átlövő', '9–11 m')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectShotZone(this, 'Bal átlövő', '9–11 m');}"><title>Bal átlövő · 9–11 m</title></path>
+                                    <path class="shot-zone zone-right inner" d="M372.23,54.89 L449.61,100.83 A174,174 0 0 1 361.50,174.77 L329.69,90.58 A84,84 0 0 0 372.23,54.89 Z" data-shot-zone="Jobb átlövő · 6–9 m" role="button" tabindex="0" aria-label="Jobb átlövő · 6–9 m" onclick="selectShotZone(this, 'Jobb átlövő', '6–9 m')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectShotZone(this, 'Jobb átlövő', '6–9 m');}"><title>Jobb átlövő · 6–9 m</title></path>
+                                    <path class="shot-zone zone-center inner" d="M327.76,91.28 L357.51,176.22 A174,174 0 0 1 242.49,176.22 L272.24,91.28 A84,84 0 0 0 327.76,91.28 Z" data-shot-zone="Közép · 6–9 m" role="button" tabindex="0" aria-label="Közép · 6–9 m" onclick="selectShotZone(this, 'Közép', '6–9 m')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectShotZone(this, 'Közép', '6–9 m');}"><title>Közép · 6–9 m</title></path>
+                                    <path class="shot-zone zone-left inner" d="M270.31,90.58 L238.50,174.77 A174,174 0 0 1 150.39,100.83 L227.77,54.89 A84,84 0 0 0 270.31,90.58 Z" data-shot-zone="Bal átlövő · 6–9 m" role="button" tabindex="0" aria-label="Bal átlövő · 6–9 m" onclick="selectShotZone(this, 'Bal átlövő', '6–9 m')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectShotZone(this, 'Bal átlövő', '6–9 m');}"><title>Bal átlövő · 6–9 m</title></path>
+                                    <path class="shot-fan-arc shot-fan-six" d="M371.01,53.00 A82,82 0 0 1 228.99,53.00"/>
+                                    <path class="shot-fan-arc shot-fan-nine" d="M452.42,100.00 A176,176 0 0 1 147.58,100.00"/>
+                                    <path class="shot-fan-arc shot-fan-eleven" d="M529.50,144.50 A265,265 0 0 1 70.50,144.50"/>
+                                    <path class="shot-fan-goal" d="M273 12 V3 H327 V12"/>
+                                    <text class="shot-fan-mark" x="300" y="101">6 m</text>
+                                    <text class="shot-fan-mark" x="300" y="190">9 m</text>
+                                    <text class="shot-fan-mark" x="300" y="283">11 m</text>
+                                </svg>
+                                <button type="button" class="shot-wing-btn shot-wing-left" data-shot-wing="Jobb szél" onclick="selectShotWing(this, 'Jobb szél')">Jobb szél</button>
+                                <button type="button" class="shot-wing-btn shot-wing-right" data-shot-wing="Bal szél" onclick="selectShotWing(this, 'Bal szél')">Bal szél</button>
                             </div>
                         </div>
                         <div class="shot-options">
