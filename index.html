@@ -1330,7 +1330,7 @@ KOVÁCS DÁVID MÁTÉ
             <div class="stat-top-row">
                 <div class="stat-left">
                     <div class="stat-card">
-                        <div class="stat-card-title" style="display:flex; justify-content:space-between;"><span>Mezőnyjátékosok Statisztikája</span><span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">Kattints egy játékosra az egyéni hőtérképhez!</span></div>
+                        <div class="stat-card-title" style="display:flex; justify-content:space-between;"><span>Mezőnyjátékosok Statisztikája</span><span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">Kattints egy játékosra a teljes adatlapjához!</span></div>
                         <table class="stats-table" id="stat-table-players"><thead><tr><th>NÉV</th><th>JÁTÉKIDŐ (ÖSSZ.)</th><th>GÓL/LÖVÉS</th><th>%</th><th>GP</th><th>KP</th><th>7M+</th><th>2P+</th><th>LABDA</th><th>HIBA</th><th>+/-</th><th>INDEX</th></tr></thead><tbody></tbody></table>
                     </div>
                     <div class="stat-card">
@@ -4442,6 +4442,33 @@ KOVÁCS DÁVID MÁTÉ
             else if(tab === 'lineup') { document.getElementById('lineup-view').style.display = 'flex'; updateStatStrengthFilterUI(lineupStatSide); renderLineupSelectors(); }
             else { document.getElementById('classic-stat-view').style.display = 'flex'; updateStatStrengthFilterUI(tab); populateStatDashboard(tab); }
         }
+        function openPlayerStatProfile(side, num) {
+            const roster=side==='home' ? activeMatch.homeRoster : activeMatch.awayRoster;
+            const player=(roster||[]).find(p=>String(p.num)===String(num));
+            if(!player) return;
+            const teamName=side==='home' ? activeMatch.homeName : activeMatch.awayName;
+            const teams=careerTeamNames();
+            const teamLabel=teams.find(label=>careerTeamSide(activeMatch,label)===side)
+                || teams.find(label=>careerNorm(careerTeamRef(label).name)===careerNorm(teamName))
+                || teamName;
+            showScreen('view-career-stats');
+            loadCareerStatsUI();
+            const teamSel=document.getElementById('career-team-select');
+            const playerSel=document.getElementById('career-player-select');
+            if(!teamSel || !playerSel) return;
+            const encodedTeam=encodeURIComponent(teamLabel);
+            if(Array.from(teamSel.options).some(o=>o.value===encodedTeam)) {
+                teamSel.value=encodedTeam;
+                loadCareerPlayers();
+            }
+            const key=encodeURIComponent(careerNorm(player.name));
+            if(Array.from(playerSel.options).some(o=>o.value===key)) {
+                playerSel.value=key;
+                renderCareerPlayerStats();
+            } else {
+                document.getElementById('career-stat-content').innerHTML='<div class="career-empty">Ehhez a játékoshoz még nincs összesített adat.</div>';
+            }
+        }
         function selectPlayerForStats(num) { if (filterPlayerNum == num) filterPlayerNum = null; else filterPlayerNum = num; populateStatDashboard(currentStatView); }
 
         function calculatePlayerPlusMinus(side, playerNum) {
@@ -4725,11 +4752,11 @@ KOVÁCS DÁVID MÁTÉ
                 const rowClass = filterPlayerNum == player.num ? 'selected-row' : ''; if(filterPlayerNum == player.num) filteredName = player.name;
                 if(!player.isGk) {
                     const pct = pShots > 0 ? Math.round((pGoals / pShots) * 100) : 0; const valClass = valIndex > 0 ? 'val-positive' : (valIndex < 0 ? 'val-negative' : '');
-                    tbodyPlayers.innerHTML += `<tr class="${rowClass}" onclick="selectPlayerForStats('${player.num}')"><td><strong>#${player.num} ${player.name}</strong></td><td>${timeStr}</td><td><strong>${pGoals}</strong> / ${pShots}</td><td style="color:${pct>50 ? 'var(--green-accent)' : '#fff'}">${pct}%</td><td>${pAssists}</td><td>${pKeyPass}</td><td>${pWon7}</td><td>${pWon2}</td><td>${pSteals}</td><td>${pErrors}</td><td class="${pmClass}">${pmStr}</td><td class="${valClass}">${valIndex}</td></tr>`;
+                    tbodyPlayers.innerHTML += `<tr class="${rowClass}" onclick="openPlayerStatProfile('${side}', '${player.num}')"><td><strong>#${player.num} ${player.name}</strong></td><td>${timeStr}</td><td><strong>${pGoals}</strong> / ${pShots}</td><td style="color:${pct>50 ? 'var(--green-accent)' : '#fff'}">${pct}%</td><td>${pAssists}</td><td>${pKeyPass}</td><td>${pWon7}</td><td>${pWon2}</td><td>${pSteals}</td><td>${pErrors}</td><td class="${pmClass}">${pmStr}</td><td class="${valClass}">${valIndex}</td></tr>`;
                 } else {
                     let gkSaves = 0, gkShotsFaced = 0; globalEvents.forEach(e => { if(!eventMatchesStatStrength(e, side)) return; if(e.team === oppSide && e.group === 'shot' && e.defendingGk == player.num) { if(e.result === 'Gól' || e.result === 'Védés') gkShotsFaced++; if(e.result === 'Védés') { gkSaves++; valIndex++; } } });
                     const gkPct = gkShotsFaced > 0 ? Math.round((gkSaves / gkShotsFaced) * 100) : 0; const valClass = valIndex > 0 ? 'val-positive' : (valIndex < 0 ? 'val-negative' : '');
-                    tbodyGk.innerHTML += `<tr class="${rowClass}" onclick="selectPlayerForStats('${player.num}')"><td><strong>#${player.num} ${player.name}</strong> <span style="color:var(--gk-accent); font-size:10px;">(K)</span></td><td>${timeStr}</td><td><strong>${gkSaves}</strong> / ${gkShotsFaced}</td><td style="color:var(--gk-accent)">${gkPct}%</td><td class="${pmClass}">${pmStr}</td><td class="${valClass}">${valIndex}</td></tr>`;
+                    tbodyGk.innerHTML += `<tr class="${rowClass}" onclick="openPlayerStatProfile('${side}', '${player.num}')"><td><strong>#${player.num} ${player.name}</strong> <span style="color:var(--gk-accent); font-size:10px;">(K)</span></td><td>${timeStr}</td><td><strong>${gkSaves}</strong> / ${gkShotsFaced}</td><td style="color:var(--gk-accent)">${gkPct}%</td><td class="${pmClass}">${pmStr}</td><td class="${valClass}">${valIndex}</td></tr>`;
                 }
             });
 
