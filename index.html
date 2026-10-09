@@ -1478,10 +1478,6 @@ KOVÁCS DÁVID MÁTÉ
                 <div class="defense-system-buttons" id="defense-system-buttons">
                     <button class="defense-system-btn" onclick="selectDefenseSystem(this, '6:0')">6:0</button>
                     <button class="defense-system-btn" onclick="selectDefenseSystem(this, '5:1')">5:1</button>
-                    <button class="defense-system-btn" onclick="selectDefenseSystem(this, '3:2:1')">3:2:1</button>
-                    <button class="defense-system-btn" onclick="selectDefenseSystem(this, '4:2')">4:2</button>
-                    <button class="defense-system-btn" onclick="selectDefenseSystem(this, 'Nyitott emberfogás')">Nyitott emberfogás</button>
-                    <button class="defense-system-btn" onclick="selectDefenseSystem(this, 'Egyéni emberfogás')">Egyéni emberfogás</button>
                     <button class="defense-system-btn" onclick="selectDefenseSystem(this, 'Egyéb')">Egyéb</button>
                 </div>
             </div>
@@ -1975,7 +1971,7 @@ KOVÁCS DÁVID MÁTÉ
         const POSITION_ABBR = { 'Kapus':'K', 'Bal szél':'BSZ', 'Bal átlövő':'BÁ', 'Irányító':'IR', 'Jobb átlövő':'JÁ', 'Jobb szél':'JSZ', 'Beálló':'BE' };
         const POSITION_TO_SHOT_FROM = { 'Bal szél':'Bal szél', 'Bal átlövő':'Bal átlövő', 'Irányító':'Irányító', 'Jobb átlövő':'Jobb átlövő', 'Jobb szél':'Jobb szél', 'Beálló':'Beálló' };
         const ATTACK_TYPES = ['Pozíciós támadás', 'Lerohanás', 'Gyors középkezdés', 'Második hullám', '7:6'];
-        const DEFENSE_SYSTEMS = ['6:0', '5:1', '3:2:1', '4:2', 'Nyitott emberfogás', 'Egyéni emberfogás', 'Egyéb'];
+        const DEFENSE_SYSTEMS = ['6:0', '5:1', 'Egyéb'];
 
         function normalizeDatabase() {
             if(!db.matches) db.matches = [];
