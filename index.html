@@ -3151,7 +3151,7 @@ KOVÁCS DÁVID MÁTÉ
 
         function resumeMatch() { 
             const state = JSON.parse(localStorage.getItem('live_match_state')); if(!state) return; 
-            activeMatch = state.activeMatch; globalEvents = state.globalEvents; seconds = state.seconds; currentPeriod = state.currentPeriod; pendingSubstitution = { home: null, away: null }; if(!Array.isArray(activeMatch.lineupHistory)) activeMatch.lineupHistory = []; if(typeof activeMatch.lineupHistoryComplete !== 'boolean') activeMatch.lineupHistoryComplete = false; 
+            activeMatch = state.activeMatch; globalEvents = state.globalEvents; seconds = state.seconds; currentPeriod = state.currentPeriod; isVideoAnalysis = state.isVideoAnalysis === true || !!state.activeMatch?.isVideoAnalysis || state.activeMatch?.league === 'MKSZ Import'; pendingSubstitution = { home: null, away: null }; if(!Array.isArray(activeMatch.lineupHistory)) activeMatch.lineupHistory = []; if(typeof activeMatch.lineupHistoryComplete !== 'boolean') activeMatch.lineupHistoryComplete = false; 
             document.getElementById('display-name-home').innerText = activeMatch.homeName; document.getElementById('sb-name-home').innerText = activeMatch.homeName; document.getElementById('tab-btn-home').innerText = activeMatch.homeName; 
             document.getElementById('display-name-away').innerText = activeMatch.awayName; document.getElementById('sb-name-away').innerText = activeMatch.awayName; document.getElementById('tab-btn-away').innerText = activeMatch.awayName; 
             document.getElementById('live-meta-league').innerHTML = `<i class="fas fa-trophy"></i> ${activeMatch.league || 'Bajnokság'}`; document.getElementById('live-meta-location').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${activeMatch.location || 'Helyszín'}`; document.getElementById('live-meta-date').innerHTML = `<i class="far fa-calendar-alt"></i> ${activeMatch.date || 'Dátum'}`;
@@ -3162,7 +3162,7 @@ KOVÁCS DÁVID MÁTÉ
             updateOfficialClockStatus('live');
         }
         function discardMatch() { localStorage.removeItem('live_match_state'); document.getElementById('resume-panel').style.display = 'none'; localStorage.setItem('handball_db_updated_at', new Date().toISOString()); scheduleCloudSync(); }
-        function saveLiveState() { const state = { activeMatch, globalEvents, seconds, currentPeriod }; saveRunningProject(state); localStorage.setItem('live_match_state', JSON.stringify(state)); localStorage.setItem('handball_db_updated_at', new Date().toISOString()); updateCloudCounts(); scheduleCloudSync(); }
+        function saveLiveState() { const state = { activeMatch, globalEvents, seconds, currentPeriod, isVideoAnalysis }; saveRunningProject(state); localStorage.setItem('live_match_state', JSON.stringify(state)); localStorage.setItem('handball_db_updated_at', new Date().toISOString()); updateCloudCounts(); scheduleCloudSync(); }
 
         function endMatch() {
             if(!confirm("Biztosan lezárod a mérkőzést? Ez elmenti az archívumba és kilép a főmenübe.")) return;
