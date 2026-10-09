@@ -2530,7 +2530,7 @@ KOVÁCS DÁVID MÁTÉ
         }
 
         function buildCareerPlayerData(teamName, playerKey) {
-            const out={matches:0,playTime:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,errors:0,twoMin:0,yellow:0,red:0,plusMinus:0,gkSaves:0,gkFaced:0,gkGoalsAgainst:0,gkMap:{},gkFrom:{},eventCounts:{},shotResults:{},shotFrom:{},shotMap:{},shotHeat:{},shotTo:{},shotType:{},attackTypes:{},defenseSystems:{},matchRows:[],player:null};
+            const out={matches:0,playTime:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,errors:0,twoMin:0,yellow:0,red:0,plusMinus:0,gkSaves:0,gkFaced:0,gkGoalsAgainst:0,gkMap:{},gkFrom:{},eventCounts:{},shotResults:{},shotFrom:{},shotMap:{},shotTo:{},shotType:{},attackTypes:{},defenseSystems:{},matchRows:[],player:null};
             (db.matches||[]).forEach(match=>{
                 const side=careerTeamSide(match,teamName); if(!side) return;
                 const rp=careerMatchPlayer(match,side,playerKey); if(!rp) return;
@@ -2550,8 +2550,6 @@ KOVÁCS DÁVID MÁTÉ
                             if(!out.shotMap[key])out.shotMap[key]={g:0,s:0};
                             out.shotMap[key].s++;if(e.result==='Gól')out.shotMap[key].g++;
                         });
-                        const heatZone=e.shotZone||e.shotWing||e.detailsFrom;
-                        if(heatZone) out.shotHeat[heatZone]=(out.shotHeat[heatZone]||0)+1;
                         if(e.detailsTo) out.shotTo[e.detailsTo]=(out.shotTo[e.detailsTo]||0)+1;
                         if(e.shotType) out.shotType[e.shotType]=(out.shotType[e.shotType]||0)+1;
                     }
@@ -2637,15 +2635,15 @@ KOVÁCS DÁVID MÁTÉ
             '</div>';
         }
 
-        function careerShotHeatHTML(map) {
-            const zones=['Bal szél','Bal átlövő','Irányító','Jobb átlövő','Jobb szél','Beálló','Betörés','7 méteres'];
-            const positions=[[35,150],[100,100],[175,92],[250,100],[315,150],[175,37],[245,43],[175,175]];
-            const max=Math.max(1,...Object.values(map||{}).map(Number));
-            const spots=zones.map((z,i)=>{
-                const n=Number((map||{})[z]||0), x=positions[i][0],y=positions[i][1],a=n?(.22+.73*n/max):.06;
-                return '<g><circle cx="'+x+'" cy="'+y+'" r="31" fill="#ff653b" opacity="'+a.toFixed(2)+'"/><text x="'+x+'" y="'+(y-3)+'" fill="white" text-anchor="middle" font-size="14" font-weight="bold">'+n+'</text><text x="'+x+'" y="'+(y+12)+'" fill="white" text-anchor="middle" font-size="8">'+z+'</text></g>';
+        function careerGoalHeatHTML(map) {
+            const zones=['Bal felső','Közép felső','Jobb felső','Bal félmagas','Közép','Jobb félmagas','Bal alsó','Közép alsó','Jobb alsó'];
+            const max=Math.max(1,...zones.map(z=>Number((map||{})[z]||0)));
+            const cells=zones.map(z=>{
+                const n=Number((map||{})[z]||0),opacity=n?(0.16+0.84*n/max):0;
+                return '<div title="'+z+': '+n+' lövés" style="position:relative;min-height:78px;border:1px solid #a7bac2;background:rgba(255,77,66,'+opacity.toFixed(2)+');display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;text-shadow:0 1px 3px #111;font-weight:bold;font-size:23px;">'+(n||'')+'<span style="font-size:10px;font-weight:normal">'+z+'</span></div>';
             }).join('');
-            return '<div style="max-width:550px;margin:auto;text-align:center;"><svg viewBox="0 0 350 225" role="img" aria-label="Lövéshelyek hőtérképe" style="width:100%;background:#112630;border-radius:12px;border:1px solid #42616a"><path d="M145 10 H205" stroke="white" stroke-width="4"/><path d="M105 10 A70 70 0 0 0 245 10" stroke="#60b4c9" stroke-width="3" fill="none"/><path d="M55 10 A120 120 0 0 0 295 10" stroke="#60b4c9" stroke-width="2" stroke-dasharray="7 6" fill="none"/>'+spots+'</svg><div style="font-size:12px;color:var(--text-muted)">Erősebb szín = több lövés az adott pozícióból</div></div>';
+            const total=zones.reduce((n,z)=>n+Number((map||{})[z]||0),0);
+            return '<div style="max-width:560px;margin:auto"><div style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:8px">Kapu szemből nézve · minél pirosabb, annál több lövés</div><div style="border:8px solid #e6edf0;border-bottom-width:3px;display:grid;grid-template-columns:repeat(3,1fr);background:#162631;">'+cells+'</div><div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px">'+total+' kapuzónához rendelt lövés</div></div>';
         }
         function careerGkZoneHTML(data) {
             const d=data||{sv:0,tot:0}, pct=d.tot?Math.round(d.sv/d.tot*100):0;
@@ -2727,8 +2725,8 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-stat-card"><h3>Hibák és büntetések</h3>'+careerCountHTML({'Összes támadási hiba':d.errors,'2 perc':d.twoMin,'Sárga lap':d.yellow,'Piros lap':d.red})+'</div>'+
                     '<div class="career-stat-card full"><h3><i class="fas fa-bullseye"></i> Lövéstérkép · összes mérkőzés</h3>'+careerShotMapHTML(d.shotMap)+'</div>'+
                     '<div class="career-stat-card"><h3>Lövések eredménye</h3>'+careerCountHTML(d.shotResults)+'</div>'+
-                    '<div class="career-stat-card full"><h3>Lövések helye · hőtérkép</h3>'+careerShotHeatHTML(d.shotHeat)+'</div>'+
-                    '<div class="career-stat-card"><h3>Kapura lövés helye</h3>'+careerCountHTML(d.shotTo)+'</div>'+
+                    '<div class="career-stat-card full"><h3>Hova lőtt? · kapu hőtérkép</h3>'+careerGoalHeatHTML(d.shotTo)+'</div>'+
+                    +
                     '<div class="career-stat-card"><h3>Lövés módja</h3>'+careerCountHTML(d.shotType)+'</div>'+
                     '<div class="career-stat-card"><h3>Támadástípusok</h3>'+careerCountHTML(d.attackTypes)+'</div>'+
                     '<div class="career-stat-card full"><h3>Összes rögzített esemény</h3>'+careerCountHTML(d.eventCounts)+'</div>'+
