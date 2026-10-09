@@ -3049,17 +3049,26 @@ KOVÁCS DÁVID MÁTÉ
             saveDB(); discardMatch(); location.reload();
         }
 
+        function toggleArchiveLock(id) {
+            const m=(db.matches||[]).find(x=>x.id===id); if(!m)return;
+            if(!confirm(m.locked?'Feloldod a mérkőzést?':'Lezárod a mérkőzést?'))return;
+            m.locked=!m.locked;
+            saveDB();loadArchive();
+        }
         function loadArchive() {
             const list = document.getElementById('archive-grid-container'); list.innerHTML = "";
             if(!db.matches || db.matches.length === 0) { list.innerHTML = "<div style='color:var(--text-muted); text-align:center; font-size:16px; margin-top:20px; grid-column: 1 / -1;'>Nincs elmentett mérkőzés.</div>"; return; }
             db.matches.slice().reverse().forEach(m => {
                 const displayName = m.matchName && m.matchName !== 'Mérkőzés' ? m.matchName : `${m.homeName} vs ${m.awayName}`;
-                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions"><button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveTeams('${m.id}')" title="A mérkőzés csapatneveinek javítása"><i class="fas fa-edit"></i> Csapatnevek</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
+                const lockLabel=m.locked?' 🔒 Lezárt':'';
+                const lockAction=`<button class="btn-arch-action btn-arch-csv" onclick="toggleArchiveLock('${m.id}')">${m.locked?'🔓 Feloldás':'🔒 Lezárás'}</button>`;
+                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}${lockLabel}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions">${lockAction}<button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveTeams('${m.id}')" title="A mérkőzés csapatneveinek javítása"><i class="fas fa-edit"></i> Csapatnevek</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
             });
         }
         function editArchiveTeams(id) {
             const m=db.matches.find(x=>x.id===id);
             if(!m)return;
+            if(m.locked) return alert('A lezárt mérkőzés nem módosítható.');
             const home=prompt('Hazai csapat neve:',m.homeName||'');
             if(home===null)return;
             const away=prompt('Vendégcsapat neve:',m.awayName||'');
@@ -3075,7 +3084,7 @@ KOVÁCS DÁVID MÁTÉ
             saveDB();
             loadArchive();
         }
-        function deleteMatch(id) { if(confirm("Biztosan törlöd a mérkőzést az archívumból?")) { db.matches = db.matches.filter(m => m.id !== id); saveDB(); loadArchive(); } }
+        function deleteMatch(id) { if((db.matches||[]).find(m=>m.id===id)?.locked) return alert('Lezárt mérkőzés nem törölhető.'); if(confirm("Biztosan törlöd a mérkőzést az archívumból?")) { db.matches = db.matches.filter(m => m.id !== id); saveDB(); loadArchive(); } }
         function openArchivedStats(id) {
             const m = db.matches.find(x => x.id === id); if(!m) return;
             activeMatch = m; globalEvents = m.events || []; recalculateDerivedEventData(globalEvents);
@@ -3173,6 +3182,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function importPlayTimeCSV(matchId) {
             const match = (db.matches || []).find(m => m.id === matchId); if(!match) return alert('A mérkőzés nem található.');
+            if(match.locked) return alert('Lezárt mérkőzés nem módosítható.');
             const input = document.createElement('input'); input.type = 'file'; input.accept = '.csv,text/csv';
             input.onchange = () => {
                 const file = input.files && input.files[0]; if(!file) return;
