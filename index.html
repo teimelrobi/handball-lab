@@ -4019,6 +4019,7 @@ KOVÁCS DÁVID MÁTÉ
         }
 
         function editEvent(id) {
+            if(activeMatch?.locked) return alert('Lezárt mérkőzés eseményei nem módosíthatók.');
             const ev = globalEvents.find(e => e.id === id); if(!ev || ev.group === 'timeout') return;
             
             pauseVideoForTagging();
@@ -4195,9 +4196,10 @@ KOVÁCS DÁVID MÁTÉ
             return Number(vid.currentTime);
         }
 
-        function persistVideoRoomMatch() { if(videoRoomIsLive) saveLiveState(); else saveDB(); }
+        function persistVideoRoomMatch() { if(!videoRoomIsLive && currentVideoMatch?.locked) return; if(videoRoomIsLive) saveLiveState(); else saveDB(); }
 
         function saveEvent() {
+            if(activeMatch?.locked) return alert('Lezárt mérkőzés eseményei nem módosíthatók.');
             if(!document.getElementById('btn-save-event').classList.contains('active'))return;
             const assistVal = (activeActionGroup === 'shot' && selResult === 'Gól') ? document.getElementById('assist-select').value : ""; const groupLabels = {attack:'Támadás', error:'Hiba', defense:'Védekezés', penalty:'Büntetés'}; const actionText = activeActionGroup === 'shot' ? "Lövés" : (groupLabels[activeActionGroup] || activeActionGroup); const resultText = activeActionGroup === 'shot' ? selResult : selSimpleAction;
             
@@ -4278,6 +4280,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function undoLastEvent() { if(globalEvents.length === 0) return; globalEvents.shift(); recalculateDerivedEventData(globalEvents); updateLiveUI(); saveLiveState(); }
         function deleteEvent(id) { 
+            if(activeMatch?.locked) return alert('Lezárt mérkőzés eseményei nem törölhetők.');
             globalEvents = globalEvents.filter(e => e.id !== id); recalculateDerivedEventData(globalEvents); 
             if(document.getElementById('view-video-room').classList.contains('active')) { currentVideoMatch.events = globalEvents; renderVideoEvents(); persistVideoRoomMatch(); return; }
             updateLiveUI(); saveLiveState(); 
