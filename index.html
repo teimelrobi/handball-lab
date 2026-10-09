@@ -123,6 +123,14 @@
         .btn-arch-action { flex: 1; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px; border: none; display: flex; align-items: center; justify-content: center; gap: 5px;}
         .btn-arch-video { background: #9b59b6; color: #fff; }
         .btn-arch-csv { background: var(--bg-card); color: #fff; border: 1px solid var(--border-color); }
+        /* Archive: each match keeps its own action buttons; no overlap between cards. */
+        .archive-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,540px),1fr));gap:24px; }
+        .archive-card { min-width:0;gap:14px; }
+        .archive-score h3 { gap:12px; }
+        .archive-score h3 > span:first-child,.archive-score h3 > span:last-child { flex:1;min-width:0;overflow-wrap:anywhere; }
+        .archive-actions { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;justify-content:stretch; }
+        .archive-actions .btn-arch-action { min-width:0;min-height:40px;width:100%;flex:none;white-space:normal;overflow-wrap:anywhere;padding:8px 5px;text-align:center;font-size:11px; }
+        @media (max-width:560px) { .archive-actions { grid-template-columns:repeat(2,minmax(0,1fr)); } .archive-card {padding:14px;} }
         .btn-arch-del { background: transparent; color: var(--red-accent); border: 1px solid var(--red-accent); flex: 0 0 auto;}
 
         /* --- FŐ FELÜLET (Live App) --- */
