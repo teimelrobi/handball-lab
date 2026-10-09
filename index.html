@@ -537,6 +537,16 @@
         .video-event-card.home-event { border-left-color: var(--green-accent); }
         .video-event-card.away-event { border-left-color: var(--red-accent); }
         .video-event-card.current-video-event { border-color:#9b59b6; background:rgba(155,89,182,.14); }
+        /* Archív Videószoba: kombinálható eseménykereső és szűrők */
+        .video-room-search { display:flex; flex-direction:column; gap:8px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:10px; padding:12px; margin-bottom:10px; }
+        .vr-search-label { color:var(--text-main); font-size:12px; font-weight:700; }
+        .vr-filter-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+        .vr-filter-field { display:flex; flex-direction:column; gap:4px; font-size:10px; color:var(--text-muted); font-weight:600; min-width:0; }
+        .vr-filter-input { width:100%; min-width:0; height:36px; padding:7px 8px; background:var(--bg-card); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px; font-size:12px; outline:none; }
+        .vr-filter-input:focus { border-color:var(--green-accent); }
+        .vr-filter-search { height:40px; font-size:13px; }
+        .video-room-search + .video-filter-bar { display:flex; }
+        @media(max-width:420px) { .vr-filter-grid { grid-template-columns:1fr; } }
         .video-filter-bar { display:none; background:rgba(155,89,182,.10); border:1px solid rgba(155,89,182,.45); border-radius:10px; padding:10px; margin-bottom:12px; gap:8px; flex-direction:column; }
         .video-filter-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
         .video-filter-label { font-size:11px; line-height:1.4; color:#fff; font-weight:bold; }
@@ -1441,9 +1451,43 @@ KOVÁCS DÁVID MÁTÉ
             
             <div style="flex:1; display:flex; flex-direction:column; padding:20px; background:var(--bg-panel); overflow-y:auto;">
                 <div style="font-size:16px; font-weight:bold; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:15px;">Események (Kattints az ugráshoz vagy szerkesztéshez)</div>
+                <div class="video-room-search" aria-label="Videószoba eseményszűrői">
+                    <label for="vr-filter-search" class="vr-search-label"><i class="fas fa-search"></i> Keresés az események között</label>
+                    <input type="search" id="vr-filter-search" class="vr-filter-input vr-filter-search" placeholder="Játékos, mezszám, esemény, lövéshely..." oninput="filterVideoRoomEvents()" autocomplete="off">
+                    <div class="vr-filter-grid">
+                        <label class="vr-filter-field">Csapat
+                            <select id="vr-filter-team" class="vr-filter-input" onchange="filterVideoRoomEvents(true)"><option value="">Mindkét csapat</option></select>
+                        </label>
+                        <label class="vr-filter-field">Félidő
+                            <select id="vr-filter-period" class="vr-filter-input" onchange="filterVideoRoomEvents()">
+                                <option value="">Teljes mérkőzés</option><option value="1">1. félidő</option><option value="2">2. félidő</option>
+                            </select>
+                        </label>
+                        <label class="vr-filter-field">Játékos
+                            <select id="vr-filter-player" class="vr-filter-input" onchange="filterVideoRoomEvents()"><option value="">Összes játékos</option></select>
+                        </label>
+                        <label class="vr-filter-field">Esemény
+                            <select id="vr-filter-group" class="vr-filter-input" onchange="filterVideoRoomEvents()">
+                                <option value="">Minden esemény</option>
+                                <option value="shot">Lövés</option>
+                                <option value="attack">Támadás</option>
+                                <option value="error">Hiba</option>
+                                <option value="defense">Védekezés</option>
+                                <option value="penalty">Büntetés</option>
+                                <option value="timeout">Időkérés</option>
+                            </select>
+                        </label>
+                        <label class="vr-filter-field">Eredmény
+                            <select id="vr-filter-result" class="vr-filter-input" onchange="filterVideoRoomEvents()"><option value="">Minden eredmény</option></select>
+                        </label>
+                        <label class="vr-filter-field">Támadástípus
+                            <select id="vr-filter-attack" class="vr-filter-input" onchange="filterVideoRoomEvents()"><option value="">Minden támadástípus</option></select>
+                        </label>
+                    </div>
+                </div>
                 <div class="video-filter-bar" id="video-filter-bar">
                     <div class="video-filter-head"><div class="video-filter-label" id="video-filter-label">Szűrt videójelenetek</div><div class="video-filter-count" id="video-filter-count">0 jelenet</div></div>
-                    <div class="video-filter-actions"><button class="video-filter-btn" onclick="playVideoFilterStep(-1)"><i class="fas fa-step-backward"></i> Előző</button><button class="video-filter-btn" onclick="playVideoFilterStep(1)"><i class="fas fa-step-forward"></i> Következő</button><button class="video-filter-btn" onclick="clearVideoFilter()"><i class="fas fa-list"></i> Minden esemény</button></div>
+                    <div class="video-filter-actions"><button class="video-filter-btn" onclick="playVideoFilterStep(-1)"><i class="fas fa-step-backward"></i> Előző</button><button class="video-filter-btn" onclick="playVideoFilterStep(1)"><i class="fas fa-step-forward"></i> Következő</button><button class="video-filter-btn" onclick="clearVideoFilter()"><i class="fas fa-times-circle"></i> Szűrők törlése</button></div>
                 </div>
                 <div id="video-events-container" style="display:flex; flex-direction:column; gap:8px;"></div>
             </div>
@@ -2034,7 +2078,7 @@ KOVÁCS DÁVID MÁTÉ
         
         let currentVideoMatch = null; 
         let sync1_start = 0; let sync1_end = 0; let sync2_start = 0; let sync2_end = 0;
-        let currentVideoFilter = null; let videoPlaylistIndex = -1; let videoRoomReturnScreen = 'view-archive'; let videoRoomReturnToStats = false; let videoRoomIsLive = false;
+        let currentVideoFilter = null; let videoRoomFilterState = {search:'',team:'',period:'',player:'',group:'',result:'',attack:''}; let videoPlaylistIndex = -1; let videoRoomReturnScreen = 'view-archive'; let videoRoomReturnToStats = false; let videoRoomIsLive = false;
         let editingEventId = null;
         let resumeVideoAfterSaveId = null;
         let isVideoAnalysis = false; let videoSyncOffset = 0;
@@ -4878,6 +4922,7 @@ KOVÁCS DÁVID MÁTÉ
             if(!currentVideoMatch.videoSyncPoints || typeof currentVideoMatch.videoSyncPoints !== 'object') currentVideoMatch.videoSyncPoints = {};
             sync1_start = Number(currentVideoMatch.videoSyncPoints['1']) || 0; sync2_start = Number(currentVideoMatch.videoSyncPoints['2']) || 0; sync1_end = 0; sync2_end = 0;
             currentVideoFilter = filterSpec || null; videoPlaylistIndex = -1;
+            videoRoomFilterState = {search:'',team:'',period:'',player:'',group:'',result:'',attack:''};
             ['s1','e1','s2','e2'].forEach(id => { const slide = document.getElementById('slide-' + id); if(slide) { slide.value = id === 's1' ? sync1_start : (id === 's2' ? sync2_start : 0); const val=document.getElementById('val-' + id); if(val) val.innerText = formatTime(Number(slide.value)||0); } });
             document.getElementById('vr-match-title').innerText = `${currentVideoMatch.date || ''} | ${currentVideoMatch.homeName} - ${currentVideoMatch.awayName}`;
             const backBtn=document.getElementById('vr-back-btn'); if(backBtn) backBtn.innerHTML = returnToStats ? '<i class="fas fa-arrow-left"></i> Vissza a statisztikához' : '<i class="fas fa-arrow-left"></i> Archívum';
@@ -4887,6 +4932,7 @@ KOVÁCS DÁVID MÁTÉ
             updateOfficialClockStatus('room');
             const videoNode = document.getElementById('match-video');
             if(carryLiveSrc) { videoNode.src = carryLiveSrc; videoNode.onloadedmetadata = () => { initializeVideoSliders(videoNode); seekTimelineFilterStart(videoNode, true); }; }
+            initializeVideoRoomFilters();
             renderVideoEvents(); updateVideoFilterBar();
         }
 
@@ -4941,19 +4987,99 @@ KOVÁCS DÁVID MÁTÉ
             alert('Játékidők újraszámolva a videó-időpontok és a játékóra-szinkronok alapján. A köztes időszakok továbbra is becsültek.');
         }
 
+        function normalizeVideoSearchText(value) {
+            return String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('hu').trim();
+        }
+        function initializeVideoRoomFilters() {
+            const events=currentVideoMatch?.events||[];
+            const team=document.getElementById('vr-filter-team');
+            const player=document.getElementById('vr-filter-player');
+            const result=document.getElementById('vr-filter-result');
+            const attack=document.getElementById('vr-filter-attack');
+            const search=document.getElementById('vr-filter-search');
+            if(!team||!player||!result||!attack||!search)return;
+            search.value='';
+            team.replaceChildren(new Option('Mindkét csapat',''),new Option(currentVideoMatch.homeName||'Hazai','home'),new Option(currentVideoMatch.awayName||'Vendég','away'));
+            ['period','group'].forEach(key=>{const el=document.getElementById('vr-filter-'+key);if(el)el.value='';});
+            const results=[...new Set(events.map(e=>String(e.result||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'hu'));
+            result.replaceChildren(new Option('Minden eredmény',''),...results.map(v=>new Option(v,v)));
+            const attackTypes=[...new Set(events.map(e=>String(e.possessionAttackType||e.attackType||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'hu'));
+            attack.replaceChildren(new Option('Minden támadástípus',''),...attackTypes.map(v=>new Option(v,v)));
+            populateVideoRoomPlayerFilter();
+        }
+        function populateVideoRoomPlayerFilter() {
+            const player=document.getElementById('vr-filter-player');
+            if(!player||!currentVideoMatch)return;
+            const selected=videoRoomFilterState.player;
+            const side=videoRoomFilterState.team;
+            const entries=[];
+            for(const team of ['home','away']) {
+                if(side&&side!==team)continue;
+                const roster=team==='home'?currentVideoMatch.homeRoster:currentVideoMatch.awayRoster;
+                const eventPlayers=(currentVideoMatch.events||[]).filter(e=>e.team===team&&e.playerNum!=null).map(e=>({num:e.playerNum,name:e.playerName||''}));
+                const seen=new Set();
+                for(const p of [...(Array.isArray(roster)?roster:[]),...eventPlayers]) {
+                    if(p.num===undefined||p.num===null||String(p.num).trim()==='')continue;
+                    const key=team+':'+String(p.num);
+                    if(seen.has(key))continue;
+                    seen.add(key);
+                    entries.push({key,team,num:p.num,name:p.name||''});
+                }
+            }
+            entries.sort((a,b)=>a.team.localeCompare(b.team)||Number(a.num)-Number(b.num)||String(a.name).localeCompare(String(b.name),'hu'));
+            player.replaceChildren(new Option('Összes játékos',''),...entries.map(p=>new Option((p.team==='home'?(currentVideoMatch.homeName||'Hazai'):(currentVideoMatch.awayName||'Vendég'))+' · #'+p.num+' '+p.name,p.key)));
+            if(entries.some(p=>p.key===selected))player.value=selected;
+            else {player.value='';videoRoomFilterState.player='';}
+        }
+        function filterVideoRoomEvents(teamChanged=false) {
+            const keys=['search','team','period','player','group','result','attack'];
+            for(const key of keys) {
+                const el=document.getElementById('vr-filter-'+key);
+                if(el)videoRoomFilterState[key]=el.value;
+            }
+            if(teamChanged)populateVideoRoomPlayerFilter();
+            videoPlaylistIndex=-1;
+            renderVideoEvents();
+        }
         function videoEventList() {
-            if(!currentVideoMatch) return [];
-            let evs = (currentVideoMatch.events || []).slice();
-            if(currentVideoFilter && Array.isArray(currentVideoFilter.eventIds)) { const ids=new Set(currentVideoFilter.eventIds); evs=evs.filter(e=>ids.has(e.id)); }
+            if(!currentVideoMatch)return [];
+            let evs=(currentVideoMatch.events||[]).slice();
+            if(currentVideoFilter&&Array.isArray(currentVideoFilter.eventIds)) {
+                const ids=new Set(currentVideoFilter.eventIds);
+                evs=evs.filter(e=>ids.has(e.id));
+            }
+            const f=videoRoomFilterState;
+            if(f.team)evs=evs.filter(e=>e.team===f.team);
+            if(f.period)evs=evs.filter(e=>String(e.period)===f.period);
+            if(f.player)evs=evs.filter(e=>e.team+':'+String(e.playerNum)===f.player);
+            if(f.group)evs=evs.filter(e=>e.group===f.group);
+            if(f.result)evs=evs.filter(e=>String(e.result||'')===f.result);
+            if(f.attack)evs=evs.filter(e=>String(e.possessionAttackType||e.attackType||'')===f.attack);
+            if(f.search) {
+                const query=normalizeVideoSearchText(f.search);
+                evs=evs.filter(e=>{
+                    const teamName=e.team==='home'?currentVideoMatch.homeName:currentVideoMatch.awayName;
+                    const parts=[teamName,e.playerName,e.playerNum,e.group,e.action,e.result,e.time,e.period,e.detailsFrom,e.detailsTo,e.shotZone,e.shotWing,e.shotFinish,e.shotType,e.attackType,e.possessionAttackType,e.defenseSystem,e.possessionDefenseSystem,e.assist,...(Array.isArray(e.shotSituation)?e.shotSituation:[])];
+                    return normalizeVideoSearchText(parts.join(' ')).includes(query);
+                });
+            }
             return evs.sort((a,b)=>eventAbsoluteSeconds(a.period,a.seconds)-eventAbsoluteSeconds(b.period,b.seconds));
         }
         function updateVideoFilterBar() {
-            const bar=document.getElementById('video-filter-bar'), label=document.getElementById('video-filter-label'), count=document.getElementById('video-filter-count'); if(!bar) return;
-            const evs=videoEventList();
-            if(currentVideoFilter) { bar.style.display='flex'; label.innerText=currentVideoFilter.label || 'Szűrt videójelenetek'; count.innerText=`${evs.length} jelenet${videoPlaylistIndex>=0?` · ${videoPlaylistIndex+1}/${evs.length}`:''}`; }
-            else { bar.style.display='none'; }
+            const bar=document.getElementById('video-filter-bar'),label=document.getElementById('video-filter-label'),count=document.getElementById('video-filter-count');
+            if(!bar)return;
+            const evs=videoEventList(),total=(currentVideoMatch?.events||[]).length;
+            bar.style.display='flex';
+            const scoped=currentVideoFilter&&Array.isArray(currentVideoFilter.eventIds);
+            label.innerText=scoped?(currentVideoFilter.label||'Statisztikából kiválasztott jelenetek'):'Eseménylista';
+            count.innerText=evs.length+' / '+total+' esemény'+(videoPlaylistIndex>=0?' · '+(videoPlaylistIndex+1)+'/'+evs.length:'');
         }
-        function clearVideoFilter() { currentVideoFilter=null; videoPlaylistIndex=-1; renderVideoEvents(); updateVideoFilterBar(); }
+        function clearVideoFilter() {
+            currentVideoFilter=null;videoPlaylistIndex=-1;
+            videoRoomFilterState={search:'',team:'',period:'',player:'',group:'',result:'',attack:''};
+            initializeVideoRoomFilters();
+            renderVideoEvents();
+        }
         function playVideoFilterStep(direction) {
             const evs=videoEventList(); if(!evs.length) return;
             if(videoPlaylistIndex < 0) videoPlaylistIndex = direction < 0 ? evs.length-1 : 0;
