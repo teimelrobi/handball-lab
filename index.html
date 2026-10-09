@@ -2550,7 +2550,7 @@ KOVÁCS DÁVID MÁTÉ
                             if(!out.shotMap[key])out.shotMap[key]={g:0,s:0};
                             out.shotMap[key].s++;if(e.result==='Gól')out.shotMap[key].g++;
                         });
-                        if(e.detailsTo) out.shotTo[e.detailsTo]=(out.shotTo[e.detailsTo]||0)+1;
+                        if(e.detailsTo) { const zone=out.shotTo[e.detailsTo]||(out.shotTo[e.detailsTo]={g:0,s:0}); zone.s++; if(e.result==='Gól') zone.g++; }
                         if(e.shotType) out.shotType[e.shotType]=(out.shotType[e.shotType]||0)+1;
                     }
                     if(e.group==='attack') {
@@ -2637,13 +2637,15 @@ KOVÁCS DÁVID MÁTÉ
 
         function careerGoalHeatHTML(map) {
             const zones=['Bal felső','Közép felső','Jobb felső','Bal félmagas','Közép','Jobb félmagas','Bal alsó','Közép alsó','Jobb alsó'];
-            const max=Math.max(1,...zones.map(z=>Number((map||{})[z]||0)));
+            const stats=z=>{const d=(map||{})[z]||{g:0,s:0};return typeof d==='number'?{g:0,s:d}:d;};
+            const max=Math.max(1,...zones.map(z=>Number(stats(z).s)||0));
             const cells=zones.map(z=>{
-                const n=Number((map||{})[z]||0),opacity=n?(0.16+0.84*n/max):0;
-                return '<div title="'+z+': '+n+' lövés" style="position:relative;min-height:78px;border:1px solid #a7bac2;background:rgba(255,77,66,'+opacity.toFixed(2)+');display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;text-shadow:0 1px 3px #111;font-weight:bold;font-size:23px;">'+(n||'')+'<span style="font-size:10px;font-weight:normal">'+z+'</span></div>';
+                const d=stats(z),shots=Number(d.s)||0,goals=Number(d.g)||0,opacity=shots?(0.16+0.84*shots/max):0;
+                return '<div title="'+z+': '+goals+' gól / '+shots+' lövés" style="position:relative;min-height:78px;border:1px solid #a7bac2;background:rgba(255,77,66,'+opacity.toFixed(2)+');display:flex;align-items:center;justify-content:center;flex-direction:column;color:white;text-shadow:0 1px 3px #111;font-weight:bold;font-size:22px;">'+goals+'/'+shots+'<span style="font-size:10px;font-weight:normal">'+z+'</span></div>';
             }).join('');
-            const total=zones.reduce((n,z)=>n+Number((map||{})[z]||0),0);
-            return '<div style="max-width:560px;margin:auto"><div style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:8px">Kapu szemből nézve · minél pirosabb, annál több lövés</div><div style="border:8px solid #e6edf0;border-bottom-width:3px;display:grid;grid-template-columns:repeat(3,1fr);background:#162631;">'+cells+'</div><div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px">'+total+' kapuzónához rendelt lövés</div></div>';
+            const total=zones.reduce((n,z)=>n+(Number(stats(z).s)||0),0);
+            const goals=zones.reduce((n,z)=>n+(Number(stats(z).g)||0),0);
+            return '<div style="max-width:560px;margin:auto"><div style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:8px">Kapu szemből nézve · gól / lövés · minél pirosabb, annál több lövés</div><div style="border:8px solid #e6edf0;border-bottom-width:3px;display:grid;grid-template-columns:repeat(3,1fr);background:#162631;">'+cells+'</div><div style="text-align:center;color:var(--text-muted);font-size:12px;margin-top:8px">Összesen: '+goals+'/'+total+' gól / kapuzónához rendelt lövés</div></div>';
         }
         function careerGkZoneHTML(data) {
             const d=data||{sv:0,tot:0}, pct=d.tot?Math.round(d.sv/d.tot*100):0;
