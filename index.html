@@ -231,7 +231,14 @@
 
         /* --- MODAL (Rögzítő & Szerkesztő) --- */
         .modal-overlay { display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.8); z-index: 4000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
-        .unified-modal { background-color: var(--modal-bg); border: 1px solid var(--border-color); border-radius: 12px; width: 1040px; max-width: 96vw; display: flex; flex-direction: column; padding: 20px; gap: 15px; }
+        .unified-modal { background-color: var(--modal-bg); border: 1px solid var(--border-color); border-radius: 12px; width: 1400px; max-width: 98vw; max-height: 96vh; overflow-y:auto; display: flex; flex-direction: column; padding: 16px 20px; gap: 10px; }
+        @media (min-width: 1050px) {
+            #unified-modal-overlay .u-bottom-row { gap:12px; }
+            #unified-modal-overlay .shot-source-layout { align-items:center; }
+            #unified-modal-overlay .shot-pitch { max-width:560px; height:190px; }
+            #unified-modal-overlay .goal-target-map { max-width:540px; }
+            #unified-modal-overlay .u-section { min-width:0; }
+        }
         .u-header { display: flex; justify-content: space-between; align-items: flex-start; }
         .modal-player-select { background: var(--bg-card); color: var(--green-accent); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 8px; font-size: 18px; font-weight: bold; outline: none; cursor: pointer; }
         .modal-player-select:focus { border-color: var(--green-accent); }
