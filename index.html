@@ -1910,22 +1910,39 @@ KOVÁCS DÁVID MÁTÉ
             });
             const matchRows=(db.matches||[]).map(m=>({user_id:uid,match_id:String(m.id),match_date:m.date||null,match_name:m.matchName||'',league:m.league||'',location:m.location||'',home_name:m.homeName||'',away_name:m.awayName||'',home_score:Number(m.homeScore)||0,away_score:Number(m.awayScore)||0,data:m}));
             const eventRows=[]; (db.matches||[]).forEach(m=>(m.events||[]).forEach((e,i)=>eventRows.push({user_id:uid,match_id:String(m.id),event_id:String(e.id||`${m.id}_${i}`),period:Number(e.period)||1,seconds:Number(e.seconds)||0,team_side:e.team||'',event_group:e.group||'',action:e.action||'',result:e.result||'',data:e})));
-            // Preserve locked rows and their events; refresh only unlocked match data.
+            // Rebuild only unlocked matches. A freshly locked match is upserted,
+            // while its events remain untouched unless the archive is unlocked.
             const lockedIds=(db.matches||[]).filter(m=>m.locked).map(m=>String(m.id));
-            let res=await cloudClient.from('handball_events').delete().eq('user_id',uid);
-            if(lockedIds.length) res=await cloudClient.from('handball_events').delete().eq('user_id',uid).not('match_id','in','('+lockedIds.map(id=>'"'+id.replace(/"/g,'')+'"').join(',')+')');
-            if(res.error) throw res.error;
-            res=await cloudClient.from('handball_matches').delete().eq('user_id',uid);
-            if(lockedIds.length) res=await cloudClient.from('handball_matches').delete().eq('user_id',uid).not('match_id','in','('+lockedIds.map(id=>'"'+id.replace(/"/g,'')+'"').join(',')+')');
+            const unlockedMatchRows=matchRows.filter(m=>!lockedIds.includes(m.match_id));
+            const unlockedEventRows=eventRows.filter(e=>!lockedIds.includes(e.match_id));
+            const protectedIds=lockedIds.map(id=>'"'+id.replace(/"/g,'')+'"');
+            let res;
+            if(protectedIds.length) {
+                const excluded='('+protectedIds.join(',')+')';
+                res=await cloudClient.from('handball_events').delete().eq('user_id',uid).not('match_id','in',excluded);
+                if(res.error) throw res.error;
+                res=await cloudClient.from('handball_matches').delete().eq('user_id',uid).not('match_id','in',excluded);
+            } else {
+                res=await cloudClient.from('handball_events').delete().eq('user_id',uid);
+                if(res.error) throw res.error;
+                res=await cloudClient.from('handball_matches').delete().eq('user_id',uid);
+            }
             if(res.error) throw res.error;
             res=await cloudClient.from('handball_players').delete().eq('user_id',uid); if(res.error) throw res.error;
             res=await cloudClient.from('handball_teams').delete().eq('user_id',uid); if(res.error) throw res.error;
             if(teamRows.length){res=await cloudClient.from('handball_teams').insert(teamRows); if(res.error) throw res.error;}
             if(playerRows.length){res=await cloudClient.from('handball_players').insert(playerRows); if(res.error) throw res.error;}
-            const unlockedMatchRows=matchRows.filter(m=>!lockedIds.includes(m.match_id));
             if(unlockedMatchRows.length){res=await cloudClient.from('handball_matches').insert(unlockedMatchRows); if(res.error) throw res.error;}
-            const unlockedEventRows=eventRows.filter(e=>!lockedIds.includes(e.match_id));
-            for(let i=0;i<unlockedEventRows.length;i+=400){ res=await cloudClient.from('handball_events').insert(unlockedEventRows.slice(i,i+400)); if(res.error) throw res.error; }
+            // Save newly locked flags without replacing archived event rows.
+            const lockedMatchRows=matchRows.filter(m=>lockedIds.includes(m.match_id));
+            if(lockedMatchRows.length){res=await cloudClient.from('handball_matches').upsert(lockedMatchRows,{onConflict:'user_id,match_id'}); if(res.error) throw res.error;}
+            for(let i=0;i<unlockedEventRows.length;i+=400){res=await cloudClient.from('handball_events').insert(unlockedEventRows.slice(i,i+400));if(res.error)throw res.error;}
+            // A first-time locked match may not have normalized events yet.
+            for(const id of lockedIds){
+                const {count,error}=await cloudClient.from('handball_events').select('event_id',{count:'exact',head:true}).eq('user_id',uid).eq('match_id',id);
+                if(error)throw error;
+                if(count===0){const rows=eventRows.filter(e=>e.match_id===id);for(let i=0;i<rows.length;i+=400){res=await cloudClient.from('handball_events').insert(rows.slice(i,i+400));if(res.error)throw res.error;}}
+            }
         }
         async function cloudSyncNow() { await syncDatabaseToCloud(true); updateCloudCounts(); }
         async function fetchCloudState() {
