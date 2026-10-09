@@ -1523,6 +1523,7 @@ KOVÁCS DÁVID MÁTÉ
                     <button class="defense-system-btn" onclick="selectDefenseSystem(this, '6:0')">6:0</button>
                     <button class="defense-system-btn" onclick="selectDefenseSystem(this, '5:1')">5:1</button>
                     <button class="defense-system-btn" onclick="selectDefenseSystem(this, 'Egyéb')">Egyéb</button>
+                    <label style="display:flex;align-items:center;gap:5px;color:var(--text-color);font-size:11px;white-space:nowrap"><input type="checkbox" id="defense-auto-checkbox" onchange="setDefenseAuto(this.checked)"> Automatikus</label>
                 </div>
             </div>
             
@@ -4021,8 +4022,18 @@ KOVÁCS DÁVID MÁTÉ
             const btn = Array.from(document.querySelectorAll('.defense-system-btn')).find(b => b.textContent.trim() === value);
             if(btn) btn.classList.add(suggested ? 'suggested' : 'selected');
         }
+        function defenseDefaultKey(side) { return 'handball_defense_default_'+String(activeMatch?.id||'live')+'_'+String(side||''); }
+        function setDefenseAuto(checked) {
+            const side=defenseSideFor();
+            if(!side)return;
+            if(checked) localStorage.setItem(defenseDefaultKey(side),selDefenseSystem||'6:0');
+            else localStorage.removeItem(defenseDefaultKey(side));
+            applyDefenseSystemSuggestion();
+        }
         function selectDefenseSystem(el, val) {
             selDefenseSystem = val;
+            const auto=document.getElementById('defense-auto-checkbox');
+            if(auto?.checked) localStorage.setItem(defenseDefaultKey(defenseSideFor()),val);
             document.querySelectorAll('.defense-system-btn').forEach(b => b.classList.remove('selected','suggested'));
             if(el) el.classList.add('selected');
             const side = defenseSideFor();
@@ -4042,16 +4053,14 @@ KOVÁCS DÁVID MÁTÉ
             return {system:'', reason:''};
         }
         function applyDefenseSystemSuggestion() {
-            const defSide = defenseSideFor();
-            selDefenseSystem = '';
-            markDefenseSystemButton('');
-            const hint = document.getElementById('defense-system-hint');
-            const sug = suggestedDefenseSystem(defSide);
-            if(sug.system) {
-                selDefenseSystem = sug.system;
-                markDefenseSystemButton(sug.system, false);
-                if(hint) hint.innerText = `${defenseSideName(defSide)} · ${sug.reason}: ${sug.system}`;
-            } else if(hint) hint.innerText = `${defenseSideName(defSide)} védekezése · első alkalommal válassz rendszert.`;
+            const side=defenseSideFor(), stored=localStorage.getItem(defenseDefaultKey(side));
+            const auto=document.getElementById('defense-auto-checkbox');
+            if(auto) auto.checked=!!stored;
+            const sug=stored?{system:stored,reason:'Automatikus'}:suggestedDefenseSystem(side);
+            selDefenseSystem=sug.system||'6:0';
+            markDefenseSystemButton(selDefenseSystem,false);
+            const hint=document.getElementById('defense-system-hint');
+            if(hint) hint.innerText=defenseSideName(side)+' védekezése · '+(stored?'Automatikus':'Alapértelmezett')+': '+selDefenseSystem;
             checkReady();
         }
 
