@@ -1423,6 +1423,13 @@ KOVÁCS DÁVID MÁTÉ
             <div class="match-meta-bar" id="vr-match-title" style="color:var(--text-main); font-weight:bold; font-size:14px;">Hazai - Vendég</div>
         </div>
         
+        <div id="vr-new-event-toolbar" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 20px;background:var(--bg-panel);border-bottom:1px solid var(--border-color);">
+            <strong style="color:var(--green-accent)"><i class="fas fa-plus-circle"></i> Új esemény a videóból</strong>
+            <select id="vr-event-team" onchange="populateVideoRoomEventPlayers()" style="padding:9px;background:var(--bg-card);color:white;border:1px solid var(--border-color);border-radius:6px;"></select>
+            <select id="vr-event-player" style="padding:9px;min-width:180px;background:var(--bg-card);color:white;border:1px solid var(--border-color);border-radius:6px;"></select>
+            <button class="btn-stat-main" id="vr-event-add" onclick="addVideoRoomEvent()" style="padding:9px 16px;"><i class="fas fa-plus"></i> Esemény rögzítése</button>
+            <span id="vr-event-hint" style="font-size:11px;color:var(--text-muted)">Állítsd meg a videót a megfelelő pillanatnál, majd válaszd ki a játékost és az eseményt.</span>
+        </div>
         <div style="flex:1; display:flex; overflow:hidden; flex-direction: row;">
             <div style="flex:2; display:flex; flex-direction:column; padding:20px; gap:15px; border-right:1px solid var(--border-color); overflow-y:auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -5072,6 +5079,39 @@ KOVÁCS DÁVID MÁTÉ
             }
         }
 
+        function populateVideoRoomEventPlayers() {
+            const team=document.getElementById('vr-event-team'), player=document.getElementById('vr-event-player');
+            if(!team||!player||!currentVideoMatch)return;
+            const roster=team.value==='away'?currentVideoMatch.awayRoster:currentVideoMatch.homeRoster;
+            player.replaceChildren();
+            (roster||[]).forEach((p,i)=>{
+                if(!p||!String(p.name||'').trim())return;
+                const opt=document.createElement('option');opt.value=String(i);opt.textContent='#'+p.num+' '+p.name;player.append(opt);
+            });
+        }
+        function initializeVideoRoomEventToolbar() {
+            const team=document.getElementById('vr-event-team'),btn=document.getElementById('vr-event-add'),hint=document.getElementById('vr-event-hint');
+            if(!team||!currentVideoMatch)return;
+            team.replaceChildren();
+            [['home',currentVideoMatch.homeName],['away',currentVideoMatch.awayName]].forEach(([id,name])=>{
+                const opt=document.createElement('option');opt.value=id;opt.textContent=name||id;team.append(opt);
+            });
+            populateVideoRoomEventPlayers();
+            const locked=!!currentVideoMatch.locked;
+            btn.disabled=locked;btn.style.opacity=locked?'.45':'1';
+            if(hint)hint.textContent=locked?'Ez a mérkőzés zárolt. Új eseményhez előbb fel kell oldani az Archívumban.':'Állítsd meg a videót, válassz játékost, majd rögzítsd a faultot vagy más eseményt.';
+        }
+        function addVideoRoomEvent() {
+            if(!currentVideoMatch||currentVideoMatch.locked)return alert('A lezárt mérkőzés nem módosítható.');
+            const side=document.getElementById('vr-event-team')?.value;
+            const index=Number(document.getElementById('vr-event-player')?.value);
+            const roster=side==='home'?currentVideoMatch.homeRoster:currentVideoMatch.awayRoster;
+            if(!side||!Number.isInteger(index)||!roster?.[index])return alert('Válassz egy játékost.');
+            const video=document.getElementById('match-video');if(video&&!video.paused)video.pause();
+            openModal(index,side);
+            const context=document.getElementById('u-context-text');
+            if(context)context.innerText=(side==='home'?currentVideoMatch.homeName:currentVideoMatch.awayName)+' · '+(video?.src&&Number.isFinite(video.currentTime)?formatTime(video.currentTime):'Videó-idő nincs');
+        }
         function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const activeScreen = document.querySelector('.screen.active');
             videoRoomReturnScreen = activeScreen ? activeScreen.id : 'view-archive';
@@ -5098,6 +5138,7 @@ KOVÁCS DÁVID MÁTÉ
             const videoNode = document.getElementById('match-video');
             if(carryLiveSrc) { videoNode.src = carryLiveSrc; videoNode.onloadedmetadata = () => { initializeVideoSliders(videoNode); seekTimelineFilterStart(videoNode, true); }; }
             initializeVideoRoomFilters();
+            initializeVideoRoomEventToolbar();
             renderVideoEvents(); updateVideoFilterBar();
         }
 
