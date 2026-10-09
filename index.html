@@ -870,7 +870,8 @@
                 </div>
             </div>
 
-            <div class="menu-grid">
+            <div id="running-projects-panel" style="display:none;width:min(100%,980px);max-height:58vh;overflow:auto;padding:16px;border:1px solid var(--border-color);border-radius:12px;background:var(--modal-bg);margin-bottom:16px"><h3 style="margin:0 0 12px;color:var(--green-accent)">Futó projektek</h3><div id="running-projects-list"></div><button class="back-btn" onclick="document.getElementById('running-projects-panel').style.display='none'">Bezárás</button></div>
+            <div class="menu-grid"><div class="menu-card" onclick="showRunningProjects()"><i class="fas fa-folder-open"></i><h3>Futó projektek</h3><p>Félbehagyott mérkőzések folytatása vagy törlése</p></div>
                 <div class="menu-card" onclick="startSetup(false)">
                     <i class="fas fa-play-circle"></i>
                     <h3>Új mérkőzés (Élő)</h3>
@@ -1078,7 +1079,7 @@ KOVÁCS DÁVID MÁTÉ
     <div class="screen" id="view-main-app" style="padding: 0;">
         <div class="top-nav">
             <div class="logo-area">
-                <button class="back-btn" style="margin:0; padding: 6px 12px; margin-right: 15px; font-size:12px;" onclick="goToHomeFromLive()"><i class="fas fa-home"></i> Főmenü</button>
+                <button class="back-btn" style="margin:0; padding: 6px 12px; margin-right: 15px; font-size:12px;" onclick="goToHomeFromLive()"><i class="fas fa-save"></i> Mentés · Főmenü</button>
                 <div class="logo-icon"><i class="fas fa-power-off"></i></div>
                 <div class="logo-text">HANDBALL LAB</div>
             </div>
@@ -2756,6 +2757,50 @@ KOVÁCS DÁVID MÁTÉ
                 '</div>';
         }
 
+        const RUNNING_PROJECTS_KEY='handball_running_projects_v1';
+        function runningProjects() {
+            try { const list=JSON.parse(localStorage.getItem(RUNNING_PROJECTS_KEY)||'[]');return Array.isArray(list)?list:[]; } catch(e){return [];}
+        }
+        function saveRunningProject(state) {
+            if(!state?.activeMatch)return;
+            const id=String(state.activeMatch.projectId||('project_'+Date.now()));
+            state.activeMatch.projectId=id;
+            const list=runningProjects().filter(p=>p.id!==id);
+            list.unshift({id,updatedAt:new Date().toISOString(),state});
+            localStorage.setItem(RUNNING_PROJECTS_KEY,JSON.stringify(list));
+        }
+        function showRunningProjects() {
+            const panel=document.getElementById('running-projects-panel'), list=document.getElementById('running-projects-list');
+            if(!panel||!list)return;
+            const projects=runningProjects();
+            list.replaceChildren();
+            if(!projects.length) list.textContent='Még nincs mentett futó projekt.';
+            projects.forEach(p=>{
+                const row=document.createElement('div');
+                row.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between;border-bottom:1px solid var(--border-color);padding:12px 0';
+                const label=document.createElement('div');
+                const m=p.state?.activeMatch||{};
+                label.textContent=(m.homeName||'?')+' – '+(m.awayName||'?')+' · '+(m.date||'')+' · '+(p.state?.globalEvents?.length||0)+' esemény';
+                const actions=document.createElement('div');actions.style.cssText='display:flex;gap:8px';
+                const resume=document.createElement('button');resume.className='btn-resume';resume.textContent='Folytatás';resume.onclick=()=>resumeRunningProject(p.id);
+                const del=document.createElement('button');del.className='btn-discard';del.textContent='Törlés';del.onclick=()=>deleteRunningProject(p.id);
+                actions.append(resume,del);row.append(label,actions);list.append(row);
+            });
+            panel.style.display='block';
+        }
+        function resumeRunningProject(id) {
+            const project=runningProjects().find(p=>p.id===id);if(!project)return;
+            localStorage.setItem('live_match_state',JSON.stringify(project.state));
+            resumeMatch();
+            saveLiveState();
+        }
+        function deleteRunningProject(id) {
+            const project=runningProjects().find(p=>p.id===id);if(!project)return;
+            if(!confirm('Biztosan törlöd ezt a futó projektet? A törlés nem vonható vissza.'))return;
+            localStorage.setItem(RUNNING_PROJECTS_KEY,JSON.stringify(runningProjects().filter(p=>p.id!==id)));
+            try { const live=JSON.parse(localStorage.getItem('live_match_state')||'null');if(live?.activeMatch?.projectId===id)discardMatch(); }catch(e){}
+            showRunningProjects();
+        }
         function goToHomeFromLive() {
             saveLiveState();
             const liveVid = document.getElementById('live-video-player');
@@ -3101,7 +3146,7 @@ KOVÁCS DÁVID MÁTÉ
             updateOfficialClockStatus('live');
         }
         function discardMatch() { localStorage.removeItem('live_match_state'); document.getElementById('resume-panel').style.display = 'none'; localStorage.setItem('handball_db_updated_at', new Date().toISOString()); scheduleCloudSync(); }
-        function saveLiveState() { const state = { activeMatch, globalEvents, seconds, currentPeriod }; localStorage.setItem('live_match_state', JSON.stringify(state)); localStorage.setItem('handball_db_updated_at', new Date().toISOString()); updateCloudCounts(); scheduleCloudSync(); }
+        function saveLiveState() { const state = { activeMatch, globalEvents, seconds, currentPeriod }; saveRunningProject(state); localStorage.setItem('live_match_state', JSON.stringify(state)); localStorage.setItem('handball_db_updated_at', new Date().toISOString()); updateCloudCounts(); scheduleCloudSync(); }
 
         function endMatch() {
             if(!confirm("Biztosan lezárod a mérkőzést? Ez elmenti az archívumba és kilép a főmenübe.")) return;
@@ -3111,7 +3156,7 @@ KOVÁCS DÁVID MÁTÉ
             recordLineupSnapshot('Mérkőzés vége',activeMatch.matchEndAbs);
             if(isVideoAnalysis) syncRosterPlayTimesFromLineup(activeMatch.matchEndAbs);
             db.matches.push({ id: 'm_' + Date.now(), matchName: activeMatch.matchName, league: activeMatch.league, location: activeMatch.location, date: activeMatch.date, homeName: activeMatch.homeName, awayName: activeMatch.awayName, homeTeamId: activeMatch.homeTeamId || '', awayTeamId: activeMatch.awayTeamId || '', homeAgeGroup: careerAgeGroup(db.teams?.[activeMatch.homeTeamId]?.ageGroup), awayAgeGroup: careerAgeGroup(db.teams?.[activeMatch.awayTeamId]?.ageGroup), homeScore: document.getElementById('score-home').innerText, awayScore: document.getElementById('score-away').innerText, events: globalEvents, homeRoster: activeMatch.homeRoster, awayRoster: activeMatch.awayRoster, lineupHistory: activeMatch.lineupHistory || [], lineupHistoryComplete: activeMatch.lineupHistoryComplete === true, matchEndAbs: activeMatch.matchEndAbs || 0, videoSyncPoints: activeMatch.videoSyncPoints || {}, officialClockPoints: activeMatch.officialClockPoints || [] });
-            saveDB(); discardMatch(); location.reload();
+            saveDB(); if(activeMatch?.projectId) localStorage.setItem(RUNNING_PROJECTS_KEY,JSON.stringify(runningProjects().filter(p=>p.id!==activeMatch.projectId))); discardMatch(); location.reload();
         }
 
         function toggleArchiveLock(id) {
