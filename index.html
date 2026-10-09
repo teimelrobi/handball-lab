@@ -1875,12 +1875,14 @@ KOVÁCS DÁVID MÁTÉ
             try {
                 // Always retain server-side locked matches, even when a stale browser cache syncs.
                 const remote=await fetchCloudState();
-                const protectedMatches=(remote?.data?.matches||[]).filter(m=>m?.locked);
+                const releaseIds=new Set((db.matches||[]).filter(m=>m.lockReleaseRequested===true&&m.locked===false).map(m=>String(m.id)));
+                const protectedMatches=(remote?.data?.matches||[]).filter(m=>m?.locked&&!releaseIds.has(String(m.id)));
                 const protectedIds=new Set(protectedMatches.map(m=>String(m.id)));
                 if(protectedIds.size) {
                     db.matches=(db.matches||[]).filter(m=>!protectedIds.has(String(m.id))).concat(protectedMatches);
                     localStorage.setItem('handball_db',JSON.stringify(db));
                 }
+                (db.matches||[]).forEach(m=>{delete m.lockReleaseRequested;});
                 const payload = { user_id:cloudUser.id, data:db, live_state:getLiveStateForCloud(), client_updated_at:new Date().toISOString() };
                 let { error } = await cloudClient.from('handball_state').upsert(payload,{onConflict:'user_id'}); if(error) throw error;
                 if(showMessage || Date.now()-cloudNormalizedLastSync > 30000) { await syncNormalizedCloudTables(); cloudNormalizedLastSync=Date.now(); }
@@ -3084,6 +3086,7 @@ KOVÁCS DÁVID MÁTÉ
             const m=(db.matches||[]).find(x=>x.id===id); if(!m)return;
             if(!confirm(m.locked?'Feloldod a mérkőzést?':'Lezárod a mérkőzést?'))return;
             m.locked=!m.locked;
+            if(!m.locked) m.lockReleaseRequested=true;
             saveDB();loadArchive();
         }
         function loadArchive() {
