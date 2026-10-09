@@ -3156,7 +3156,13 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('display-name-away').innerText = activeMatch.awayName; document.getElementById('sb-name-away').innerText = activeMatch.awayName; document.getElementById('tab-btn-away').innerText = activeMatch.awayName; 
             document.getElementById('live-meta-league').innerHTML = `<i class="fas fa-trophy"></i> ${activeMatch.league || 'Bajnokság'}`; document.getElementById('live-meta-location').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${activeMatch.location || 'Helyszín'}`; document.getElementById('live-meta-date').innerHTML = `<i class="far fa-calendar-alt"></i> ${activeMatch.date || 'Dátum'}`;
             document.getElementById('btn-period-toggle').innerText = `${currentPeriod}. FÉLIDŐ`; updateTimerDisplay();
-            renderRosterUI('roster-home', activeMatch.homeRoster, 'home-num', 'home'); renderRosterUI('roster-away', activeMatch.awayRoster, 'away-num', 'away'); updateLiveUI(); 
+            renderRosterUI('roster-home', activeMatch.homeRoster, 'home-num', 'home'); renderRosterUI('roster-away', activeMatch.awayRoster, 'away-num', 'away'); updateLiveUI();
+            document.getElementById('live-video-container').style.display=isVideoAnalysis?'block':'none';
+            document.getElementById('time-adj-row').style.display=isVideoAnalysis?'none':'flex';
+            document.getElementById('start-btn').style.display=isVideoAnalysis?'none':'block';
+            const resumedVideo=document.getElementById('live-video-player');
+            if(resumedVideo&&!resumedVideo.src) { resumedVideo.style.display='none';document.getElementById('live-video-label').style.display=''; }
+            videoSyncOffset=Number(activeMatch?.videoSyncPoints?.[String(currentPeriod)])||0;
             showScreen('view-main-app');
             autoSubLastPossession=null;renderAutoSubPanel();
             updateOfficialClockStatus('live');
