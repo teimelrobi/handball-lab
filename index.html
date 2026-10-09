@@ -1099,7 +1099,7 @@ KOVÁCS DÁVID MÁTÉ
             <div class="status-area" style="display:flex; align-items:center; gap:7px; flex-wrap:wrap; justify-content:flex-end;">
                 <span class="live-device-pill" id="live-network-status"><i class="fas fa-wifi"></i> Online</span>
                 <button class="btn-export" id="live-wake-btn" onclick="toggleWakeLock()" title="Kijelző ébren tartása"><i class="fas fa-lightbulb"></i> Ébren</button>
-                <button class="btn-export" onclick="openVideoRoom()" title="Videó betöltése és az importált mérkőzés eseményeinek áttekintése"><i class="fas fa-video"></i> Videószoba · MP4</button>
+                <button class="btn-export" onclick="enableInlineVideoAnalysis()" title="Videó betöltése az eredeti utólagos elemzőfelületen"><i class="fas fa-film"></i> Videó betöltése</button>
                 <button class="btn-export" onclick="exportCSV()"><i class="fas fa-download"></i> CSV</button>
             </div>
         </div>
@@ -3105,6 +3105,18 @@ KOVÁCS DÁVID MÁTÉ
             updateOfficialClockStatus('live');
         }
 
+        function enableInlineVideoAnalysis() {
+            if(!activeMatch)return;
+            isVideoAnalysis=true;
+            document.getElementById('live-video-container').style.display='block';
+            document.getElementById('time-adj-row').style.display='none';
+            document.getElementById('start-btn').style.display='none';
+            const player=document.getElementById('live-video-player');
+            const label=document.getElementById('live-video-label');
+            if(player&&!player.getAttribute('src')) {player.style.display='none';if(label)label.style.display='';}
+            saveLiveState();
+            document.getElementById('live-video-container').scrollIntoView({behavior:'smooth',block:'center'});
+        }
         function loadLiveVideo(event) {
             const file = event.target.files[0]; if(!file) return;
             const videoNode = document.getElementById('live-video-player');
