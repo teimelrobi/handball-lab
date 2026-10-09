@@ -1512,7 +1512,7 @@ KOVÁCS DÁVID MÁTÉ
                     <button class="attack-type-btn" onclick="selectAttackType(this, 'Pozíciós támadás')">Pozíciós támadás</button>
                     <button class="attack-type-btn" onclick="selectAttackType(this, 'Lerohanás')">Lerohanás</button>
                     <button class="attack-type-btn" onclick="selectAttackType(this, 'Gyors középkezdés')">Gyors középkezdés</button>
-                    <button class="attack-type-btn" onclick="selectAttackType(this, 'Második hullám')">Második hullám</button>
+                    
                     <button class="attack-type-btn" onclick="selectAttackType(this, '7:6')">7:6</button>
                 </div>
             </div>
@@ -1560,7 +1560,7 @@ KOVÁCS DÁVID MÁTÉ
                                 <button type="button" class="shot-finish-btn" data-shot-finish="Beálló" onclick="selectShotFinish(this, 'Beálló')">Beálló</button>
                                 <button type="button" class="shot-finish-btn" data-shot-finish="7 méteres" onclick="selectShotFinish(this, '7 méteres')">7m lövés</button>
                             </div>
-                            <div class="shot-option-label">Kombinálható helyzetek</div>
+                            <div class="shot-option-label">További helyzetek (szabadon kombinálhatók)</div>
                             <div class="shot-option-grid">
                                 <button type="button" class="shot-situation-btn" data-shot-situation="Indítás" onclick="toggleShotSituation(this, 'Indítás')">Indítás</button>
                                 <button type="button" class="shot-situation-btn" data-shot-situation="Üres kapu" onclick="toggleShotSituation(this, 'Üres kapu')">Üres kapu</button>
@@ -1572,7 +1572,7 @@ KOVÁCS DÁVID MÁTÉ
                 </div>
                 <div class="u-bottom-row">
                     <div class="u-section" style="flex: 1.7;"><div class="u-section-title"><div class="u-step-num">2</div> Hova?</div><div class="goal-grid-container"><div class="goal-target-map"><button class="goal-miss-zone goal-miss-above" onclick="selectMissTarget(this, 'Fölé', 'Fölé')">FÖLÉ</button><button class="goal-miss-zone goal-miss-left" onclick="selectMissTarget(this, 'Bal mellé', 'Mellé')">MELLÉ</button><div class="goal-grid"><div class="g-node" onclick="selectTo(this, 'Bal felső')"></div><div class="g-node" onclick="selectTo(this, 'Közép felső')"></div><div class="g-node" onclick="selectTo(this, 'Jobb felső')"></div><div class="g-node" onclick="selectTo(this, 'Bal félmagas')"></div><div class="g-node" onclick="selectTo(this, 'Közép')"></div><div class="g-node" onclick="selectTo(this, 'Jobb félmagas')"></div><div class="g-node" onclick="selectTo(this, 'Bal alsó')"></div><div class="g-node" onclick="selectTo(this, 'Közép alsó')"></div><div class="g-node" onclick="selectTo(this, 'Jobb alsó')"></div></div><button class="goal-miss-zone goal-miss-right" onclick="selectMissTarget(this, 'Jobb mellé', 'Mellé')">MELLÉ</button></div></div></div>
-                    <div class="u-section" style="flex: 1.25;"><div class="u-section-title"><div class="u-step-num">3</div> Eredmény</div><div class="options-grid" id="shot-result-options"><button class="opt-btn" onclick="selectResult(this, 'Gól')">Gól</button><button class="opt-btn" onclick="selectResult(this, 'Védés')">Védés</button><button class="opt-btn" onclick="selectResult(this, 'Kapufa')">Kapufa</button><button class="opt-btn" onclick="selectResult(this, 'Sánc')">Sánc</button></div><div class="shot-auto-result" id="shot-auto-result"></div><div class="u-sub-panels"><div class="assist-panel" id="assist-panel"><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Gólpassz?</div><select id="assist-select"><option value="">Nincs</option></select></div><div class="assist-panel" id="gk-panel" style="display:block;"><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Kapuban:</div><div class="gk-btn-grid" id="gk-buttons-container"></div></div></div></div>
+                    <div class="u-section" style="flex: 1.25;"><div class="u-section-title"><div class="u-step-num">3</div> Eredmény</div><div class="options-grid" id="shot-result-options"><button class="opt-btn" onclick="selectResult(this, 'Gól')">Gól</button><button class="opt-btn" onclick="selectResult(this, 'Védés')">Védés</button><button class="opt-btn" onclick="selectResult(this, 'Sánc')">Sánc</button></div><div class="shot-auto-result" id="shot-auto-result"></div><div class="u-sub-panels"><div class="assist-panel" id="assist-panel"><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Gólpassz?</div><select id="assist-select"><option value="">Nincs</option></select></div><div class="assist-panel" id="gk-panel" style="display:block;"><div style="font-size:11px; color:var(--text-muted); margin-bottom:5px;">Kapuban:</div><div class="gk-btn-grid" id="gk-buttons-container"></div></div></div></div>
                     <div class="u-section" style="flex: 0.8;"><div class="u-section-title"><div class="u-step-num">4</div> Módja</div><div class="options-grid" id="shot-type-options" style="grid-template-columns: 1fr;"><button class="opt-btn" onclick="selectType(this, 'Felugrásos')">Felugrásos</button><button class="opt-btn" onclick="selectType(this, 'Talajról')">Talajról</button></div></div>
                 </div>
             </div>
@@ -2047,7 +2047,7 @@ KOVÁCS DÁVID MÁTÉ
         const PLAYER_POSITIONS = ['', 'Kapus', 'Bal szél', 'Bal átlövő', 'Irányító', 'Jobb átlövő', 'Jobb szél', 'Beálló'];
         const POSITION_ABBR = { 'Kapus':'K', 'Bal szél':'BSZ', 'Bal átlövő':'BÁ', 'Irányító':'IR', 'Jobb átlövő':'JÁ', 'Jobb szél':'JSZ', 'Beálló':'BE' };
         const POSITION_TO_SHOT_FROM = { 'Bal szél':'Bal szél', 'Bal átlövő':'Bal átlövő', 'Irányító':'Irányító', 'Jobb átlövő':'Jobb átlövő', 'Jobb szél':'Jobb szél', 'Beálló':'Beálló' };
-        const ATTACK_TYPES = ['Pozíciós támadás', 'Lerohanás', 'Gyors középkezdés', 'Második hullám', '7:6'];
+        const ATTACK_TYPES = ['Pozíciós támadás', 'Lerohanás', 'Gyors középkezdés', '7:6'];
         const DEFENSE_SYSTEMS = ['6:0', '5:1', 'Egyéb'];
 
         function normalizeDatabase() {
@@ -4159,12 +4159,9 @@ KOVÁCS DÁVID MÁTÉ
             document.querySelectorAll('.shot-finish-btn.selected').forEach(b=>b.classList.remove('selected'));
             if(selShotFinish)el.classList.add('selected');
             if(selShotFinish==='7 méteres') {
-                selShotZone=null;selShotWing=null;selShotSituation=[];
-                document.querySelectorAll('.shot-zone.selected,.shot-wing-btn.selected,.shot-situation-btn.selected').forEach(b=>b.classList.remove('selected'));
-                if(selAttackType==='Lerohanás') {
-                    selAttackType='Pozíciós támadás';
-                    markAttackTypeButton(selAttackType);
-                }
+                selShotZone=null;selShotWing=null;
+                document.querySelectorAll('.shot-zone.selected,.shot-wing-btn.selected').forEach(b=>b.classList.remove('selected'));
+                
             }
             selFrom=deriveShotOrigin();
             updateShotZoneDescription();checkReady();
@@ -4174,14 +4171,14 @@ KOVÁCS DÁVID MÁTÉ
             if(['Átlövés','Betörés','Beálló','7 méteres'].includes(value))return selectShotFinish(el,value);
         }
         function toggleShotSituation(el,value) {
-            if(selShotFinish==='7 méteres')return alert('A 7m lövés nem kombinálható indítással vagy üres kapus lövéssel.');
+            
             if(selShotSituation.includes(value))selShotSituation=selShotSituation.filter(x=>x!==value);
             else selShotSituation.push(value);
             el.classList.toggle('selected',selShotSituation.includes(value));
             updateShotZoneDescription();checkReady();
         }
         function selectShotLerohanas(el) {
-            if(selShotFinish==='7 méteres')return alert('A 7m lövéshez ne jelölj lerohanást.');
+            
             const target=selAttackType==='Lerohanás'?'Pozíciós támadás':'Lerohanás';
             selAttackType=target;markAttackTypeButton(target);
             const hint=document.getElementById('attack-type-hint');if(hint)hint.innerText='Támadástípus: '+target;
