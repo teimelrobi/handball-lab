@@ -1117,7 +1117,7 @@ KOVÁCS DÁVID MÁTÉ
                         </label>
                         <button class="btn-stat-main" onclick="setLiveVideoSync()" style="font-size:12px; padding:8px 15px;"><i class="fas fa-link"></i> Kezdősípszó Szinkron</button>
                     </div>
-                    <video id="live-video-player" controls style="width:100%; border-radius:8px; display:none; max-height: 40vh; outline: none;"></video>
+                    <video id="live-video-player" controls onclick="toggleAnalysisVideoByClick(event)" oncontextmenu="toggleAnalysisGameClock(event)" style="width:100%; border-radius:8px; display:none; max-height: 40vh; outline: none;"></video><div id="analysis-clock-controls" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 0;font-size:12px;"><strong id="analysis-clock-state" style="color:#ef4444;">● JÁTÉKÓRA ÁLL</strong><span>Bal kattintás: videó · Jobb kattintás: játékóra</span><button type="button" class="btn-stat-main" onclick="toggleAnalysisGameClock(event)" style="padding:6px 10px;">Játékóra indítás / megállítás</button></div>
                     <div class="official-clock-strip" style="margin-top:8px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 11px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px;">
                         <label for="live-official-clock" style="font-size:12px;font-weight:bold;white-space:nowrap;"><i class="far fa-clock"></i> Játékóra-szinkron</label>
                         <input id="live-official-clock" type="text" inputmode="numeric" placeholder="pl. 18:42" maxlength="5" style="width:90px;padding:7px;border:1px solid var(--border-color);background:var(--bg-card);color:#fff;border-radius:6px;font:14px monospace;" onfocus="captureOfficialSyncFrame('live')" onkeydown="if(event.key==='Enter') saveOfficialClockAnchor('live')">
@@ -3101,6 +3101,7 @@ KOVÁCS DÁVID MÁTÉ
 
             globalEvents = []; seconds = 0; currentPeriod = 1; pendingSubstitution = { home: null, away: null }; activeMatch.lineupHistory = []; activeMatch.lineupHistoryComplete = true; activeMatch.matchEndAbs = 0; activeMatch.videoSyncPoints = {}; activeMatch.officialClockPoints = []; document.getElementById('timer-text').innerText = "00:00"; recordLineupSnapshot('Kezdő felállás'); updateLiveUI(); saveLiveState();
             showScreen('view-main-app');
+            analysisGameClockRunning=false;analysisLastVideoTime=null;updateAnalysisClockState();
             autoSubLastPossession=null;renderAutoSubPanel();
             updateOfficialClockStatus('live');
         }
@@ -3117,13 +3118,56 @@ KOVÁCS DÁVID MÁTÉ
             saveLiveState();
             document.getElementById('live-video-container').scrollIntoView({behavior:'smooth',block:'center'});
         }
+        let analysisGameClockRunning=false;
+        let analysisLastVideoTime=null;
+        let analysisGameClockFraction=0;
+        function updateAnalysisClockState() {
+            const row=document.getElementById('analysis-clock-controls');
+            const label=document.getElementById('analysis-clock-state');
+            if(row)row.style.display=isVideoAnalysis?'flex':'none';
+            if(label){label.textContent=analysisGameClockRunning?'● JÁTÉKÓRA FUT':'● JÁTÉKÓRA ÁLL';label.style.color=analysisGameClockRunning?'#22c55e':'#ef4444';}
+        }
+        function toggleAnalysisVideoByClick(event) {
+            if(!isVideoAnalysis)return;
+            const video=event.currentTarget;
+            if(video.paused)video.play().catch(()=>{});else video.pause();
+        }
+        function toggleAnalysisGameClock(event) {
+            if(event){event.preventDefault();event.stopPropagation();}
+            if(!isVideoAnalysis)return;
+            if(activeMatch)activeMatch.manualAnalysisClock=true;
+            analysisGameClockRunning=!analysisGameClockRunning;
+            analysisLastVideoTime=Number(document.getElementById('live-video-player')?.currentTime)||0;
+            analysisGameClockFraction=0;
+            updateAnalysisClockState();
+            saveLiveState();
+        }
+        function advanceAnalysisGameClock(video) {
+            if(!isVideoAnalysis||!activeMatch)return;
+            const current=Number(video.currentTime)||0;
+            if(analysisLastVideoTime===null){analysisLastVideoTime=current;return;}
+            const delta=current-analysisLastVideoTime;
+            analysisLastVideoTime=current;
+            if(!analysisGameClockRunning||video.paused||video.seeking||delta<=0||delta>1.5)return;
+            analysisGameClockFraction+=delta;
+            const whole=Math.floor(analysisGameClockFraction);
+            if(whole>0){
+                analysisGameClockFraction-=whole;
+                seconds=Math.min(1800,seconds+whole);
+                updateTimerDisplay();
+                syncRosterPlayTimesFromLineup(currentMatchAbsoluteSeconds());
+                updateOfficialClockStatus('live');
+            }
+        }
         function loadLiveVideo(event) {
             const file = event.target.files[0]; if(!file) return;
             const videoNode = document.getElementById('live-video-player');
             videoNode.src = URL.createObjectURL(file);
             videoNode.style.display = 'block';
             document.getElementById('live-video-label').style.display = 'none';
+            analysisGameClockRunning=false;analysisLastVideoTime=null;analysisGameClockFraction=0;updateAnalysisClockState();
             videoNode.ontimeupdate = function() {
+                if(isVideoAnalysis && activeMatch?.manualAnalysisClock) {advanceAnalysisGameClock(this);return;}
                 if(isVideoAnalysis && document.getElementById('unified-modal-overlay').style.display !== 'flex') {
                     const mapped=officialGameTimeAtVideo(this.currentTime,currentPeriod,activeMatch);
                     const next= mapped ? Math.floor(mapped.abs-(currentPeriod-1)*1800) : Math.max(0,Math.floor(this.currentTime-videoSyncOffset));
