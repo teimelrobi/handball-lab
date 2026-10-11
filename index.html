@@ -4058,16 +4058,20 @@ KOVÁCS DÁVID MÁTÉ
             if(!Number.isFinite(t)) return alert('Nincs érvényes videóidő.');
             const existing=officialClockAnchors(match,period).filter(x=>Math.abs(x.videoTime-t)>0.5);
             if(!existing.some(x=>x.source==='whistle')) return alert('Előbb állítsd be a félidő kezdősípszóját.');
-            const before=existing.filter(x=>x.videoTime<t).pop(),after=existing.find(x=>x.videoTime>t);
-            if((before && (abs<before.abs || abs-before.abs>t-before.videoTime+2)) ||
-               (after && (abs>after.abs || after.abs-abs>after.videoTime-t+2)))
-                return alert('A megadott játékóra nem illeszkedik a többi szinkronponthoz. Ellenőrizd a félidőt és az időt.');
+            // A videón leolvasott hivatalos játékidő elsőbbséget élvez a becsült szinkronpontokkal szemben.
             if(!Array.isArray(match.officialClockPoints)) match.officialClockPoints=[];
             match.officialClockPoints=match.officialClockPoints.filter(x=>Number(x.period)!==period || Math.abs(Number(x.videoTime)-t)>0.5);
             match.officialClockPoints.push({period,abs,videoTime:t,reason:'Kézi játékóra-szinkron'});
             match.officialClockPoints.sort((a,b)=>Number(a.videoTime)-Number(b.videoTime));
             input.value=''; delete input.dataset.videoTime;
             recalculateVideoClockData(match);
+            if(!room && isVideoAnalysis) {
+                currentPeriod=period;
+                seconds=Math.max(0,Math.min(1800,Math.floor(abs-(period-1)*1800)));
+                analysisLastVideoTime=Number(vid.currentTime)||0;
+                analysisGameClockFraction=0;
+                updateTimerDisplay();
+            }
             if(room) { persistVideoRoomMatch(); renderVideoEvents(); }
             else saveLiveState();
             updateOfficialClockStatus(where);
