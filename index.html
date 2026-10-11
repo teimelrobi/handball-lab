@@ -4273,7 +4273,7 @@ KOVÁCS DÁVID MÁTÉ
         function populateModalHeader(roster, selectedNum, timeText) {
             const select = document.getElementById('modal-player-select'); select.innerHTML = '';
             select.innerHTML += `<option value="?" ${selectedNum == '?' ? 'selected' : ''}>#? Ismeretlen</option>`;
-            roster.forEach(p => { if(p.name.trim() !== "") { const isSel = p.num == selectedNum ? 'selected' : ''; const posTag = p.isGk ? ' (K)' : (p.position && POSITION_ABBR[p.position] ? ` (${POSITION_ABBR[p.position]})` : ''); select.innerHTML += `<option value="${p.num}" ${isSel}>#${p.num} ${p.name}${posTag}</option>`; } });
+            roster.forEach(p => { if(p.name.trim() !== "") { const isSel = p.num == selectedNum ? 'selected' : ''; const compactOpponent = isVideoAnalysis && activeTeamSide === 'away'; const posTag = compactOpponent ? '' : (p.isGk ? ' (K)' : (p.position && POSITION_ABBR[p.position] ? ` (${POSITION_ABBR[p.position]})` : '')); select.innerHTML += `<option value="${p.num}" ${isSel}>#${p.num}${compactOpponent ? '' : ' ' + p.name}${posTag}</option>`; } });
             document.getElementById('u-context-text').innerText = `${activeTeamSide === 'home' ? activeMatch.homeName : activeMatch.awayName} · ${timeText}`;
         }
         function changeModalPlayer(num) {
@@ -4414,7 +4414,7 @@ KOVÁCS DÁVID MÁTÉ
             pauseVideoForTagging();
             activeTeamSide = side; const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster; activePlayer = roster[playerIndex]; 
             populateModalHeader(roster, activePlayer.num, `${document.getElementById('timer-text').innerText} · ${currentPeriod}. Félidő`);
-            const assistSelect = document.getElementById('assist-select'); assistSelect.innerHTML = '<option value="">Nincs gólpassz</option>'; roster.forEach(p => { if(p.num !== activePlayer.num && p.name.trim() !== "" && p.onCourt) assistSelect.innerHTML += `<option value="${p.num}">#${p.num} ${p.name}</option>`; }); 
+            const assistSelect = document.getElementById('assist-select'); assistSelect.innerHTML = '<option value="">Nincs gólpassz</option>'; roster.forEach(p => { if(p.num !== activePlayer.num && p.name.trim() !== "" && (isVideoAnalysis && side === 'away' || p.onCourt)) assistSelect.innerHTML += `<option value="${p.num}">#${p.num}${isVideoAnalysis && side === 'away' ? '' : ' ' + p.name}</option>`; }); 
             const gkContainer = document.getElementById('gk-buttons-container'); gkContainer.innerHTML = ''; const oppRoster = side === 'home' ? activeMatch.awayRoster : activeMatch.homeRoster; let targetGk = null; oppRoster.forEach(p => { if(p.isGk && p.name.trim() !== "") { if(p.onCourt) targetGk = p.num; gkContainer.innerHTML += `<button class="gk-btn" id="gk-btn-${p.num}" onclick="selectDefendingGk(this, '${p.num}')">${p.name}</button>`; } }); if(!targetGk) { const fallback = oppRoster.find(p => p.isGk && p.name.trim() !== ""); if(fallback) targetGk = fallback.num; } if(targetGk) selectDefendingGk(document.getElementById(`gk-btn-${targetGk}`), targetGk); else gkContainer.innerHTML = '<div style="font-size:11px; color:var(--text-muted);">Nincs kapus</div>'; 
             resetSelections(true); switchModalTabSilently('shot'); setAttackTypePanelVisibility(); applyAttackTypeSuggestion(side); applyDefenseSystemSuggestion(); updatePlayerPositionHint(); document.getElementById('btn-save-event').innerText = "Kész · mentés"; document.getElementById('unified-modal-overlay').style.display = 'flex'; 
         }
