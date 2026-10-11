@@ -3213,17 +3213,65 @@ KOVÁCS DÁVID MÁTÉ
         }
 
         // --- RÖGZÍTÉS ÉS MAIN APP ---
+        let pendingStartingLineup = null;
+        function requestStartingLineup(players) {
+            const existing=document.getElementById('starting-lineup-overlay');
+            if(existing) existing.remove();
+            const overlay=document.createElement('div');
+            overlay.id='starting-lineup-overlay';
+            overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px;';
+            const panel=document.createElement('div');
+            panel.style.cssText='width:min(640px,100%);max-height:90vh;overflow:auto;background:#111e27;border:1px solid #18d99c;border-radius:14px;padding:20px;color:#fff;';
+            const title=document.createElement('h2');title.textContent='Saját csapat – kezdőjátékosok';panel.appendChild(title);
+            const hint=document.createElement('p');hint.textContent='Válassz 1 kapust és 6 mezőnyjátékost a kezdő sípszó előtt.';panel.appendChild(hint);
+            const counter=document.createElement('p');panel.appendChild(counter);
+            const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;margin:16px 0;';panel.appendChild(grid);
+            const selected=new Set();
+            const buttons=[];
+            const confirm=document.createElement('button');confirm.textContent='Kezdőcsapat jóváhagyása';confirm.style.cssText='background:#13c995;color:#071810;padding:12px;border:0;border-radius:8px;font-weight:bold;cursor:pointer;margin-right:10px;';
+            const cancel=document.createElement('button');cancel.textContent='Vissza';cancel.style.cssText='padding:12px;border:1px solid #607080;border-radius:8px;background:transparent;color:white;cursor:pointer;';
+            function refresh(){
+                const chosen=players.filter((p,i)=>selected.has(i));
+                const gk=chosen.filter(p=>p.isGk).length, field=chosen.length-gk;
+                counter.textContent='Kapus: '+gk+'/1 · Mezőnyjátékos: '+field+'/6';
+                confirm.disabled=!(gk===1&&field===6);
+                confirm.style.opacity=confirm.disabled?'.45':'1';
+                buttons.forEach(({button,index})=>{const on=selected.has(index);button.style.background=on?'#126b50':'#20313d';button.style.borderColor=on?'#20e5a3':'#4b6476';});
+            }
+            players.forEach((p,index)=>{
+                const button=document.createElement('button');
+                button.type='button';button.textContent='#'+p.num+' '+p.name+(p.isGk?' (K)':'');
+                button.style.cssText='padding:12px 7px;color:#fff;border:1px solid #4b6476;border-radius:8px;cursor:pointer;text-align:left;';
+                button.onclick=()=>{
+                    if(selected.has(index))selected.delete(index);
+                    else {
+                        const chosen=players.filter((x,i)=>selected.has(i));
+                        if(p.isGk && chosen.some(x=>x.isGk))return;
+                        if(!p.isGk && chosen.filter(x=>!x.isGk).length>=6)return;
+                        selected.add(index);
+                    }
+                    refresh();
+                };
+                buttons.push({button,index});grid.appendChild(button);
+            });
+            confirm.onclick=()=>{if(confirm.disabled)return;pendingStartingLineup=players.filter((p,i)=>selected.has(i)).map(p=>String(p.num));overlay.remove();startMatch();};
+            cancel.onclick=()=>overlay.remove();
+            panel.append(confirm,cancel);overlay.appendChild(panel);document.body.appendChild(overlay);refresh();
+        }
         function startMatch() {
             const hId = document.getElementById('ms-home-team').value; const aId = document.getElementById('ms-away-team').value; if(!hId || !aId) return alert("Válaszd ki mindkét csapatot a legördülő listából!");
             const homeSelected = selectedMatchRoster('home');
             const awaySelected = selectedMatchRoster('away');
             if(homeSelected.length === 0 || awaySelected.length === 0) return alert('Mindkét csapatnál válassz legalább egy játékost a mérkőzéskeretbe!');
             if(homeSelected.length > MAX_MATCH_ROSTER || awaySelected.length > MAX_MATCH_ROSTER) return alert(`Egy mérkőzésre csapatonként legfeljebb ${MAX_MATCH_ROSTER} játékos nevezhető.`);
+            if(!pendingStartingLineup) { requestStartingLineup(homeSelected); return; }
+            const confirmedStarters = pendingStartingLineup;
+            pendingStartingLineup = null;
             activeMatch.matchName = document.getElementById('ms-name').value || 'Mérkőzés'; activeMatch.date = document.getElementById('ms-date').value || new Date().toISOString().split('T')[0]; activeMatch.location = document.getElementById('ms-location').value || 'Ismeretlen helyszín'; activeMatch.league = document.getElementById('ms-league').value || 'Barátságos';
             activeMatch.homeTeamId = importedMkszMatch ? '' : hId; activeMatch.awayTeamId = importedMkszMatch ? '' : aId;
             if(importedMkszMatch){activeMatch.mkszMatchId=importedMkszMatch.matchId;activeMatch.kickoff=importedMkszMatch.kickoff;}
             const setStarters = (roster) => { let gk = 0, fp = 0; roster.forEach(p => { p.penaltyEnd = 0; p.penaltyEndAbs = 0; p.playTime = 0; if(p.name.trim() === "") { p.onCourt = false; return; } if(p.isGk) { p.onCourt = (gk < 1); if(p.onCourt) gk++; } else { p.onCourt = (fp < 6); if(p.onCourt) fp++; } }); };
-            activeMatch.homeRoster = JSON.parse(JSON.stringify(homeSelected)); setStarters(activeMatch.homeRoster); activeMatch.awayRoster = JSON.parse(JSON.stringify(awaySelected)); setStarters(activeMatch.awayRoster);
+            activeMatch.homeRoster = JSON.parse(JSON.stringify(homeSelected)); setStarters(activeMatch.homeRoster); activeMatch.homeRoster.forEach(p => { p.onCourt = confirmedStarters.includes(String(p.num)); }); activeMatch.awayRoster = JSON.parse(JSON.stringify(awaySelected)); setStarters(activeMatch.awayRoster);
             activeMatch.homeRoster.sort((a,b) => (a.isGk === b.isGk)? 0 : a.isGk ? -1 : 1); activeMatch.awayRoster.sort((a,b) => (a.isGk === b.isGk)? 0 : a.isGk ? -1 : 1);
             activeMatch.homeName = importedMkszMatch ? importedMkszMatch.homeName : db.teams[hId].name; activeMatch.awayName = importedMkszMatch ? importedMkszMatch.awayName : db.teams[aId].name;
             document.getElementById('display-name-home').innerText = activeMatch.homeName; document.getElementById('sb-name-home').innerText = activeMatch.homeName; document.getElementById('tab-btn-home').innerText = activeMatch.homeName;
