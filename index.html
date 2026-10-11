@@ -1142,7 +1142,7 @@ KOVÁCS DÁVID MÁTÉ
 
                 <div class="stats-panel">
                     <div class="quick-stats-row"><div class="qs-item"><div class="qs-title">Lövés <span style="color:var(--green-accent)">Saját</span></div><div class="qs-val" id="qs-home-shot">0</div></div><div class="qs-item"><div class="qs-title">Hiba <span style="color:var(--green-accent)">Saját</span></div><div class="qs-val" id="qs-home-err">0</div></div><div class="qs-item"><div class="qs-title">Védés <span style="color:var(--gk-accent)">Saját</span></div><div class="qs-val" id="qs-home-save">0</div></div><div class="qs-item" style="border-left: 1px solid var(--border-color);"><div class="qs-title">Lövés <span style="color:var(--red-accent)">Ellenfél</span></div><div class="qs-val" id="qs-away-shot">0</div></div></div>
-                    <div class="events-list" id="events-container"></div>
+                    <div style="display:flex;justify-content:flex-end;padding:4px 0;"><button type="button" class="btn-stat-main" onclick="scrollToLatestAnalysisEvent()" style="font-size:12px;padding:6px 10px;"><i class="fas fa-arrow-down"></i> Utolsó esemény</button></div><div class="events-list" id="events-container" style="max-height: min(42vh, 430px); overflow-y:auto; overscroll-behavior:contain;"></div>
                 </div>
             </div>
             <div class="sidebar sidebar-away">
@@ -3205,6 +3205,18 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('timer-text').innerText = `${m}:${s}`;
         }
 
+        function scrollToLatestAnalysisEvent() {
+            const list=document.getElementById('events-container');
+            if(!list)return;
+            list.scrollTop=list.scrollHeight;
+        }
+        function scrollToLatestAnalysisEventOnResume() {
+            requestAnimationFrame(()=>requestAnimationFrame(()=>{
+                const list=document.getElementById('events-container');
+                if(!list)return;
+                list.scrollTop=list.scrollHeight;
+            }));
+        }
         function resumeMatch() { 
             const state = JSON.parse(localStorage.getItem('live_match_state')); if(!state) return; 
             activeMatch = state.activeMatch; globalEvents = state.globalEvents; seconds = state.seconds; currentPeriod = state.currentPeriod; isVideoAnalysis = state.isVideoAnalysis === true || !!state.activeMatch?.isVideoAnalysis || state.activeMatch?.league === 'MKSZ Import'; pendingSubstitution = { home: null, away: null }; if(!Array.isArray(activeMatch.lineupHistory)) activeMatch.lineupHistory = []; if(typeof activeMatch.lineupHistoryComplete !== 'boolean') activeMatch.lineupHistoryComplete = false; 
@@ -3220,6 +3232,7 @@ KOVÁCS DÁVID MÁTÉ
             if(resumedVideo&&!resumedVideo.src) { resumedVideo.style.display='none';document.getElementById('live-video-label').style.display=''; }
             videoSyncOffset=Number(activeMatch?.videoSyncPoints?.[String(currentPeriod)])||0;
             showScreen('view-main-app');
+            scrollToLatestAnalysisEventOnResume();
             autoSubLastPossession=null;renderAutoSubPanel();
             updateOfficialClockStatus('live');
         }
