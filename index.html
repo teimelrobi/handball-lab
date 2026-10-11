@@ -298,6 +298,21 @@
         /* A rajz alapján kialakított valódi íves lövéshely-térkép. */
         .shot-pitch { position:relative; display:block; width:100%; max-width:510px; height:auto; min-height:0; padding:5px 0; border:1px solid #355065; border-radius:12px; background:#101d28; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04); }
         .shot-fan-svg { display:block; width:100%; height:auto; overflow:visible; }
+        /* A teljes 6–9 m és 9–11 m lövészóna látszódjon a széles eseménymodálban is. */
+        #unified-modal-overlay .shot-pitch {
+            width:100%; max-width:620px; height:auto; min-height:0;
+            padding:8px 4px 10px; overflow:visible;
+            flex-shrink:0;
+        }
+        #unified-modal-overlay .shot-fan-svg {
+            display:block; width:100%; height:auto; aspect-ratio:600 / 290;
+            overflow:visible;
+        }
+        #unified-modal-overlay .shot-pitch-wrap { align-items:flex-start; }
+        @media(max-width:800px) {
+            #unified-modal-overlay .shot-pitch { max-width:100%; }
+        }
+
         .shot-fan-base { fill:#10232e; stroke:none; }
         .shot-fan-svg .shot-zone { cursor:pointer; stroke:#0d1b25; stroke-width:2; stroke-linejoin:round; transition:fill .15s,opacity .15s; outline:none; }
         .shot-fan-svg .shot-zone.zone-right.outer { fill:#284f78; }
