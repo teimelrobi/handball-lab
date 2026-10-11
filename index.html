@@ -1132,7 +1132,17 @@ KOVÁCS DÁVID MÁTÉ
                         </label>
                         <button class="btn-stat-main" onclick="setLiveVideoSync()" style="font-size:12px; padding:8px 15px;"><i class="fas fa-link"></i> Kezdősípszó Szinkron</button>
                     </div>
-                    <video id="live-video-player" controls onclick="toggleAnalysisVideoByClick(event)" oncontextmenu="toggleAnalysisGameClock(event)" style="width:100%; border-radius:8px; display:none; max-height: 40vh; outline: none;"></video><div id="analysis-clock-controls" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 0;font-size:12px;"><strong id="analysis-clock-state" style="color:#ef4444;">● JÁTÉKÓRA ÁLL</strong><span>Bal kattintás: videó · Jobb kattintás: játékóra</span><button type="button" class="btn-stat-main" onclick="toggleAnalysisGameClock(event)" style="padding:6px 10px;">Játékóra indítás / megállítás</button></div>
+                    <video id="live-video-player" onclick="toggleAnalysisVideoByClick(event)" oncontextmenu="toggleAnalysisGameClock(event)" onplay="updateAnalysisVideoPlayState()" onpause="updateAnalysisVideoPlayState()" onloadedmetadata="updateAnalysisVideoProgress()" onseeking="analysisLastVideoTime=null" style="width:100%; border-radius:8px; display:none; max-height: 40vh; outline: none; cursor:pointer;"></video>
+                    <div id="analysis-video-transport" style="display:none;align-items:center;gap:10px;padding:9px 0;">
+                        <button type="button" id="analysis-video-play-btn" onclick="toggleAnalysisVideoByClick(event)" style="padding:8px 12px;background:var(--green-accent);border:0;border-radius:6px;font-weight:bold;cursor:pointer;">▶ Videó indítása</button>
+                        <input type="range" id="analysis-video-seek" min="0" max="1000" value="0" oninput="seekAnalysisVideo(this.value)" style="flex:1;min-width:80px;accent-color:var(--green-accent);">
+                        <span id="analysis-video-transport-time" style="font:13px monospace;white-space:nowrap;">00:00 / 00:00</span>
+                        <button type="button" onclick="toggleAnalysisVideoMute()" title="Hang be/ki" style="padding:7px;background:var(--bg-card);color:#fff;border:1px solid var(--border-color);border-radius:6px;">🔊</button>
+                    </div><div id="analysis-clock-controls" style="display:none;gap:10px;align-items:stretch;flex-wrap:wrap;padding:9px 0;">
+                        <div style="flex:1;min-width:170px;padding:12px;border:1px solid var(--border-color);border-radius:9px;background:var(--bg-main);"><div style="font-size:11px;color:var(--text-muted);font-weight:bold;">VIDEÓIDŐ</div><strong id="analysis-video-clock" style="font:700 28px monospace;color:#fff;">00:00</strong><div id="analysis-video-play-state" style="font-size:11px;color:var(--text-muted);">VIDEÓ ÁLL</div></div>
+                        <div style="flex:1;min-width:170px;padding:12px;border:1px solid var(--green-accent);border-radius:9px;background:var(--bg-main);"><div style="font-size:11px;color:var(--text-muted);font-weight:bold;">JÁTÉKIDŐ · <span id="analysis-clock-period">1. félidő</span></div><strong id="analysis-match-clock" style="font:700 28px monospace;color:var(--green-accent);">00:00</strong><div id="analysis-clock-state" style="font-size:11px;color:#ef4444;">● JÁTÉKÓRA ÁLL</div></div>
+                        <button type="button" class="btn-stat-main" onclick="toggleAnalysisGameClock(event)" style="padding:10px 12px;align-self:center;">Játékóra indítás / megállítás (jobb klikk)</button>
+                    </div><div id="analysis-click-help" style="display:none;font-size:11px;color:var(--text-muted);">Bal kattintás a videón: videó indítása/megállítása · Jobb kattintás: játékóra indítása/megállítása</div>
                     <div class="official-clock-strip" style="margin-top:8px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 11px; background:var(--bg-main); border:1px solid var(--border-color); border-radius:8px;">
                         <label for="live-official-clock" style="font-size:12px;font-weight:bold;white-space:nowrap;"><i class="far fa-clock"></i> Játékóra-szinkron</label>
                         <input id="live-official-clock" type="text" inputmode="numeric" placeholder="pl. 18:42" maxlength="5" style="width:90px;padding:7px;border:1px solid var(--border-color);background:var(--bg-card);color:#fff;border-radius:6px;font:14px monospace;" onfocus="captureOfficialSyncFrame('live')" onkeydown="if(event.key==='Enter') saveOfficialClockAnchor('live')">
@@ -3225,6 +3235,7 @@ KOVÁCS DÁVID MÁTÉ
             const player=document.getElementById('live-video-player');
             const label=document.getElementById('live-video-label');
             if(player&&!player.getAttribute('src')) {player.style.display='none';if(label)label.style.display='';}
+            updateAnalysisClockState();updateAnalysisVideoProgress();
             saveLiveState();
             document.getElementById('live-video-container').scrollIntoView({behavior:'smooth',block:'center'});
         }
@@ -3235,12 +3246,50 @@ KOVÁCS DÁVID MÁTÉ
             const row=document.getElementById('analysis-clock-controls');
             const label=document.getElementById('analysis-clock-state');
             if(row)row.style.display=isVideoAnalysis?'flex':'none';
+            const help=document.getElementById('analysis-click-help');if(help)help.style.display=isVideoAnalysis?'block':'none';
+            const transport=document.getElementById('analysis-video-transport');if(transport)transport.style.display=isVideoAnalysis?'flex':'none';
             if(label){label.textContent=analysisGameClockRunning?'● JÁTÉKÓRA FUT':'● JÁTÉKÓRA ÁLL';label.style.color=analysisGameClockRunning?'#22c55e':'#ef4444';}
         }
+        function analysisFormatTime(value) {
+            const sec=Math.max(0,Math.floor(Number(value)||0));
+            return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0');
+        }
+        function updateAnalysisVideoPlayState() {
+            const video=document.getElementById('live-video-player');
+            const btn=document.getElementById('analysis-video-play-btn');
+            const state=document.getElementById('analysis-video-play-state');
+            if(btn)btn.textContent=video?.paused?'▶ Videó indítása':'⏸ Videó megállítása';
+            if(state)state.textContent=video?.paused?'VIDEÓ ÁLL':'VIDEÓ FUT';
+        }
+        function updateAnalysisVideoProgress() {
+            const video=document.getElementById('live-video-player');
+            if(!video)return;
+            const current=video.currentTime||0,duration=Number.isFinite(video.duration)?video.duration:0;
+            const clock=document.getElementById('analysis-video-clock');
+            const display=document.getElementById('analysis-video-transport-time');
+            const seek=document.getElementById('analysis-video-seek');
+            if(clock)clock.textContent=analysisFormatTime(current);
+            if(display)display.textContent=analysisFormatTime(current)+' / '+analysisFormatTime(duration);
+            if(seek&&duration>0)seek.value=String(Math.round(current/duration*1000));
+        }
+        function seekAnalysisVideo(value) {
+            const video=document.getElementById('live-video-player');
+            if(!video||!Number.isFinite(video.duration))return;
+            analysisLastVideoTime=null;
+            video.currentTime=video.duration*(Number(value)/1000);
+            updateAnalysisVideoProgress();
+        }
+        function toggleAnalysisVideoMute() {
+            const video=document.getElementById('live-video-player');
+            if(video)video.muted=!video.muted;
+        }
         function toggleAnalysisVideoByClick(event) {
+            if(event){event.preventDefault();event.stopPropagation();}
             if(!isVideoAnalysis)return;
-            const video=event.currentTarget;
+            const video=document.getElementById('live-video-player');
+            if(!video||!video.src)return;
             if(video.paused)video.play().catch(()=>{});else video.pause();
+            updateAnalysisVideoPlayState();
         }
         function toggleAnalysisGameClock(event) {
             if(event){event.preventDefault();event.stopPropagation();}
@@ -3275,8 +3324,9 @@ KOVÁCS DÁVID MÁTÉ
             videoNode.src = URL.createObjectURL(file);
             videoNode.style.display = 'block';
             document.getElementById('live-video-label').style.display = 'none';
-            analysisGameClockRunning=false;analysisLastVideoTime=null;analysisGameClockFraction=0;updateAnalysisClockState();
+            analysisGameClockRunning=false;analysisLastVideoTime=null;analysisGameClockFraction=0;updateAnalysisClockState();updateAnalysisVideoProgress();updateAnalysisVideoPlayState();
             videoNode.ontimeupdate = function() {
+                updateAnalysisVideoProgress();
                 if(isVideoAnalysis && activeMatch?.manualAnalysisClock) {advanceAnalysisGameClock(this);return;}
                 if(isVideoAnalysis && document.getElementById('unified-modal-overlay').style.display !== 'flex') {
                     const mapped=officialGameTimeAtVideo(this.currentTime,currentPeriod,activeMatch);
@@ -3313,6 +3363,8 @@ KOVÁCS DÁVID MÁTÉ
         function updateTimerDisplay() {
             const m = Math.floor(seconds / 60).toString().padStart(2, '0'); const s = Math.floor(seconds % 60).toString().padStart(2, '0'); 
             document.getElementById('timer-text').innerText = `${m}:${s}`;
+            const analysisClock=document.getElementById('analysis-match-clock');if(analysisClock)analysisClock.textContent=`${m}:${s}`;
+            const period=document.getElementById('analysis-clock-period');if(period)period.textContent=currentPeriod+'. félidő';
         }
 
         function scrollToLatestAnalysisEvent() {
@@ -3340,6 +3392,7 @@ KOVÁCS DÁVID MÁTÉ
             if(resumedVideo&&!resumedVideo.src) { resumedVideo.style.display='none';document.getElementById('live-video-label').style.display=''; }
             videoSyncOffset=Number(activeMatch?.videoSyncPoints?.[String(currentPeriod)])||0;
             showScreen('view-main-app');
+            analysisGameClockRunning=false;analysisLastVideoTime=null;updateAnalysisClockState();updateAnalysisVideoProgress();
             scrollToLatestAnalysisEventOnResume();
             autoSubLastPossession=null;renderAutoSubPanel();
             updateOfficialClockStatus('live');
