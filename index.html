@@ -298,6 +298,12 @@
         /* A rajz alapján kialakított valódi íves lövéshely-térkép. */
         .shot-pitch { position:relative; display:block; width:100%; max-width:510px; height:auto; min-height:0; padding:5px 0; border:1px solid #355065; border-radius:12px; background:#101d28; overflow:hidden; box-shadow:inset 0 0 0 1px rgba(255,255,255,.04); }
         .shot-fan-svg { display:block; width:100%; height:auto; overflow:visible; }
+        .video-opp-number-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding:10px 8px;align-content:start;}
+        .video-opp-number {min-height:48px;border:1px solid #365067;border-radius:8px;background:#172631;color:#fff;font-size:15px;font-weight:800;cursor:pointer;}
+        .video-opp-number:hover {border-color:var(--green-accent);background:#204035;}
+        .video-opp-number.suspended {border-color:var(--red-accent);color:#ff8191;}
+        .video-opp-number small {display:block;font-size:9px;}
+
         /* A teljes 6–9 m és 9–11 m lövészóna látszódjon a széles eseménymodálban is. */
         #unified-modal-overlay .shot-pitch {
             width:100%; max-width:620px; height:auto; min-height:0;
@@ -4187,8 +4193,16 @@ KOVÁCS DÁVID MÁTÉ
             syncRosterPlayTimesFromLineup(exactAbs);
             refreshAfterSubstitution(side);
         }
+        function renderCompactVideoOpponentRoster(container,players) {
+            const sorted=players.map((p,index)=>({p,index})).filter(x=>x.p&&String(x.p.num||'').trim()).sort((a,b)=>Number(a.p.num)-Number(b.p.num));
+            container.innerHTML='<div class="roster-divider">ELLENFÉL · MEZSZÁMOK</div><div class="video-opp-number-grid">'+sorted.map(({p,index})=>{
+                const susp=getPlayerPenaltyRemaining(p)>0;
+                return '<button type="button" class="video-opp-number'+(susp?' suspended':'')+'" onclick="openModal('+index+', \'away\')" title="'+(p.isGk?'Kapus · ':'')+'#'+String(p.num).replace(/"/g,'')+'">'+(p.isGk?'🧤 ':'')+'#'+p.num+(susp?'<small>2 perc</small>':'')+'</button>';
+            }).join('')+'</div>';
+        }
         function renderRosterUI(containerId, players, numClass, side) {
             const container = document.getElementById(containerId);
+            if(isVideoAnalysis && side==='away') {renderCompactVideoOpponentRoster(container,players);return;}
             let selectedOutIndex = pendingSubstitution[side];
             if(Number.isInteger(selectedOutIndex) && (!players[selectedOutIndex] || !players[selectedOutIndex].onCourt)) {
                 pendingSubstitution[side] = null;
@@ -4601,7 +4615,7 @@ KOVÁCS DÁVID MÁTÉ
             let currentActionTime = document.getElementById('timer-text').innerText;
             let currentActionVideoTime = currentVideoTagTime();
             let lineupAbsOverride = null;
-            if(!editingEventId && isVideoAnalysis && !document.getElementById('view-video-room').classList.contains('active') && activeActionGroup==='penalty' && selSimpleAction==='2 perc') {
+            if(!editingEventId && isVideoAnalysis && activeTeamSide!=='away' && !document.getElementById('view-video-room').classList.contains('active') && activeActionGroup==='penalty' && selSimpleAction==='2 perc') {
                 lineupAbsOverride=requestOfficialLineupAbs('2 perces kiállítás: #'+activePlayer.num+' '+activePlayer.name,currentPeriod);
                 if(lineupAbsOverride===null) return;
                 currentActionPeriod=lineupAbsOverride>=1800?2:1;
@@ -4652,7 +4666,7 @@ KOVÁCS DÁVID MÁTÉ
                 editingEventId = null;
             } else {
                 const eventId = 'ev_' + Date.now(); const newEvent = { id: eventId, time: currentActionTime, seconds: currentActionSeconds, period: currentActionPeriod, videoTime: typeof currentActionVideoTime === 'number' ? currentActionVideoTime : null, team: activeTeamSide, playerNum: activePlayer.num, playerName: activePlayer.name, isGk: activePlayer.isGk, playerPosition: activePlayer.position || (activePlayer.isGk ? 'Kapus' : ''), group: activeActionGroup, action: actionText, result: resultText, detailsFrom: selFrom, detailsTo: selTo, shotZone:activeActionGroup==='shot'?(selShotZone||''):'', shotWing:activeActionGroup==='shot'?(selShotWing||''):'', shotFinish:activeActionGroup==='shot'?(selShotFinish||''):'', shotSituation:activeActionGroup==='shot'?[...selShotSituation]:[], shotType: activeActionGroup === 'shot' ? (selType || '') : '', assist: assistVal, defendingGk: activeActionGroup === 'shot' ? selDefendingGk : "", attackType: isAttackTypeGroup(activeActionGroup) ? selAttackType : '', defenseSide: defenseSideFor(activeActionGroup, activeTeamSide), defenseSystem: selDefenseSystem, homeCourt: activeMatch.homeRoster.filter(p=>p.onCourt).map(p=>p.num.toString()), awayCourt: activeMatch.awayRoster.filter(p=>p.onCourt).map(p=>p.num.toString()) };
-                if(selSimpleAction === '2 perc') { const penaltyAbs=lineupAbsOverride===null?eventAbsoluteSeconds(currentActionPeriod,currentActionSeconds):lineupAbsOverride; activePlayer.penaltyEnd = currentActionSeconds + 120; activePlayer.penaltyEndAbs = penaltyAbs + 120; activePlayer.onCourt = false; pendingSubstitution[activeTeamSide] = null; recordLineupSnapshot(`2 perc ${activeTeamSide}`,penaltyAbs); syncRosterPlayTimesFromLineup(penaltyAbs); renderRosterUI(`roster-${activeTeamSide}`, activeTeamSide === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster, `${activeTeamSide}-num`, activeTeamSide); } globalEvents.unshift(newEvent); 
+                if(selSimpleAction === '2 perc') { const penaltyAbs=lineupAbsOverride===null?eventAbsoluteSeconds(currentActionPeriod,currentActionSeconds):lineupAbsOverride; activePlayer.penaltyEnd = currentActionSeconds + 120; activePlayer.penaltyEndAbs = penaltyAbs + 120; if(!(isVideoAnalysis && activeTeamSide==='away')) { activePlayer.onCourt = false; pendingSubstitution[activeTeamSide] = null; recordLineupSnapshot(`2 perc ${activeTeamSide}`,penaltyAbs); syncRosterPlayTimesFromLineup(penaltyAbs); } renderRosterUI(`roster-${activeTeamSide}`, activeTeamSide === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster, `${activeTeamSide}-num`, activeTeamSide); } globalEvents.unshift(newEvent); 
                 globalEvents.sort((a,b) => (b.period - a.period) || (b.seconds - a.seconds));
             }
             recalculateDerivedEventData(globalEvents);
