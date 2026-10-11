@@ -4821,10 +4821,29 @@ KOVÁCS DÁVID MÁTÉ
             updateLiveUI(); saveLiveState(); closeModalAfterSave(); 
             refreshCurrentStatView();
         }
+        function refreshPenaltiesAfterEventChange() {
+            if(!activeMatch)return;
+            for(const side of ['home','away']) {
+                const roster=side==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
+                if(!Array.isArray(roster))continue;
+                roster.forEach(p=>{
+                    const starts=globalEvents.filter(e=>e.team===side && String(e.playerNum)===String(p.num) && e.group==='penalty' && e.result==='2 perc').map(e=>eventAbsoluteSeconds(e.period,e.seconds));
+                    const last=starts.length?Math.max(...starts):null;
+                    p.penaltyEndAbs=last===null?0:last+120;
+                    p.penaltyEnd=last===null?0:(last%1800)+120;
+                });
+                renderRosterUI('roster-'+side,roster,side+'-num',side);
+            }
+            updatePenaltiesUI();
+        }
         function undoLastEvent() { if(globalEvents.length === 0) return; globalEvents.shift(); recalculateDerivedEventData(globalEvents); updateLiveUI(); saveLiveState(); }
         function deleteEvent(id) { 
             if(activeMatch?.locked) return alert('Lezárt mérkőzés eseményei nem törölhetők.');
-            globalEvents = globalEvents.filter(e => e.id !== id); recalculateDerivedEventData(globalEvents); 
+            const target=globalEvents.find(e=>String(e.id)===String(id));
+            if(!target)return;
+            if(target.group==='penalty' && target.result==='2 perc' && !confirm('Visszavonod a 2 perces kiállítást? A büntetés és a létszámhelyzet is újraszámolódik.'))return;
+            globalEvents = globalEvents.filter(e => String(e.id) !== String(id)); recalculateDerivedEventData(globalEvents);
+            if(target.group==='penalty' && target.result==='2 perc')refreshPenaltiesAfterEventChange(); 
             if(document.getElementById('view-video-room').classList.contains('active')) { currentVideoMatch.events = globalEvents; renderVideoEvents(); persistVideoRoomMatch(); return; }
             updateLiveUI(); saveLiveState(); 
             refreshCurrentStatView(); 
