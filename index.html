@@ -4054,7 +4054,7 @@ KOVÁCS DÁVID MÁTÉ
             const period=room?Number(document.getElementById('room-official-half')?.value||1):currentPeriod;
             const abs=parseOfficialClockInput(input.value,period);
             if(abs===null) return alert('Hibás játékóra. Például 18:42 vagy a 2. félidőben 48:42.');
-            const t=input.dataset.videoTime!==undefined?Number(input.dataset.videoTime):Number(vid.currentTime);
+            const t=!room?Number(vid.currentTime):(input.dataset.videoTime!==undefined?Number(input.dataset.videoTime):Number(vid.currentTime));
             if(!Number.isFinite(t)) return alert('Nincs érvényes videóidő.');
             const existing=officialClockAnchors(match,period).filter(x=>Math.abs(x.videoTime-t)>0.5);
             if(!existing.some(x=>x.source==='whistle')) return alert('Előbb állítsd be a félidő kezdősípszóját.');
@@ -4071,6 +4071,11 @@ KOVÁCS DÁVID MÁTÉ
                 analysisLastVideoTime=Number(vid.currentTime)||0;
                 analysisGameClockFraction=0;
                 updateTimerDisplay();
+                const half=document.getElementById('btn-period-toggle');
+                if(half)half.innerText=period+'. FÉLIDŐ';
+                const mainClock=document.getElementById('timer-text');
+                if(mainClock)mainClock.innerText=formatTime(seconds);
+                updateAnalysisClockState();
             }
             if(room) { persistVideoRoomMatch(); renderVideoEvents(); }
             else saveLiveState();
