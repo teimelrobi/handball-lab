@@ -4252,8 +4252,17 @@ KOVÁCS DÁVID MÁTÉ
         function getPlayerPenaltyRemaining(player) {
             if(!player) return 0;
             const nowAbs = eventAbsoluteSeconds(currentPeriod, seconds);
+            // A videóelemzésben a büntetés kezdetét a rögzített esemény játékideje határozza meg.
+            // Visszatekeréskor nem jelenhet meg 2:00-nál hosszabb vagy még el sem kezdődött büntetés.
+            if(isVideoAnalysis && activeMatch) {
+                const rosterSide=(activeMatch.homeRoster||[]).includes(player)?'home':'away';
+                const penalties=(globalEvents||[]).filter(e=>e.team===rosterSide && String(e.playerNum)===String(player.num) && e.group==='penalty' && e.result==='2 perc');
+                const active=penalties.map(e=>eventAbsoluteSeconds(e.period,e.seconds)).filter(start=>nowAbs>=start && nowAbs<start+120);
+                if(active.length)return Math.max(0,Math.min(120,active[active.length-1]+120-nowAbs));
+                if(penalties.length)return 0;
+            }
             const absEnd = Number(player.penaltyEndAbs || 0);
-            if(absEnd > 0) return Math.max(0, absEnd - nowAbs);
+            if(absEnd > 0) return Math.max(0,Math.min(120,absEnd - nowAbs));
             // Régi mentések kompatibilitása: a korábbi penaltyEnd félidőn belüli másodperc volt.
             const legacyEnd = Number(player.penaltyEnd || 0);
             return Math.max(0, legacyEnd - seconds);
