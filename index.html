@@ -3341,6 +3341,7 @@ KOVÁCS DÁVID MÁTÉ
         function syncAnalysisClockToVideoPosition(time, preferredPeriod) {
             if(!isVideoAnalysis || !activeMatch || !Number.isFinite(Number(time))) return;
             const t=Number(time);
+            if(activeMatch.manualAnalysisClock && !analysisGameClockRunning) { analysisLastVideoTime=t; analysisGameClockFraction=0; return; }
             const first=officialClockAnchors(activeMatch,1);
             const second=officialClockAnchors(activeMatch,2);
             let period=preferredPeriod===1||preferredPeriod===2?preferredPeriod:currentPeriod;
@@ -3420,6 +3421,13 @@ KOVÁCS DÁVID MÁTÉ
             if(!isVideoAnalysis)return;
             if(activeMatch)activeMatch.manualAnalysisClock=true;
             analysisGameClockRunning=!analysisGameClockRunning;
+            if(analysisGameClockRunning && activeMatch) {
+                const v=document.getElementById('live-video-player');
+                const t=Number(v?.currentTime)||0;
+                if(!Array.isArray(activeMatch.officialClockPoints))activeMatch.officialClockPoints=[];
+                activeMatch.officialClockPoints.push({period:currentPeriod,abs:eventAbsoluteSeconds(currentPeriod,seconds),videoTime:t});
+                recalculateVideoClockData(activeMatch);
+            }
             analysisLastVideoTime=Number(document.getElementById('live-video-player')?.currentTime)||0;
             analysisGameClockFraction=0;
             updateAnalysisClockState();
