@@ -181,6 +181,12 @@
         .btn-sub.swap-cancel { border-color:#f1c40f; color:#f1c40f; }
 
         .center-area { flex: 1; display: flex; flex-direction: column; gap: 15px; min-height: 0; }
+        /* Utólagos elemzés: a videó és az események a két játékoslista között külön görgethetők. */
+        #view-main-app .center-area { overflow-y:auto; overflow-x:hidden; min-width:0; overscroll-behavior:contain; scrollbar-width:thin; padding-right:5px; }
+        #view-main-app .center-area .stats-panel { flex-shrink:0; min-height:260px; }
+        #view-main-app #events-container { height:260px; min-height:170px; flex:none; }
+        #view-main-app .center-area > * { flex-shrink:0; }
+
         
         .scoreboard { background-color: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; flex-shrink:0;}
         .team-score-block { flex: 1; display: flex; flex-direction: column; }
@@ -1108,6 +1114,7 @@ KOVÁCS DÁVID MÁTÉ
             <div class="sidebar sidebar-home"><div class="sidebar-header"><div class="team-badge home-badge">SAJÁT CSAPAT</div><div class="team-name" id="display-name-home">Hazai</div></div><div class="player-list" id="roster-home"></div></div>
 
             <div class="center-area">
+                <button type="button" id="analysis-latest-floating" onclick="scrollToLatestAnalysisEvent()" title="Ugrás a legutolsó eseményre" style="position:sticky;top:0;align-self:flex-end;z-index:12;border:1px solid var(--green-accent);border-radius:7px;background:#12372e;color:#fff;padding:7px 12px;cursor:pointer;font-size:12px;font-weight:700;box-shadow:0 3px 12px #0008;"><i class="fas fa-arrow-down"></i> Utolsó eseményhez</button>
                 
                 <div id="live-video-container" style="display:none; background:var(--bg-panel); border:1px solid var(--border-color); border-radius:12px; padding:15px; flex-shrink: 0;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -3207,15 +3214,13 @@ KOVÁCS DÁVID MÁTÉ
 
         function scrollToLatestAnalysisEvent() {
             const list=document.getElementById('events-container');
-            if(!list)return;
+            const center=document.querySelector('#view-main-app .center-area');
+            if(!list||!center)return;
+            center.scrollTop=center.scrollHeight;
             list.scrollTop=list.scrollHeight;
         }
         function scrollToLatestAnalysisEventOnResume() {
-            requestAnimationFrame(()=>requestAnimationFrame(()=>{
-                const list=document.getElementById('events-container');
-                if(!list)return;
-                list.scrollTop=list.scrollHeight;
-            }));
+            requestAnimationFrame(()=>requestAnimationFrame(scrollToLatestAnalysisEvent));
         }
         function resumeMatch() { 
             const state = JSON.parse(localStorage.getItem('live_match_state')); if(!state) return; 
