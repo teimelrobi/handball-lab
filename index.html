@@ -3320,6 +3320,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function loadLiveVideo(event) {
             const file = event.target.files[0]; if(!file) return;
+            if(activeMatch)activeMatch.manualAnalysisClock=true;
             const videoNode = document.getElementById('live-video-player');
             videoNode.src = URL.createObjectURL(file);
             videoNode.style.display = 'block';
