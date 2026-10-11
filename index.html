@@ -1155,7 +1155,7 @@ KOVÁCS DÁVID MÁTÉ
                         </label>
                         <button class="btn-stat-main" onclick="setLiveVideoSync()" style="font-size:12px; padding:8px 15px;"><i class="fas fa-link"></i> Kezdősípszó Szinkron</button>
                     </div>
-                    <video id="live-video-player" onclick="toggleAnalysisVideoByClick(event)" oncontextmenu="toggleAnalysisGameClock(event)" onplay="updateAnalysisVideoPlayState()" onpause="updateAnalysisVideoPlayState()" onloadedmetadata="updateAnalysisVideoProgress()" onseeking="analysisLastVideoTime=null" style="width:100%; border-radius:8px; display:none; max-height: 40vh; outline: none; cursor:pointer;"></video>
+                    <video id="live-video-player" onclick="toggleAnalysisVideoByClick(event)" oncontextmenu="toggleAnalysisGameClock(event)" onplay="updateAnalysisVideoPlayState()" onpause="updateAnalysisVideoPlayState()" onloadedmetadata="updateAnalysisVideoProgress()" onseeking="analysisLastVideoTime=null;syncAnalysisClockToVideoPosition(this.currentTime)" style="width:100%; border-radius:8px; display:none; max-height: 40vh; outline: none; cursor:pointer;"></video>
                     <div id="analysis-video-transport" style="display:none;align-items:center;gap:10px;padding:9px 0;">
                         <button type="button" id="analysis-video-play-btn" onclick="toggleAnalysisVideoByClick(event)" style="padding:8px 12px;background:var(--green-accent);border:0;border-radius:6px;font-weight:bold;cursor:pointer;">▶ Videó indítása</button>
                         <input type="range" id="analysis-video-seek" min="0" max="1000" value="0" oninput="seekAnalysisVideo(this.value)" style="flex:1;min-width:80px;accent-color:var(--green-accent);">
@@ -3343,11 +3343,69 @@ KOVÁCS DÁVID MÁTÉ
             if(display)display.textContent=analysisFormatTime(current)+' / '+analysisFormatTime(duration);
             if(seek&&duration>0)seek.value=String(Math.round(current/duration*1000));
         }
+        function syncAnalysisClockToVideoPosition(time, preferredPeriod) {
+            if(!isVideoAnalysis || !activeMatch || !Number.isFinite(Number(time))) return;
+            const t=Number(time);
+            const first=officialClockAnchors(activeMatch,1);
+            const second=officialClockAnchors(activeMatch,2);
+            let period=preferredPeriod===1||preferredPeriod===2?preferredPeriod:currentPeriod;
+            if(!preferredPeriod) {
+                if(second.length && t>=second[0].videoTime) period=2;
+                else if(first.length && t>=first[0].videoTime) period=1;
+                else if(Number.isFinite(sync2_start)&&sync2_start>0&&t>=sync2_start) period=2;
+                else if(Number.isFinite(sync1_start)&&t>=sync1_start) period=1;
+            }
+            const mapped=officialGameTimeAtVideo(t,period,activeMatch);
+            const savedSync=activeMatch.videoSyncPoints?.[String(period)];
+            const base=Number.isFinite(Number(savedSync))&&savedSync!==undefined?Number(savedSync):(period===2?sync2_start:videoSyncOffset);
+            const newSeconds=mapped?mapped.abs-(period-1)*1800:t-base;
+            currentPeriod=period;
+            seconds=Math.max(0,Math.min(1800,Math.floor(newSeconds)));
+            analysisLastVideoTime=t;
+            analysisGameClockFraction=0;
+            updateTimerDisplay();
+            const half=document.getElementById('btn-period-toggle');
+            if(half)half.innerText=period+'. FÉLIDŐ';
+            updateOfficialClockStatus('live');
+        }
+        function stepAnalysisVideo(delta) {
+            if(!isVideoAnalysis)return;
+            const video=document.getElementById('live-video-player');
+            if(!video||!video.src||video.readyState===0)return;
+            const duration=Number.isFinite(video.duration)?video.duration:Infinity;
+            video.currentTime=Math.max(0,Math.min(duration,video.currentTime+delta));
+            syncAnalysisClockToVideoPosition(video.currentTime);
+            updateAnalysisVideoProgress();
+        }
+        document.addEventListener('keydown',function(event) {
+            if(!isVideoAnalysis||!['ArrowLeft','ArrowRight'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey)return;
+            const el=event.target;
+            if(el?.closest?.('input,textarea,select,[contenteditable="true"],[role="slider"]'))return;
+            if(document.getElementById('unified-modal-overlay')?.style.display==='flex')return;
+            const video=document.getElementById('live-video-player');
+            if(!video||!video.src||video.readyState===0)return;
+            event.preventDefault();
+            stepAnalysisVideo(event.key==='ArrowRight'?2:-2);
+        });
+        function jumpToAnalysisEvent(id) {
+            if(!isVideoAnalysis)return;
+            const ev=globalEvents.find(e=>String(e.id)===String(id));
+            const video=document.getElementById('live-video-player');
+            if(!ev||!video||!video.src)return;
+            const mapped=officialVideoTimeAtGame(eventAbsoluteSeconds(ev.period,ev.seconds),ev.period,activeMatch);
+            const savedSync=activeMatch.videoSyncPoints?.[String(ev.period)];
+            const base=savedSync===undefined?(ev.period===2?sync2_start:videoSyncOffset):Number(savedSync);
+            const target=typeof ev.videoTime==='number'?ev.videoTime:(mapped!==null?mapped:base+Number(ev.seconds));
+            video.currentTime=Math.max(0,Math.min(Number.isFinite(video.duration)?video.duration:target,target));
+            syncAnalysisClockToVideoPosition(video.currentTime,Number(ev.period));
+            updateAnalysisVideoProgress();
+        }
         function seekAnalysisVideo(value) {
             const video=document.getElementById('live-video-player');
             if(!video||!Number.isFinite(video.duration))return;
             analysisLastVideoTime=null;
             video.currentTime=video.duration*(Number(value)/1000);
+            syncAnalysisClockToVideoPosition(video.currentTime);
             updateAnalysisVideoProgress();
         }
         function toggleAnalysisVideoMute() {
@@ -4753,7 +4811,7 @@ KOVÁCS DÁVID MÁTÉ
                 if (e.group === 'shot') { if (e.team === 'home') { hShots++; if(e.result === 'Gól') hGoals++; } if (e.team === 'away') { aShots++; if(e.result === 'Gól') aGoals++; } }
                 if (e.team === 'home' && e.group === 'error') hErr++; if (e.team === 'away' && e.result === 'Védés') hSave++;
                 const gkTag = e.isGk ? '<span style="color:var(--gk-accent); font-size:10px; margin-left:5px;">(K)</span>' : ''; const shotLabel=e.shotZone||e.shotWing||e.detailsFrom; const shotFinish=e.shotFinish||(e.shotZone?'':e.detailsFrom); const shotExtras=Array.isArray(e.shotSituation)?e.shotSituation:[]; const detailsText = shotLabel ? `(${shotLabel}${shotFinish&&shotFinish!==shotLabel?' · '+shotFinish:''}${shotExtras.length?' · '+shotExtras.join(' + '):''} ➔ ${e.detailsTo||'Sánc'})` : ''; const shotTypeText = e.shotType ? ` · ${e.shotType}` : ''; const attackTypeBadge = attackTypeBadgeHTML(e); const defenseSystemBadge = defenseSystemBadgeHTML(e);
-                container.innerHTML += `<div class="event-item ${e.team}-event"><div style="flex:1;"><span style="color:var(--text-muted); margin-right:10px;">${e.time}</span><strong>#${e.playerNum} ${e.playerName}${gkTag}</strong>${strengthBadge}${attackTypeBadge}${defenseSystemBadge}<br><span style="font-size:11px; color:var(--text-muted);">${e.action} ${detailsText}${shotTypeText} ${e.assist ? '<br>Ast: #'+e.assist : ''}</span></div><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:14px;">${e.result}</strong><button class="btn-edit-event" onclick="editEvent('${e.id}')" title="Szerkesztés"><i class="fas fa-pen"></i></button><button class="btn-delete-event" onclick="deleteEvent('${e.id}')" title="Törlés"><i class="fas fa-trash"></i></button></div></div>`;
+                container.innerHTML += `<div class="event-item ${e.team}-event" onclick="if(isVideoAnalysis &amp;&amp; !event.target.closest(&quot;button&quot;))jumpToAnalysisEvent(&quot;${e.id}&quot;)" style="cursor:pointer;"><div style="flex:1;"><span style="color:var(--text-muted); margin-right:10px;">${e.time}</span><strong>#${e.playerNum} ${e.playerName}${gkTag}</strong>${strengthBadge}${attackTypeBadge}${defenseSystemBadge}<br><span style="font-size:11px; color:var(--text-muted);">${e.action} ${detailsText}${shotTypeText} ${e.assist ? '<br>Ast: #'+e.assist : ''}</span></div><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:14px;">${e.result}</strong><button class="btn-edit-event" onclick="editEvent('${e.id}')" title="Szerkesztés"><i class="fas fa-pen"></i></button><button class="btn-delete-event" onclick="deleteEvent('${e.id}')" title="Törlés"><i class="fas fa-trash"></i></button></div></div>`;
             });
             document.getElementById('score-home').innerText = hGoals; document.getElementById('score-away').innerText = aGoals; document.getElementById('qs-home-shot').innerText = hShots; document.getElementById('qs-home-err').innerText = hErr; document.getElementById('qs-home-save').innerText = hSave; document.getElementById('qs-away-shot').innerText = aShots;
         }
