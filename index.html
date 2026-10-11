@@ -3473,6 +3473,12 @@ KOVÁCS DÁVID MÁTÉ
             if(!activeMatch.videoSyncPoints || typeof activeMatch.videoSyncPoints !== 'object') activeMatch.videoSyncPoints = {};
             activeMatch.videoSyncPoints[String(currentPeriod)] = videoSyncOffset;
             seconds = 0; updateTimerDisplay();
+            analysisGameClockRunning=true;
+            analysisLastVideoTime=Number(vid.currentTime)||0;
+            analysisGameClockFraction=0;
+            if(activeMatch)activeMatch.manualAnalysisClock=true;
+            updateAnalysisClockState();
+            if(vid.paused)vid.play().catch(()=>{analysisGameClockRunning=false;updateAnalysisClockState();});
             if(currentPeriod===1) {
                 const first=(activeMatch.lineupHistory||[]).find(x=>x.reason==='Kezdő felállás');
                 if(first) { first.videoTime=Number(vid.currentTime); first.period=1; first.abs=0; first.seconds=0; }
@@ -3482,7 +3488,7 @@ KOVÁCS DÁVID MÁTÉ
             recalculateVideoClockData(activeMatch);
             updateOfficialClockStatus('live');
             saveLiveState();
-            alert(`${currentPeriod}. félidő kezdősípszója elmentve. A játékidő automatikusan ehhez igazodik.`);
+            // A kezdősípszó elmentése után a videó és a játékóra együtt indul.
         }
 
         function updateTimerDisplay() {
