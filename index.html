@@ -4706,8 +4706,9 @@ KOVÁCS DÁVID MÁTÉ
             const defenseOk=!!selDefenseSystem;
             const originalEvent=editingEventId?globalEvents.find(e=>e.id===editingEventId):null;
             const legacyEdit=!!originalEvent&&!originalEvent.shotFinish&&!!selFrom;
-            const shotLocationOk=!!selShotZone||!!selShotWing||['7 méteres','Beálló','Üres kapu'].includes(selShotFinish)||legacyEdit;
-            const shotFinishOk=!!selShotFinish||!!selShotWing||legacyEdit;
+            const emptyGoalShot=selShotSituation.includes('Üres kapu');
+            const shotLocationOk=emptyGoalShot||!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish)||legacyEdit;
+            const shotFinishOk=emptyGoalShot||!!selShotFinish||!!selShotWing||legacyEdit;
             if(activeActionGroup==='shot'&&shotLocationOk&&shotFinishOk&&selResult&&shotTargetOk&&selAttackType&&defenseOk)btn.classList.add('active');
             else if(['attack','error'].includes(activeActionGroup)&&selSimpleAction&&selAttackType&&defenseOk)btn.classList.add('active');
             else if(['defense','penalty'].includes(activeActionGroup)&&selSimpleAction&&defenseOk)btn.classList.add('active');
