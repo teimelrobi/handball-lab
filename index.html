@@ -4109,7 +4109,7 @@ KOVÁCS DÁVID MÁTÉ
             const panel=document.getElementById('auto-sub-panel');
             if(!panel||!activeMatch)return;
             const esc=x=>String(x??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-            const parts=['home','away'].map(side=>{
+            const parts=(isVideoAnalysis?['home']:['home','away']).map(side=>{
                 const roster=side==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
                 const pairs=autoSubPairs(side),plan=autoSubPlan(side);
                 const name=side==='home'?activeMatch.homeName:activeMatch.awayName;
