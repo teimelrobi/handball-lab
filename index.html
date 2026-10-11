@@ -981,6 +981,14 @@
         <button class="back-btn" onclick="showScreen('view-home')"><i class="fas fa-arrow-left"></i> Vissza a Főmenübe</button>
         <h2 class="page-title" id="ms-page-title"><i class="fas fa-play-circle"></i> Új Mérkőzés Indítása</h2>
         
+        <div id="mksz-roster-import-box" style="display:none;max-width:1000px;width:100%;margin:0 auto 14px;padding:14px;border:1px solid var(--green-accent);border-radius:10px;background:var(--bg-panel);">
+            <strong style="color:var(--green-accent)">MKSZ-jegyzőkönyv: csak keretimport, események nélkül</strong>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;">
+                <input type="file" id="mksz-roster-pdf" accept=".pdf,application/pdf" onchange="importMkszRosterPdf(event)" style="max-width:100%;font-size:13px;">
+                <span id="mksz-roster-import-status" style="font-size:12px;color:var(--text-muted)">Töltsd fel a versenyjegyzőkönyv PDF-jét.</span>
+                <button type="button" onclick="clearMkszRosterImport()" style="padding:7px;background:var(--bg-card);color:white;border:1px solid var(--border-color);border-radius:5px;">Import törlése</button>
+            </div>
+        </div>
         <div class="match-setup-form">
             <div style="display:flex; gap:20px;">
                 <div class="input-group" style="flex:2;">
@@ -2834,6 +2842,8 @@ KOVÁCS DÁVID MÁTÉ
 
         function startSetup(isVid) {
             isVideoAnalysis = isVid;
+            clearMkszRosterImport();
+            document.getElementById('mksz-roster-import-box').style.display=isVid?'block':'none';
             document.getElementById('ms-page-title').innerHTML = isVid ? '<i class="fas fa-film"></i> Utólagos Videó Elemzés' : '<i class="fas fa-play-circle"></i> Új Mérkőzés Indítása';
             matchRosterSelection = { home: new Set(), away: new Set() };
             populateTeamSelectors();
@@ -2893,7 +2903,7 @@ KOVÁCS DÁVID MÁTÉ
             const list = document.getElementById(`ms-${side}-roster-list`);
             const count = document.getElementById(`ms-${side}-roster-count`);
             if(!list || !count) return;
-            const players = validTeamPlayers(teamId);
+            const players = importedMkszMatch ? importedMkszMatch[side].map((p,index)=>({p,index})) : validTeamPlayers(teamId);
             if(resetSelection) {
                 matchRosterSelection[side] = new Set(players.slice(0, MAX_MATCH_ROSTER).map(x => x.index));
             }
@@ -2902,7 +2912,7 @@ KOVÁCS DÁVID MÁTÉ
             const selectedCount = matchRosterSelection[side].size;
             count.textContent = `${selectedCount} / ${MAX_MATCH_ROSTER}`;
             count.classList.toggle('full', selectedCount === MAX_MATCH_ROSTER);
-            if(!teamId) { list.innerHTML = `<div class="match-roster-empty">Válassz ${side === 'home' ? 'hazai' : 'vendég'} csapatot!</div>`; return; }
+            if(!teamId && !importedMkszMatch) { list.innerHTML = `<div class="match-roster-empty">Válassz ${side === 'home' ? 'hazai' : 'vendég'} csapatot!</div>`; return; }
             if(players.length === 0) { list.innerHTML = '<div class="match-roster-empty">A kiválasztott csapatban nincs rögzített játékos.</div>'; return; }
             list.innerHTML = players.map(({p,index}) => {
                 const selected = matchRosterSelection[side].has(index);
@@ -2937,8 +2947,100 @@ KOVÁCS DÁVID MÁTÉ
             renderMatchRosterSelector(side, false);
         }
 
+        let importedMkszMatch=null;
+        function clearMkszRosterImport() {
+            importedMkszMatch=null;
+            const status=document.getElementById('mksz-roster-import-status');
+            if(status)status.textContent='Töltsd fel a versenyjegyzőkönyv PDF-jét.';
+            const input=document.getElementById('mksz-roster-pdf');if(input)input.value='';
+            ['home','away'].forEach(side=>{
+                const sel=document.getElementById('ms-'+side+'-team');
+                if(sel)sel.disabled=false;
+            });
+        }
+        function parseMkszRosterPdfLines(lines) {
+            const all=lines.map(x=>x.trim()).filter(Boolean);
+            const title=all.find(x=>/\bFU\d+\b.*(?:osztály|Nyugat|Kelet)/i.test(x))||'MKSZ';
+            const metadata=all.find(x=>/\b\d{11}\b/.test(x)&&/\b20\d\d[-.]\d\d[-.]\d\d\b/.test(x))||'';
+            const matchId=(metadata.match(/\b\d{11}\b/)||[])[0]||'';
+            const date=(metadata.match(/\b20\d\d[-.]\d\d[-.]\d\d\b/)||[])[0]||'';
+            const kickoff=(metadata.match(/\b\d{1,2}:\d{2}\b/)||[])[0]||'';
+            const locationLine=all.find(x=>/^helyszín\b/i.test(x))||'';
+            const location=locationLine.replace(/^helyszín\s*/i,'').replace(/\s+\d+\s+néző.*$/i,'').trim();
+            const teamHeader=all.find(x=>/^A\s+.+\s+-\s+.+\s+B$/.test(x))||'';
+            const teamMatch=teamHeader.match(/^A\s+(.+?)\s+-\s+(.+?)\s+B$/);
+            const headings=all.map((line,i)=>({line,i})).filter(x=>/^mez\s+/i.test(x.line)&&/\bkód\b/i.test(x.line));
+            if(headings.length<2)throw Error('Nem található mindkét csapat játékostáblázata a PDF-ben.');
+            const parseSection=(start,end)=>{
+                const players=[];
+                for(const line of all.slice(start+1,end)) {
+                    if(/^összesen\b/i.test(line)||/^jel\s+hivatalos/i.test(line))break;
+                    const m=line.match(/^(\d{1,2})\s+(.+?)\s+(\(K\)\s+)?(\d{4,7})(?:\s|$)/);
+                    if(!m)continue;
+                    players.push({num:Number(m[1]),name:m[2].trim(),isGk:!!m[3],position:m[3]?'Kapus':'',mkszId:m[4]});
+                }
+                return players;
+            };
+            const home=parseSection(headings[0].i,headings[1].i);
+            const away=parseSection(headings[1].i,all.length);
+            if(!home.length||!away.length||home.length>16||away.length>16)throw Error('A keret nem olvasható biztonságosan (hazai: '+home.length+', vendég: '+away.length+').');
+            const homeName=teamMatch?.[1]||headings[0].line.replace(/^mez\s*/i,'').split(/\s{2,}|\s+kód\b/i)[0].trim();
+            const awayName=teamMatch?.[2]||headings[1].line.replace(/^mez\s*/i,'').split(/\s{2,}|\s+kód\b/i)[0].trim();
+            if(!homeName||!awayName)throw Error('A csapatnevek nem olvashatók ki.');
+            return {homeName,awayName,home,away,date,kickoff,location,title,matchId};
+        }
+        async function importMkszRosterPdf(event) {
+            const file=event.target.files?.[0];if(!file)return;
+            const status=document.getElementById('mksz-roster-import-status');
+            status.textContent='PDF feldolgozása...';
+            try {
+                if(!window.pdfjsLib){
+                    await new Promise((resolve,reject)=>{
+                        const script=document.createElement('script');
+                        script.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                        script.onload=resolve;script.onerror=()=>reject(Error('Nem tölthető be a PDF-olvasó. Ellenőrizd az internetkapcsolatot.'));
+                        document.head.appendChild(script);
+                    });
+                }
+                pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+                const lines=[];
+                for(let pageNo=1;pageNo<=pdf.numPages;pageNo++){
+                    const page=await pdf.getPage(pageNo);
+                    const items=(await page.getTextContent()).items.filter(x=>x.str?.trim()).map(x=>({text:x.str.trim(),x:x.transform[4],y:x.transform[5]}));
+                    const rows=[];
+                    items.forEach(item=>{
+                        let row=rows.find(r=>Math.abs(r.y-item.y)<2.5);
+                        if(!row){row={y:item.y,items:[]};rows.push(row);}
+                        row.items.push(item);
+                    });
+                    rows.sort((a,b)=>b.y-a.y);
+                    rows.forEach(row=>lines.push(row.items.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ')));
+                }
+                const parsed=parseMkszRosterPdfLines(lines);
+                importedMkszMatch=parsed;
+                for(const side of ['home','away']){
+                    const select=document.getElementById('ms-'+side+'-team');
+                    select.innerHTML='';
+                    const opt=document.createElement('option');opt.value='__mksz_'+side;opt.textContent=parsed[side+'Name']+' (jegyzőkönyv)';select.appendChild(opt);
+                    select.disabled=true;
+                    matchRosterSelection[side]=new Set(parsed[side].map((_,i)=>i));
+                    renderMatchRosterSelector(side);
+                }
+                document.getElementById('ms-name').value=parsed.homeName+' – '+parsed.awayName;
+                if(parsed.date)document.getElementById('ms-date').value=parsed.date.replace(/\./g,'-');
+                document.getElementById('ms-location').value=parsed.location;
+                document.getElementById('ms-league').value=parsed.title;
+                status.textContent='✓ '+parsed.home.length+' + '+parsed.away.length+' játékos, kapusok jelölve. Nincs importált esemény.';
+            } catch(err) {
+                importedMkszMatch=null;
+                status.textContent='Hiba: '+err.message;
+                alert('A PDF-import nem sikerült: '+err.message);
+            }
+        }
         function selectedMatchRoster(side) {
             const teamId = getMatchSetupTeamId(side);
+            if(importedMkszMatch)return [...matchRosterSelection[side]].sort((a,b)=>a-b).map(index=>importedMkszMatch[side][index]).filter(Boolean);
             if(!teamId || !db.teams[teamId]) return [];
             return [...matchRosterSelection[side]].sort((a,b)=>a-b).map(index => db.teams[teamId].players[index]).filter(Boolean);
         }
@@ -3085,11 +3187,12 @@ KOVÁCS DÁVID MÁTÉ
             if(homeSelected.length === 0 || awaySelected.length === 0) return alert('Mindkét csapatnál válassz legalább egy játékost a mérkőzéskeretbe!');
             if(homeSelected.length > MAX_MATCH_ROSTER || awaySelected.length > MAX_MATCH_ROSTER) return alert(`Egy mérkőzésre csapatonként legfeljebb ${MAX_MATCH_ROSTER} játékos nevezhető.`);
             activeMatch.matchName = document.getElementById('ms-name').value || 'Mérkőzés'; activeMatch.date = document.getElementById('ms-date').value || new Date().toISOString().split('T')[0]; activeMatch.location = document.getElementById('ms-location').value || 'Ismeretlen helyszín'; activeMatch.league = document.getElementById('ms-league').value || 'Barátságos';
-            activeMatch.homeTeamId = hId; activeMatch.awayTeamId = aId;
+            activeMatch.homeTeamId = importedMkszMatch ? '' : hId; activeMatch.awayTeamId = importedMkszMatch ? '' : aId;
+            if(importedMkszMatch){activeMatch.mkszMatchId=importedMkszMatch.matchId;activeMatch.kickoff=importedMkszMatch.kickoff;}
             const setStarters = (roster) => { let gk = 0, fp = 0; roster.forEach(p => { p.penaltyEnd = 0; p.penaltyEndAbs = 0; p.playTime = 0; if(p.name.trim() === "") { p.onCourt = false; return; } if(p.isGk) { p.onCourt = (gk < 1); if(p.onCourt) gk++; } else { p.onCourt = (fp < 6); if(p.onCourt) fp++; } }); };
             activeMatch.homeRoster = JSON.parse(JSON.stringify(homeSelected)); setStarters(activeMatch.homeRoster); activeMatch.awayRoster = JSON.parse(JSON.stringify(awaySelected)); setStarters(activeMatch.awayRoster);
             activeMatch.homeRoster.sort((a,b) => (a.isGk === b.isGk)? 0 : a.isGk ? -1 : 1); activeMatch.awayRoster.sort((a,b) => (a.isGk === b.isGk)? 0 : a.isGk ? -1 : 1);
-            activeMatch.homeName = db.teams[hId].name; activeMatch.awayName = db.teams[aId].name;
+            activeMatch.homeName = importedMkszMatch ? importedMkszMatch.homeName : db.teams[hId].name; activeMatch.awayName = importedMkszMatch ? importedMkszMatch.awayName : db.teams[aId].name;
             document.getElementById('display-name-home').innerText = activeMatch.homeName; document.getElementById('sb-name-home').innerText = activeMatch.homeName; document.getElementById('tab-btn-home').innerText = activeMatch.homeName;
             document.getElementById('display-name-away').innerText = activeMatch.awayName; document.getElementById('sb-name-away').innerText = activeMatch.awayName; document.getElementById('tab-btn-away').innerText = activeMatch.awayName;
             document.getElementById('live-meta-league').innerHTML = `<i class="fas fa-trophy"></i> ${activeMatch.league}`; document.getElementById('live-meta-location').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${activeMatch.location}`; document.getElementById('live-meta-date').innerHTML = `<i class="far fa-calendar-alt"></i> ${activeMatch.date}`;
