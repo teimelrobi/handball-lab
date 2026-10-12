@@ -5987,6 +5987,8 @@ KOVÁCS DÁVID MÁTÉ
             clipCategory=category==='Játékos'?'':category;
             document.getElementById('clip-player-chooser').style.display=category==='Játékos'?'block':'none';
             document.getElementById('clip-selected-category').textContent=clipCategory||'Válassz játékost és alkategóriát.';
+            // A csapat-/játékosfüggetlen kategóriák egyetlen kattintással mentődnek.
+            if(category!=='Játékos')clipConfirm();
         }
         function clipConfirm(){
             if(clipStart===null||clipEnd===null||!clipCategory)return alert('Válassz kategóriát.');
