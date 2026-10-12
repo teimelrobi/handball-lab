@@ -1077,8 +1077,8 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
           <button class="btn-arch-action" onclick="clipStep(-2)">◀ −2 mp</button>
           <button class="btn-arch-action" onclick="clipStep(2)">+2 mp ▶</button>
-          <button class="btn-arch-action btn-arch-stat" onclick="clipSetStart()">A jelenet ELEJE</button>
-          <button class="btn-arch-action btn-arch-video" onclick="clipSetEnd()">A jelenet VÉGE</button>
+          <button class="btn-arch-action btn-arch-stat" onclick="clipSetStart()">A jelenet ELEJE (C)</button>
+          <button class="btn-arch-action btn-arch-video" onclick="clipSetEnd()">A jelenet VÉGE (V)</button>
           <strong id="clip-range-label">Nincs kijelölt jelenet</strong>
         </div>
         <div id="clip-category-dialog" style="display:none;margin-top:15px;padding:15px;border:1px solid var(--green-accent);border-radius:12px;">
@@ -5950,8 +5950,16 @@ KOVÁCS DÁVID MÁTÉ
         function clipStep(delta){const v=document.getElementById('clip-video');if(!v?.src)return;v.currentTime=Math.max(0,Math.min(Number.isFinite(v.duration)?v.duration:Infinity,v.currentTime+delta));}
         document.addEventListener('keydown',e=>{
             if(!document.getElementById('view-clip-editor')?.classList.contains('active'))return;
-            if(!['ArrowLeft','ArrowRight'].includes(e.key)||e.ctrlKey||e.altKey||e.metaKey||e.target?.closest?.('input,textarea,select,[contenteditable]'))return;
-            e.preventDefault();clipStep(e.key==='ArrowRight'?2:-2);
+            if(e.ctrlKey||e.altKey||e.metaKey||e.target?.closest?.('input,textarea,select,[contenteditable]'))return;
+            const key=e.key.toLowerCase();
+            if(!['arrowleft','arrowright','c','v',' '].includes(key))return;
+            e.preventDefault();
+            if(e.repeat && ['c','v',' '].includes(key))return;
+            if(key==='arrowleft')clipStep(-2);
+            else if(key==='arrowright')clipStep(2);
+            else if(key==='c')clipSetStart();
+            else if(key==='v')clipSetEnd();
+            else {const video=document.getElementById('clip-video');if(video?.src){if(video.paused)video.play();else video.pause();}}
         });
         function clipSetStart(){
             const v=document.getElementById('clip-video');if(!v.src)return alert('Előbb tölts be egy videót.');
