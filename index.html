@@ -1060,9 +1060,9 @@
     </div>
 
     <!-- 3. MKSZ IMPORT KÉPERNYŐ -->
-    <div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
+    <div class="screen" id="view-clip-projects" style="padding:20px;overflow-y:auto"><button class="back-btn" onclick="showScreen('view-home')">← Főmenü</button><h2 class="page-title">Videóvágó – mentett projektek</h2><button class="btn-arch-action btn-arch-stat" onclick="clipNewProject()">+ Új videóelemzés</button><div id="clip-projects-list"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
       <button class="back-btn" onclick="clipSave();showScreen('view-home')"><i class="fas fa-arrow-left"></i> Főmenü</button>
-      <h2 class="page-title"><i class="fas fa-cut"></i> Videóvágó</h2>
+      <h2 class="page-title"><i class="fas fa-cut"></i> Videóvágó</h2><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input id="clip-project-title" placeholder="Projekt neve" onchange="clipSave()" style="padding:10px"><button class="btn-arch-action" onclick="clipSave()">Mentés</button><button class="btn-arch-action" onclick="clipSave();openClipEditor()">Projektek</button><span id="clip-save-status"></span></div>
       <div class="match-setup-form" style="max-width:1250px;">
         <h3>1. MKSZ jegyzőkönyv</h3>
         <input type="file" accept=".pdf,application/pdf" onchange="clipImportPdf(event)">
@@ -5916,12 +5916,55 @@ KOVÁCS DÁVID MÁTÉ
             updateVideoFilterBar();
         }
         let clipMatch=null,clipStart=null,clipEnd=null,clipCategory='',clipClips=[],clipVideoUrl=null;
-        const CLIP_KEY='handball_lab_clips_v1';
-        function clipSave(){try{localStorage.setItem(CLIP_KEY,JSON.stringify({match:clipMatch,clips:clipClips}));}catch(e){console.warn(e);}}
-        function openClipEditor(){
-            try{const saved=JSON.parse(localStorage.getItem(CLIP_KEY)||'{}');clipMatch=saved.match||null;clipClips=Array.isArray(saved.clips)?saved.clips:[];}catch(e){clipMatch=null;clipClips=[];}
-            showScreen('view-clip-editor');clipRenderPlayers();clipRenderList();
-            document.getElementById('clip-import-status').textContent=clipMatch?(clipMatch.homeName+' – '+clipMatch.awayName):'Tölts be egy MKSZ PDF-jegyzőkönyvet.';
+
+        const CLIP_KEY='handball_lab_clips_v1',CLIP_PROJECTS_KEY='handball_lab_video_projects_v2';
+        let clipProjectId=null,clipProjectVideoName='',clipSaveTimer=null,clipProjectCache=[];
+        function clipLocalProjects(){try{return JSON.parse(localStorage.getItem(CLIP_PROJECTS_KEY)||'[]')}catch(e){return []}}
+        function clipSave(){
+            if(!clipProjectId)return;
+            const p={id:clipProjectId,title:document.getElementById('clip-project-title').value.trim()||'Új videóelemzés',match:clipMatch,clips:clipClips,videoName:clipOriginalFile?.name||clipProjectVideoName,updatedAt:new Date().toISOString()};
+            try{const list=clipLocalProjects().filter(x=>x.id!==p.id);list.push(p);localStorage.setItem(CLIP_PROJECTS_KEY,JSON.stringify(list));localStorage.setItem(CLIP_KEY,JSON.stringify({match:clipMatch,clips:clipClips}));}catch(e){console.warn(e);}
+            const status=document.getElementById('clip-save-status');if(status)status.textContent='Helyben mentve';
+            clearTimeout(clipSaveTimer);
+            clipSaveTimer=setTimeout(async()=>{
+                if(!cloudClient||!cloudUser){if(status)status.textContent='Helyben mentve (felhőhöz jelentkezz be)';return;}
+                const {error}=await cloudClient.from('video_clip_projects').upsert({id:p.id,user_id:cloudUser.id,title:p.title,match_data:p.match||{},clips:p.clips,video_name:p.videoName,updated_at:p.updatedAt},{onConflict:'id'});
+                if(status&&clipProjectId===p.id)status.textContent=error?'Helyben mentve; felhőhiba: '+error.message:'Felhőbe mentve';
+            },500);
+        }
+        async function openClipEditor(){
+            showScreen('view-clip-projects');
+            const box=document.getElementById('clip-projects-list');box.textContent='Betöltés…';
+            const merged=new Map(clipLocalProjects().map(p=>[p.id,p]));
+            if(cloudClient&&cloudUser){
+                const {data,error}=await cloudClient.from('video_clip_projects').select('id,title,match_data,clips,video_name,updated_at').order('updated_at',{ascending:false});
+                if(error)box.textContent='Felhőhiba: '+error.message;
+                else for(const p of data||[]){
+                    const cloud={id:p.id,title:p.title,match:p.match_data,clips:p.clips,videoName:p.video_name,updatedAt:p.updated_at};
+                    if(!merged.has(p.id)||new Date(cloud.updatedAt)>new Date(merged.get(p.id).updatedAt))merged.set(p.id,cloud);
+                }
+            }
+            clipProjectCache=[...merged.values()].sort((a,b)=>new Date(b.updatedAt)-new Date(a.updatedAt));
+            box.innerHTML='';
+            const note=document.createElement('p');note.textContent='A jelenetek és játékoslisták mentődnek; a videófájlt folytatáskor újra be kell tölteni.';box.appendChild(note);
+            if(!clipProjectCache.length){box.append('Nincs még mentett projekt.');return;}
+            for(const p of clipProjectCache){
+                const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border-bottom:1px solid var(--border-color)';
+                const title=document.createElement('span');title.style.flex='1';title.textContent=p.title+' · '+(p.clips?.length||0)+' jelenet · '+new Date(p.updatedAt).toLocaleString('hu-HU');
+                const open=document.createElement('button');open.className='btn-arch-action btn-arch-stat';open.textContent='Folytatás';open.onclick=()=>clipOpenProject(p);
+                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=async()=>{if(!confirm('Törlöd a projektet?'))return;localStorage.setItem(CLIP_PROJECTS_KEY,JSON.stringify(clipLocalProjects().filter(x=>x.id!==p.id)));if(cloudClient&&cloudUser)await cloudClient.from('video_clip_projects').delete().eq('id',p.id);openClipEditor();};
+                row.append(title,open,del);box.appendChild(row);
+            }
+        }
+        function clipNewProject(){clipOpenProject({id:crypto.randomUUID(),title:'Új videóelemzés',match:null,clips:[],videoName:''});clipSave();}
+        function clipOpenProject(p){
+            clipProjectId=p.id;clipMatch=p.match||null;clipClips=Array.isArray(p.clips)?p.clips:[];clipProjectVideoName=p.videoName||'';clipOriginalFile=null;clipSelectedIds.clear();
+            if(clipVideoUrl){URL.revokeObjectURL(clipVideoUrl);clipVideoUrl=null;}
+            const v=document.getElementById('clip-video');v.pause();v.removeAttribute('src');v.load();
+            document.getElementById('clip-project-title').value=p.title||'Új videóelemzés';
+            document.getElementById('clip-import-status').textContent=clipMatch?clipMatch.homeName+' – '+clipMatch.awayName:'Tölts be egy MKSZ PDF-jegyzőkönyvet.';
+            document.getElementById('clip-range-label').textContent=clipProjectVideoName?'Töltsd be újra a videót: '+clipProjectVideoName:'Nincs kijelölt jelenet';
+            clipStart=null;clipEnd=null;showScreen('view-clip-editor');clipRenderPlayers();clipRenderList();
         }
         async function clipImportPdf(event){
             const file=event.target.files?.[0];if(!file)return;
@@ -5955,7 +5998,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function clipLoadVideo(event){
             const file=event.target.files?.[0];if(!file)return;
-            clipOriginalFile=file;
+            clipOriginalFile=file;clipProjectVideoName=file.name;clipSave();
             if(clipVideoUrl)URL.revokeObjectURL(clipVideoUrl);
             clipVideoUrl=URL.createObjectURL(file);
             const video=document.getElementById('clip-video');video.src=clipVideoUrl;video.load();
