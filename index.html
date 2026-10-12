@@ -3571,8 +3571,44 @@ KOVÁCS DÁVID MÁTÉ
                 const displayName = m.matchName && m.matchName !== 'Mérkőzés' ? m.matchName : `${m.homeName} vs ${m.awayName}`;
                 const lockLabel=m.locked?' 🔒 Lezárt':'';
                 const lockAction=`<button class="btn-arch-action btn-arch-csv" onclick="toggleArchiveLock('${m.id}')">${m.locked?'🔓 Feloldás':'🔒 Lezárás'}</button>`;
-                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}${lockLabel}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions">${lockAction}<button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveTeams('${m.id}')" title="A mérkőzés csapatneveinek javítása"><i class="fas fa-edit"></i> Csapatnevek</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
+                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}${lockLabel}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions">${lockAction}<button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-stat" onclick="openArchiveEventEditor('${m.id}')"><i class="fas fa-edit"></i> Utólagos szerkesztés</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveTeams('${m.id}')" title="A mérkőzés csapatneveinek javítása"><i class="fas fa-edit"></i> Csapatnevek</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
             });
+        }
+        function openArchiveEventEditor(id) {
+            const m=(db.matches||[]).find(x=>x.id===id);
+            if(!m)return;
+            if(m.locked)return alert('Ez a mérkőzés zárolt. Előbb az Archívumban a Feloldás gombbal oldd fel.');
+            openVideoRoom(id);
+            alert('Utólagos szerkesztés: az események mellett a ceruzával módosíthatod az adatokat, az Idő javítása gombbal pedig a játékidőt és a videópozíciót.');
+        }
+        function editArchivedEventTiming(id) {
+            if(!currentVideoMatch||currentVideoMatch.locked)return alert('A mérkőzés zárolt.');
+            const e=(currentVideoMatch.events||[]).find(x=>String(x.id)===String(id));
+            if(!e)return;
+            const periodText=prompt('Félidő (1 vagy 2):',String(e.period||1));
+            if(periodText===null)return;
+            const period=Number(periodText);
+            if(period!==1&&period!==2)return alert('A félidő 1 vagy 2 lehet.');
+            const clock=prompt('Hivatalos játékidő (PP:MM, például 13:21 vagy 34:05):',e.time||formatTime(e.seconds));
+            if(clock===null)return;
+            const abs=parseOfficialClockInput(clock,period);
+            if(abs===null)return alert('Hibás játékidő. Például: 13:21 vagy 34:05.');
+            const video=prompt('Videópozíció (PP:MM), üresen hagyva a korábbi videóidő marad:',typeof e.videoTime==='number'?formatTime(e.videoTime):'');
+            if(video===null)return;
+            let newVideoTime=e.videoTime;
+            if(video.trim()) {
+                const parts=video.trim().split(':').map(Number);
+                if(parts.length!==2||parts.some(x=>!Number.isInteger(x)||x<0)||parts[1]>59)return alert('Hibás videópozíció.');
+                newVideoTime=parts[0]*60+parts[1];
+            }
+            if(!confirm('Elmented az esemény új időpontját?'))return;
+            e.period=period;e.seconds=abs-(period-1)*1800;e.time=formatTime(e.seconds);
+            if(typeof newVideoTime==='number')e.videoTime=newVideoTime;
+            recalculateDerivedEventData(currentVideoMatch.events);
+            const goals=currentVideoMatch.events.filter(x=>x.group==='shot'&&x.result==='Gól');
+            currentVideoMatch.homeScore=goals.filter(x=>x.team==='home').length;
+            currentVideoMatch.awayScore=goals.filter(x=>x.team==='away').length;
+            saveDB();renderVideoEvents();
         }
         function editArchiveTeams(id) {
             const m=db.matches.find(x=>x.id===id);
@@ -4865,7 +4901,7 @@ KOVÁCS DÁVID MÁTÉ
                 if (e.group === 'shot') { if (e.team === 'home') { hShots++; if(e.result === 'Gól') hGoals++; } if (e.team === 'away') { aShots++; if(e.result === 'Gól') aGoals++; } }
                 if (e.team === 'home' && e.group === 'error') hErr++; if (e.team === 'away' && e.result === 'Védés') hSave++;
                 const gkTag = e.isGk ? '<span style="color:var(--gk-accent); font-size:10px; margin-left:5px;">(K)</span>' : ''; const shotLabel=e.shotZone||e.shotWing||e.detailsFrom; const shotFinish=e.shotFinish||(e.shotZone?'':e.detailsFrom); const shotExtras=Array.isArray(e.shotSituation)?e.shotSituation:[]; const detailsText = shotLabel ? `(${shotLabel}${shotFinish&&shotFinish!==shotLabel?' · '+shotFinish:''}${shotExtras.length?' · '+shotExtras.join(' + '):''} ➔ ${e.detailsTo||'Sánc'})` : ''; const shotTypeText = e.shotType ? ` · ${e.shotType}` : ''; const attackTypeBadge = attackTypeBadgeHTML(e); const defenseSystemBadge = defenseSystemBadgeHTML(e);
-                container.innerHTML += `<div class="event-item ${e.team}-event" onclick="if(isVideoAnalysis &amp;&amp; !event.target.closest(&quot;button&quot;))jumpToAnalysisEvent(&quot;${e.id}&quot;)" style="cursor:pointer;"><div style="flex:1;"><span style="color:var(--text-muted); margin-right:10px;">${e.time}</span><strong>#${e.playerNum} ${e.playerName}${gkTag}</strong>${strengthBadge}${attackTypeBadge}${defenseSystemBadge}<br><span style="font-size:11px; color:var(--text-muted);">${e.action} ${detailsText}${shotTypeText} ${e.assist ? '<br>Ast: #'+e.assist : ''}</span></div><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:14px;">${e.result}</strong><button class="btn-edit-event" onclick="editEvent('${e.id}')" title="Szerkesztés"><i class="fas fa-pen"></i></button><button class="btn-delete-event" onclick="deleteEvent('${e.id}')" title="Törlés"><i class="fas fa-trash"></i></button></div></div>`;
+                container.innerHTML += `<div class="event-item ${e.team}-event" onclick="if(isVideoAnalysis &amp;&amp; !event.target.closest(&quot;button&quot;))jumpToAnalysisEvent(&quot;${e.id}&quot;)" style="cursor:pointer;"><div style="flex:1;"><span style="color:var(--text-muted); margin-right:10px;">${e.time}</span><strong>#${e.playerNum} ${e.playerName}${gkTag}</strong>${strengthBadge}${attackTypeBadge}${defenseSystemBadge}<br><span style="font-size:11px; color:var(--text-muted);">${e.action} ${detailsText}${shotTypeText} ${e.assist ? '<br>Ast: #'+e.assist : ''}</span></div><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:14px;">${e.result}</strong><button class="btn-edit-event" onclick="editArchivedEventTiming('${e.id}')" title="Játékidő és videóidő javítása"><i class="fas fa-clock"></i> Idő javítása</button><button class="btn-edit-event" onclick="editEvent('${e.id}')" title="Szerkesztés"><i class="fas fa-pen"></i></button><button class="btn-delete-event" onclick="deleteEvent('${e.id}')" title="Törlés"><i class="fas fa-trash"></i></button></div></div>`;
             });
             document.getElementById('score-home').innerText = hGoals; document.getElementById('score-away').innerText = aGoals; document.getElementById('qs-home-shot').innerText = hShots; document.getElementById('qs-home-err').innerText = hErr; document.getElementById('qs-home-save').innerText = hSave; document.getElementById('qs-away-shot').innerText = aShots;
         }
