@@ -1568,6 +1568,13 @@ KOVÁCS DÁVID MÁTÉ
                     <div class="video-filter-head"><div class="video-filter-label" id="video-filter-label">Szűrt videójelenetek</div><div class="video-filter-count" id="video-filter-count">0 jelenet</div></div>
                     <div class="video-filter-actions"><button class="video-filter-btn" onclick="playVideoFilterStep(-1)"><i class="fas fa-step-backward"></i> Előző</button><button class="video-filter-btn" onclick="playVideoFilterStep(1)"><i class="fas fa-step-forward"></i> Következő</button><button class="video-filter-btn" onclick="clearVideoFilter()"><i class="fas fa-times-circle"></i> Szűrők törlése</button></div>
                 </div>
+                <div id="archive-match-timeline" style="border:1px solid var(--border-color);border-radius:10px;padding:12px;background:var(--bg-panel);margin-bottom:10px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;">
+                        <strong style="color:var(--green-accent);"><i class="fas fa-stream"></i> Mérkőzés idővonala · eredményalakulás</strong>
+                        <button class="video-filter-btn" onclick="toggleArchiveTimeline()" id="archive-timeline-toggle">Elrejtés</button>
+                    </div>
+                    <div id="archive-timeline-content" style="max-height:360px;overflow-y:auto;"></div>
+                </div>
                 <div id="video-events-container" style="display:flex; flex-direction:column; gap:8px;"></div>
             </div>
         </div>
@@ -5733,7 +5740,38 @@ KOVÁCS DÁVID MÁTÉ
             target=Math.max(0,Math.min(Number(videoNode.duration)||target,target)); videoNode.currentTime=target; videoNode.play();
         }
 
+        function toggleArchiveTimeline() {
+            const content=document.getElementById('archive-timeline-content');
+            const button=document.getElementById('archive-timeline-toggle');
+            if(!content||!button)return;
+            const hidden=content.style.display==='none';
+            content.style.display=hidden?'block':'none';
+            button.innerText=hidden?'Elrejtés':'Megjelenítés';
+        }
+        function renderArchiveMatchTimeline() {
+            const box=document.getElementById('archive-timeline-content');
+            if(!box||!currentVideoMatch)return;
+            const all=(currentVideoMatch.events||[]).slice().sort((a,b)=>
+                eventAbsoluteSeconds(a.period,a.seconds)-eventAbsoluteSeconds(b.period,b.seconds));
+            if(!all.length){box.innerHTML='<div style="color:var(--text-muted);padding:10px;">Nincsenek rögzített események.</div>';return;}
+            let home=0,away=0;
+            const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const rows=all.map(e=>{
+                const goal=e.group==='shot'&&e.result==='Gól';
+                if(goal){if(e.team==='home')home++;else if(e.team==='away')away++;}
+                const title=e.group==='timeout'?'Időkérés':(e.group==='shot'?(goal?'GÓL':'Lövés · '+(e.result||'')):(e.result||e.action||e.group));
+                const player=e.group==='timeout'?'':('#'+esc(e.playerNum)+' '+esc(e.playerName));
+                const color=goal?'var(--green-accent)':'var(--text-muted)';
+                const score=goal?'<strong style="color:var(--green-accent);font-size:14px;white-space:nowrap;">'+home+' : '+away+'</strong>':'<span style="color:var(--text-muted);font-size:11px;white-space:nowrap;">'+home+' : '+away+'</span>';
+                return '<div style="display:flex;align-items:center;gap:9px;padding:8px 5px;border-bottom:1px solid var(--border-color);border-left:3px solid '+(e.team==='home'?'var(--green-accent)':'var(--red-accent)')+';cursor:pointer;" onclick="playVideoEventById(\''+String(e.id).replace(/'/g,'')+'\')" title="Ugrás az esemény videójához">'+
+                    '<span style="font-size:11px;min-width:73px;color:var(--text-muted);">'+esc(e.period)+'.F '+esc(e.time||formatTime(e.seconds))+'</span>'+
+                    '<span style="flex:1;min-width:0;"><strong style="color:'+color+';">'+esc(title)+'</strong> <span style="font-size:11px;">'+player+'</span></span>'+score+'</div>';
+            });
+            box.innerHTML='<div style="font-size:11px;color:var(--text-muted);margin-bottom:7px;">Időrendben · gólonkénti állás · kattintásra videóugrás</div>'+rows.join('')+
+                '<div style="padding:10px 5px;font-weight:bold;">Végeredmény: '+home+' : '+away+'</div>';
+        }
         function renderVideoEvents() {
+            renderArchiveMatchTimeline();
             const container = document.getElementById('video-events-container'); container.innerHTML = '';
             const evs = videoEventList(), currentId = videoPlaylistIndex>=0 && evs[videoPlaylistIndex] ? evs[videoPlaylistIndex].id : null;
             if(!evs.length) { container.innerHTML='<div style="padding:20px; text-align:center; color:var(--text-muted);">Nincs esemény ebben a videószűrésben.</div>'; updateVideoFilterBar(); return; }
