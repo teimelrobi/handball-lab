@@ -914,6 +914,7 @@
                     <h3>Új mérkőzés (Élő)</h3>
                     <p>Statisztika rögzítése a meccs alatt</p>
                 </div>
+                <div class="menu-card" onclick="openClipEditor()"><i class="fas fa-cut"></i><h3>Videóvágó</h3><p>Jelenetek kijelölése és kategorizálása</p></div>
                 <div class="menu-card orange" onclick="startSetup(true)">
                     <i class="fas fa-film"></i>
                     <h3>Utólagos elemzés</h3>
@@ -1059,6 +1060,44 @@
     </div>
 
     <!-- 3. MKSZ IMPORT KÉPERNYŐ -->
+    <div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
+      <button class="back-btn" onclick="clipSave();showScreen('view-home')"><i class="fas fa-arrow-left"></i> Főmenü</button>
+      <h2 class="page-title"><i class="fas fa-cut"></i> Videóvágó</h2>
+      <div class="match-setup-form" style="max-width:1250px;">
+        <h3>1. MKSZ jegyzőkönyv</h3>
+        <input type="file" accept=".pdf,application/pdf" onchange="clipImportPdf(event)">
+        <div id="clip-import-status" style="margin:8px 0;color:var(--text-muted)">Tölts be egy MKSZ PDF-jegyzőkönyvet.</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;margin:12px 0;">
+          <label><input type="checkbox" id="clip-home" checked onchange="clipRenderPlayers()"> Hazai csapat</label>
+          <label><input type="checkbox" id="clip-away" checked onchange="clipRenderPlayers()"> Vendégcsapat</label>
+        </div>
+        <h3>2. Videó és jelenetek</h3>
+        <input type="file" accept="video/*" onchange="clipLoadVideo(event)">
+        <video id="clip-video" controls playsinline style="display:block;width:100%;max-height:56vh;background:#000;margin:12px 0;border-radius:10px;"></video>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button class="btn-arch-action" onclick="clipStep(-2)">◀ −2 mp</button>
+          <button class="btn-arch-action" onclick="clipStep(2)">+2 mp ▶</button>
+          <button class="btn-arch-action btn-arch-stat" onclick="clipSetStart()">A jelenet ELEJE</button>
+          <button class="btn-arch-action btn-arch-video" onclick="clipSetEnd()">A jelenet VÉGE</button>
+          <strong id="clip-range-label">Nincs kijelölt jelenet</strong>
+        </div>
+        <div id="clip-category-dialog" style="display:none;margin-top:15px;padding:15px;border:1px solid var(--green-accent);border-radius:12px;">
+          <h3>3. Milyen kategóriába kerüljön a jelenet?</h3>
+          <div id="clip-categories" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+          <div id="clip-player-chooser" style="display:none;margin-top:12px;">
+            <label>Játékos</label><select id="clip-player-select" class="team-select" style="max-width:350px;"></select>
+            <div id="clip-player-categories" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
+          </div>
+          <div id="clip-selected-category" style="margin:10px 0;color:var(--green-accent)"></div>
+          <button class="btn-arch-action btn-arch-stat" onclick="clipConfirm()">Jelenet mentése</button>
+          <button class="btn-arch-action" onclick="document.getElementById('clip-category-dialog').style.display='none'">Mégse</button>
+        </div>
+        <h3 style="margin-top:22px;">Kijelölt jelenetek <small id="clip-count"></small></h3>
+        <div id="clip-list"></div>
+        <button class="btn-arch-action" onclick="clipExportList()">Jelenetlista exportálása (JSON)</button>
+        <p style="font-size:12px;color:var(--text-muted)">A jelenetlista menthető és visszatölthető; a videófájl fizikai kivágása és MP4-exportja külön fejlesztési lépés.</p>
+      </div>
+    </div>
     <div class="screen" id="view-mksz-import">
         <button class="back-btn" onclick="showScreen('view-home')"><i class="fas fa-arrow-left"></i> Vissza a Főmenübe</button>
         <h2 class="page-title"><i class="fas fa-magic"></i> MKSZ Adatfeldolgozó</h2>
@@ -5862,6 +5901,110 @@ KOVÁCS DÁVID MÁTÉ
                 container.innerHTML += `<div class="video-event-card ${e.team}-event${currentCls}"><div style="flex:1; cursor:pointer;" onclick="playVideoEventById('${e.id}')"><span style="color:var(--text-muted); font-size:12px; margin-right:10px;">${e.period}.F ${e.time}</span><strong>#${e.playerNum} ${e.playerName}${gkTag}</strong>${directTag}${strengthBadge}${attackTypeBadge}${defenseSystemBadge}<br><span style="font-size:11px; color:var(--text-muted);">${e.action} ${detailsText}</span></div><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:14px;">${e.result}</strong><button class="btn-edit-event" onclick="editEvent('${e.id}')" title="Szerkesztés"><i class="fas fa-pen"></i></button><button class="btn-delete-event" onclick="deleteEvent('${e.id}')" title="Törlés"><i class="fas fa-trash"></i></button></div></div>`;
             });
             updateVideoFilterBar();
+        }
+        let clipMatch=null,clipStart=null,clipEnd=null,clipCategory='',clipClips=[],clipVideoUrl=null;
+        const CLIP_KEY='handball_lab_clips_v1';
+        function clipSave(){try{localStorage.setItem(CLIP_KEY,JSON.stringify({match:clipMatch,clips:clipClips}));}catch(e){console.warn(e);}}
+        function openClipEditor(){
+            try{const saved=JSON.parse(localStorage.getItem(CLIP_KEY)||'{}');clipMatch=saved.match||null;clipClips=Array.isArray(saved.clips)?saved.clips:[];}catch(e){clipMatch=null;clipClips=[];}
+            showScreen('view-clip-editor');clipRenderPlayers();clipRenderList();
+            document.getElementById('clip-import-status').textContent=clipMatch?(clipMatch.homeName+' – '+clipMatch.awayName):'Tölts be egy MKSZ PDF-jegyzőkönyvet.';
+        }
+        async function clipImportPdf(event){
+            const file=event.target.files?.[0];if(!file)return;
+            const status=document.getElementById('clip-import-status');status.textContent='PDF feldolgozása...';
+            try{
+                if(!window.pdfjsLib)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';script.onload=resolve;script.onerror=()=>reject(Error('A PDF-olvasó nem érhető el.'));document.head.appendChild(script);});
+                pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+                const lines=[];
+                for(let p=1;p<=pdf.numPages;p++){
+                    const page=await pdf.getPage(p);
+                    const items=(await page.getTextContent()).items.filter(x=>x.str?.trim()).map(x=>({text:x.str.trim(),x:x.transform[4],y:x.transform[5]}));
+                    const rows=[];
+                    for(const item of items){let row=rows.find(r=>Math.abs(r.y-item.y)<2.5);if(!row){row={y:item.y,items:[]};rows.push(row);}row.items.push(item);}
+                    rows.sort((a,b)=>b.y-a.y).forEach(row=>lines.push(row.items.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ')));
+                }
+                const parsed=parseMkszRosterPdfLines(lines);
+                if(clipClips.length&&!confirm('Új jegyzőkönyvet töltesz be. A korábbi jelenetlistát töröljük?'))return;
+                clipMatch=parsed;clipClips=[];clipSave();clipRenderPlayers();clipRenderList();
+                status.textContent=parsed.homeName+' – '+parsed.awayName+' · '+parsed.home.length+' + '+parsed.away.length+' játékos';
+            }catch(e){status.textContent='Importálási hiba: '+e.message;}
+        }
+        function clipRenderPlayers(){
+            const select=document.getElementById('clip-player-select');if(!select)return;
+            const sides=[['home','clip-home'],['away','clip-away']];
+            const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;'}[c]));
+            select.innerHTML='<option value="">Válassz játékost</option>';
+            for(const [side,checkbox] of sides)if(document.getElementById(checkbox)?.checked)for(const p of clipMatch?.[side]||[]){
+                const opt=document.createElement('option');opt.value=side+'|'+p.num;opt.textContent=(side==='home'?clipMatch.homeName:clipMatch.awayName)+' · #'+p.num+' '+p.name;select.appendChild(opt);
+            }
+        }
+        function clipLoadVideo(event){
+            const file=event.target.files?.[0];if(!file)return;
+            if(clipVideoUrl)URL.revokeObjectURL(clipVideoUrl);
+            clipVideoUrl=URL.createObjectURL(file);
+            const video=document.getElementById('clip-video');video.src=clipVideoUrl;video.load();
+            clipStart=null;clipEnd=null;document.getElementById('clip-range-label').textContent='Nincs kijelölt jelenet';
+        }
+        function clipStep(delta){const v=document.getElementById('clip-video');if(!v?.src)return;v.currentTime=Math.max(0,Math.min(Number.isFinite(v.duration)?v.duration:Infinity,v.currentTime+delta));}
+        document.addEventListener('keydown',e=>{
+            if(!document.getElementById('view-clip-editor')?.classList.contains('active'))return;
+            if(!['ArrowLeft','ArrowRight'].includes(e.key)||e.ctrlKey||e.altKey||e.metaKey||e.target?.closest?.('input,textarea,select,[contenteditable]'))return;
+            e.preventDefault();clipStep(e.key==='ArrowRight'?2:-2);
+        });
+        function clipSetStart(){
+            const v=document.getElementById('clip-video');if(!v.src)return alert('Előbb tölts be egy videót.');
+            clipStart=v.currentTime;clipEnd=null;document.getElementById('clip-category-dialog').style.display='none';
+            document.getElementById('clip-range-label').textContent='Kezdet: '+formatTime(clipStart);
+        }
+        function clipSetEnd(){
+            const v=document.getElementById('clip-video');if(clipStart===null)return alert('Először jelöld ki a jelenet elejét.');
+            if(v.currentTime<=clipStart)return alert('A jelenet vége később legyen, mint az eleje.');
+            clipEnd=v.currentTime;clipCategory='';
+            document.getElementById('clip-range-label').textContent=formatTime(clipStart)+' – '+formatTime(clipEnd);
+            document.getElementById('clip-selected-category').textContent='';
+            document.getElementById('clip-player-chooser').style.display='none';
+            const container=document.getElementById('clip-categories');container.innerHTML='';
+            for(const category of ['Támadás','Védekezés','Lerohanás','Visszarendeződés','Létszámfölény','Létszámhátrány','7:6','Játékos']){
+                const b=document.createElement('button');b.className='btn-arch-action';b.textContent=category;b.onclick=()=>clipChooseCategory(category);container.appendChild(b);
+            }
+            const sub=document.getElementById('clip-player-categories');sub.innerHTML='';
+            for(const category of ['Támadás','Védekezés','1:1','Lövés','Speciális','7 m']){
+                const b=document.createElement('button');b.className='btn-arch-action';b.textContent=category;b.onclick=()=>{clipCategory='Játékos / '+category;document.getElementById('clip-selected-category').textContent=clipCategory;};sub.appendChild(b);
+            }
+            document.getElementById('clip-category-dialog').style.display='block';
+        }
+        function clipChooseCategory(category){
+            clipCategory=category==='Játékos'?'':category;
+            document.getElementById('clip-player-chooser').style.display=category==='Játékos'?'block':'none';
+            document.getElementById('clip-selected-category').textContent=clipCategory||'Válassz játékost és alkategóriát.';
+        }
+        function clipConfirm(){
+            if(clipStart===null||clipEnd===null||!clipCategory)return alert('Válassz kategóriát.');
+            let player=null;
+            if(clipCategory.startsWith('Játékos /')){
+                const value=document.getElementById('clip-player-select').value;if(!value)return alert('Válassz játékost.');
+                const [side,num]=value.split('|');player={side,num:Number(num),name:clipMatch?.[side]?.find(p=>String(p.num)===num)?.name||''};
+            }
+            clipClips.push({id:'c_'+Date.now()+'_'+Math.floor(Math.random()*10000),start:clipStart,end:clipEnd,category:clipCategory,player});
+            clipSave();clipRenderList();clipStart=null;clipEnd=null;document.getElementById('clip-category-dialog').style.display='none';document.getElementById('clip-range-label').textContent='Jelenet mentve. Jelöld ki a következőt.';
+        }
+        function clipRenderList(){
+            const box=document.getElementById('clip-list');if(!box)return;box.innerHTML='';
+            document.getElementById('clip-count').textContent='('+clipClips.length+' db)';
+            for(const c of clipClips){
+                const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px;border-bottom:1px solid var(--border-color)';
+                const name=document.createElement('span');name.style.flex='1';name.textContent=formatTime(c.start)+' – '+formatTime(c.end)+' · '+c.category+(c.player?' · #'+c.player.num+' '+c.player.name:'');
+                const play=document.createElement('button');play.className='btn-arch-action';play.textContent='Lejátszás';play.onclick=()=>{const v=document.getElementById('clip-video');if(!v.src)return alert('Töltsd be újra a mérkőzés videóját.');v.currentTime=c.start;v.play();const stop=()=>{if(v.currentTime>=c.end){v.pause();v.removeEventListener('timeupdate',stop);}};v.addEventListener('timeupdate',stop);};
+                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{if(confirm('Törlöd ezt a jelenetet?')){clipClips=clipClips.filter(x=>x.id!==c.id);clipSave();clipRenderList();}};
+                row.append(name,play,del);box.appendChild(row);
+            }
+        }
+        function clipExportList(){
+            const data={match:clipMatch,clips:clipClips};
+            const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+            const a=document.createElement('a');a.href=url;a.download='handball-lab-jelenetek.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
         }
     </script>
 </body>
