@@ -1103,10 +1103,12 @@
         <div id="clip-list"></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
           <button class="btn-arch-action" onclick="clipExportList()">Kijelölt jelenetek exportálása (JSON)</button>
-          <button class="btn-arch-action btn-arch-stat" onclick="clipExportVideos()">Kijelölt videórészletek letöltése (WebM)</button>
+          <button class="btn-arch-action btn-arch-stat" onclick="clipExportMp4(false)">Kijelöltek exportálása külön MP4-ként</button>
+          <button class="btn-arch-action btn-arch-stat" onclick="clipExportMp4(true)">Kijelöltek összefűzése egy MP4-be</button>
+          <button class="btn-arch-action" onclick="clipExportVideos()">WebM-export (korábbi mód)</button>
         </div>
         <div id="clip-export-status" style="margin-top:8px;color:var(--text-muted);font-size:13px"></div>
-        <p style="font-size:12px;color:var(--text-muted)">A szűrés nem törli a jeleneteket. A videóexport a kijelölt jeleneteket külön WebM-fájlokként rögzíti, valós időben; a böngésző támogatása szükséges. MP4-export még nem érhető el.</p>
+        <p style="font-size:12px;color:var(--text-muted)">A szűrés nem törli a jeleneteket. Az MP4-export a betöltött eredeti videóból készül, a jelenetek kijelölési sorrendjében (a listában látható időrendi sorrend szerint). Az első használatkor a videófeldolgozó betöltése időt vehet igénybe; nagy videókhoz jelentős memória szükséges. Az exportot Chrome-ban javasolt használni.</p>
       </div>
     </div>
     <div class="screen" id="view-mksz-import">
@@ -5953,6 +5955,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function clipLoadVideo(event){
             const file=event.target.files?.[0];if(!file)return;
+            clipOriginalFile=file;
             if(clipVideoUrl)URL.revokeObjectURL(clipVideoUrl);
             clipVideoUrl=URL.createObjectURL(file);
             const video=document.getElementById('clip-video');video.src=clipVideoUrl;video.load();
@@ -6011,7 +6014,7 @@ KOVÁCS DÁVID MÁTÉ
             clipClips.push({id:'c_'+Date.now()+'_'+Math.floor(Math.random()*10000),start:clipStart,end:clipEnd,category:clipCategory,player});
             clipSave();clipRenderList();clipStart=null;clipEnd=null;document.getElementById('clip-category-dialog').style.display='none';document.getElementById('clip-range-label').textContent='Jelenet mentve. Jelöld ki a következőt.';
         }
-        let clipSelectedIds=new Set(),clipExportBusy=false;
+        let clipSelectedIds=new Set(),clipExportBusy=false,clipOriginalFile=null,clipFfmpeg=null;
         function clipVisibleClips(){
             const category=document.getElementById('clip-filter-category')?.value||'';
             const player=document.getElementById('clip-filter-player')?.value||'';
@@ -6062,6 +6065,75 @@ KOVÁCS DÁVID MÁTÉ
         function clipExportList(){
             const clips=clipSelectedForExport();if(!clips.length)return alert('Először jelöld ki az exportálandó jeleneteket.');
             clipDownload(new Blob([JSON.stringify({match:clipMatch,clips},null,2)],{type:'application/json'}),'handball-lab-kijelolt-jelenetek.json');
+        }
+        async function clipLoadFfmpeg(status){
+            if(clipFfmpeg)return clipFfmpeg;
+            status.textContent='MP4 feldolgozó betöltése…';
+            if(!window.FFmpegWASM){
+                await new Promise((resolve,reject)=>{
+                    const script=document.createElement('script');
+                    script.src='https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js';
+                    script.onload=resolve;script.onerror=()=>reject(Error('Nem sikerült letölteni az MP4 feldolgozót.'));
+                    document.head.appendChild(script);
+                });
+            }
+            const ff=new window.FFmpegWASM.FFmpeg();
+            const core='https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+            const toBlobURL=async(url,type)=>{
+                const response=await fetch(url);if(!response.ok)throw Error('Nem tölthető be a videófeldolgozó: '+response.status);
+                return URL.createObjectURL(new Blob([await response.arrayBuffer()],{type}));
+            };
+            await ff.load({
+                coreURL:await toBlobURL(core+'/ffmpeg-core.js','text/javascript'),
+                wasmURL:await toBlobURL(core+'/ffmpeg-core.wasm','application/wasm')
+            });
+            clipFfmpeg=ff;return ff;
+        }
+        async function clipExportMp4(merge){
+            if(clipExportBusy)return;
+            const clips=clipSelectedForExport().sort((a,b)=>a.start-b.start);
+            if(!clips.length)return alert('Először jelöld ki az exportálandó jeleneteket.');
+            if(!clipOriginalFile)return alert('Töltsd be újra az eredeti mérkőzésvideót az MP4-exporthoz.');
+            const total=clips.reduce((sum,c)=>sum+(c.end-c.start),0);
+            if(!confirm((merge?'Egy összefűzött MP4-videót':'Külön MP4-fájlokat')+' készítünk '+clips.length+' kijelölt jelenetből ('+Math.ceil(total)+' másodperc). A feldolgozás a géped böngészőjében történik, nagy fájloknál több perc is lehet. Indulhat?'))return;
+            const status=document.getElementById('clip-export-status');clipExportBusy=true;
+            let ff=null;
+            try{
+                ff=await clipLoadFfmpeg(status);
+                status.textContent='Eredeti videó betöltése a feldolgozóba…';
+                const sourceName='clip_source_'+Date.now()+'.'+(clipOriginalFile.name.split('.').pop()||'mp4').replace(/[^a-z0-9]/gi,'');
+                await ff.writeFile(sourceName,new Uint8Array(await clipOriginalFile.arrayBuffer()));
+                const outputs=[];
+                for(let i=0;i<clips.length;i++){
+                    const c=clips[i],out='clip_part_'+i+'.mp4';
+                    status.textContent='MP4 vágása: '+(i+1)+' / '+clips.length+' ('+formatTime(c.start)+'–'+formatTime(c.end)+')';
+                    const args=['-ss',String(c.start),'-i',sourceName,'-t',String(c.end-c.start),'-map','0:v:0','-map','0:a?','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart',out];
+                    const code=await ff.exec(args);
+                    if(code!==0)throw Error('A(z) '+(i+1)+'. jelenet feldolgozása sikertelen (FFmpeg '+code+').');
+                    outputs.push(out);
+                    if(!merge){
+                        const bytes=await ff.readFile(out);
+                        clipDownload(new Blob([bytes],{type:'video/mp4'}),'jelenet_'+String(i+1).padStart(3,'0')+'.mp4');
+                        await ff.deleteFile(out);
+                    }
+                }
+                if(merge){
+                    status.textContent='Jelenetek összefűzése…';
+                    const concat=outputs.map(name=>"file '"+name+"'").join('\n')+'\n';
+                    await ff.writeFile('clip_concat.txt',new TextEncoder().encode(concat));
+                    const code=await ff.exec(['-f','concat','-safe','0','-i','clip_concat.txt','-c','copy','-movflags','+faststart','clip_merged.mp4']);
+                    if(code!==0)throw Error('Az MP4-ek összefűzése nem sikerült (FFmpeg '+code+').');
+                    const bytes=await ff.readFile('clip_merged.mp4');
+                    clipDownload(new Blob([bytes],{type:'video/mp4'}),'handball-lab-osszefuzott-jelenetek.mp4');
+                    await ff.deleteFile('clip_merged.mp4');await ff.deleteFile('clip_concat.txt');
+                    for(const out of outputs)await ff.deleteFile(out);
+                }
+                await ff.deleteFile(sourceName);
+                status.textContent='Kész! '+(merge?'Az összefűzött MP4':'A kijelölt MP4-részletek')+' letöltése elindult.';
+            }catch(err){
+                status.textContent='MP4-export hiba: '+(err?.message||String(err));
+                console.error('Clip MP4 export',err);
+            }finally{clipExportBusy=false;}
         }
         async function clipExportVideos(){
             if(clipExportBusy)return;
