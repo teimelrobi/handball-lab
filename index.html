@@ -3575,7 +3575,7 @@ KOVÁCS DÁVID MÁTÉ
                 const displayName = m.matchName && m.matchName !== 'Mérkőzés' ? m.matchName : `${m.homeName} vs ${m.awayName}`;
                 const lockLabel=m.locked?' 🔒 Lezárt':'';
                 const lockAction=`<button class="btn-arch-action btn-arch-csv" onclick="toggleArchiveLock('${m.id}')">${m.locked?'🔓 Feloldás':'🔒 Lezárás'}</button>`;
-                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}${lockLabel}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions">${lockAction}<button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-stat" onclick="openArchiveEventEditor('${m.id}')"><i class="fas fa-edit"></i> Utólagos szerkesztés</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveDate('${m.id}')" title="A mérkőzés dátumának javítása"><i class="fas fa-calendar-alt"></i> Dátum</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveTeams('${m.id}')" title="A mérkőzés csapatneveinek javítása"><i class="fas fa-edit"></i> Csapatnevek</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
+                list.innerHTML += `<div class="archive-card"><div class="archive-header"><div><h3 style="margin:0 0 5px 0; color:var(--green-accent); font-size:16px;">${displayName}${lockLabel}</h3><div class="archive-meta"><i class="far fa-calendar-alt"></i> ${m.date} <br><i class="fas fa-trophy"></i> ${m.league || '-'} | <i class="fas fa-map-marker-alt"></i> ${m.location || '-'}</div></div></div><div class="archive-score"><h3><span>${m.homeName}</span> <span class="score">${m.homeScore} - ${m.awayScore}</span> <span>${m.awayName}</span></h3></div><div class="archive-actions">${lockAction}<button class="btn-arch-action btn-arch-stat" onclick="openArchivedStats('${m.id}')"><i class="fas fa-chart-line"></i> STAT</button><button class="btn-arch-action btn-arch-video" onclick="openVideoRoom('${m.id}')"><i class="fas fa-video"></i> Videószoba</button><button class="btn-arch-action btn-arch-stat" onclick="openArchiveEventEditor('${m.id}')"><i class="fas fa-edit"></i> Utólagos szerkesztés</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveDate('${m.id}')" title="A mérkőzés dátumának javítása"><i class="fas fa-calendar-alt"></i> Dátum</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveLocation('${m.id}')" title="A mérkőzés helyszínének javítása"><i class="fas fa-map-marker-alt"></i> Helyszín</button><button class="btn-arch-action btn-arch-csv" onclick="editArchiveTeams('${m.id}')" title="A mérkőzés csapatneveinek javítása"><i class="fas fa-edit"></i> Csapatnevek</button><button class="btn-arch-action btn-arch-csv" onclick="exportArchiveCSV('${m.id}')"><i class="fas fa-download"></i> CSV</button><button class="btn-arch-action btn-arch-csv" onclick="importPlayTimeCSV('${m.id}')"><i class="fas fa-stopwatch"></i> JÁTÉKIDŐ CSV</button><button class="btn-arch-action btn-arch-del" onclick="deleteMatch('${m.id}')"><i class="fas fa-trash"></i></button></div></div>`;
             });
         }
         function openArchiveEventEditor(id) {
@@ -3613,6 +3613,20 @@ KOVÁCS DÁVID MÁTÉ
             currentVideoMatch.homeScore=goals.filter(x=>x.team==='home').length;
             currentVideoMatch.awayScore=goals.filter(x=>x.team==='away').length;
             saveDB();renderVideoEvents();
+        }
+        function editArchiveLocation(id) {
+            const match=(db.matches||[]).find(m=>m.id===id);
+            if(!match)return;
+            if(match.locked)return alert('A mérkőzés zárolt. Előbb kattints a Feloldás gombra.');
+            const entered=prompt('Mérkőzés helyszíne:',match.location||'');
+            if(entered===null)return;
+            const location=entered.trim();
+            if(!location)return alert('A helyszín nem lehet üres.');
+            if(location===match.location)return;
+            if(!confirm('Módosítod a mérkőzés helyszínét?'))return;
+            match.location=location;
+            saveDB();
+            loadArchive();
         }
         function editArchiveDate(id) {
             const match=(db.matches||[]).find(m=>m.id===id);
