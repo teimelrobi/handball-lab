@@ -3565,6 +3565,10 @@ KOVÁCS DÁVID MÁTÉ
             saveDB();loadArchive();
         }
         function loadArchive() {
+            // A végeredményt a rögzített gólokból számoljuk, hogy az utólagos javítás is megjelenjen.
+            let scoresChanged=false;
+            (db.matches||[]).forEach(m=>{if(!Array.isArray(m.events)||m.locked)return;const oldH=m.homeScore,oldA=m.awayScore;updateArchivedMatchScore(m);if(String(oldH)!==String(m.homeScore)||String(oldA)!==String(m.awayScore))scoresChanged=true;});
+            if(scoresChanged)saveDB();
             const list = document.getElementById('archive-grid-container'); list.innerHTML = "";
             if(!db.matches || db.matches.length === 0) { list.innerHTML = "<div style='color:var(--text-muted); text-align:center; font-size:16px; margin-top:20px; grid-column: 1 / -1;'>Nincs elmentett mérkőzés.</div>"; return; }
             db.matches.slice().reverse().forEach(m => {
@@ -4782,7 +4786,16 @@ KOVÁCS DÁVID MÁTÉ
             return Number(vid.currentTime);
         }
 
-        function persistVideoRoomMatch() { if(!videoRoomIsLive && currentVideoMatch?.locked) return; if(videoRoomIsLive) saveLiveState(); else saveDB(); }
+        function updateArchivedMatchScore(match) {
+            if(!match||!Array.isArray(match.events))return;
+            match.homeScore=match.events.filter(e=>e.group==='shot'&&e.result==='Gól'&&e.team==='home').length;
+            match.awayScore=match.events.filter(e=>e.group==='shot'&&e.result==='Gól'&&e.team==='away').length;
+        }
+        function persistVideoRoomMatch() {
+            if(!videoRoomIsLive && currentVideoMatch?.locked)return;
+            if(videoRoomIsLive)saveLiveState();
+            else {updateArchivedMatchScore(currentVideoMatch);saveDB();}
+        }
 
         function saveEvent() {
             if(activeMatch?.locked) return alert('Lezárt mérkőzés eseményei nem módosíthatók.');
@@ -5609,6 +5622,7 @@ KOVÁCS DÁVID MÁTÉ
         function closeVideoRoom() {
             const videoNode = document.getElementById('match-video'); videoNode.pause(); videoNode.removeAttribute('src'); videoNode.load();
             if(videoRoomIsLive) saveLiveState();
+            else if(currentVideoMatch && !currentVideoMatch.locked) {updateArchivedMatchScore(currentVideoMatch);saveDB();}
             const returnScreen = videoRoomReturnScreen || 'view-archive', returnStats = videoRoomReturnToStats;
             currentVideoMatch = null; currentVideoFilter = null; videoPlaylistIndex = -1; videoRoomIsLive = false; videoRoomReturnToStats = false;
             showScreen(returnScreen);
