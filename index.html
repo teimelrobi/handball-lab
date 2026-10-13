@@ -6128,7 +6128,7 @@ KOVÁCS DÁVID MÁTÉ
             };
             // UMD FFmpeg külön Worker-fájlt indít. Külső URL-ről ezt a böngésző tiltja;
             // a Worker-t ezért az oldal saját blob: URL-jéről indítjuk.
-            const classWorkerURL=await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/814.ffmpeg.js','text/javascript');
+            const classWorkerURL=new URL('/ffmpeg-worker.js',location.origin).href;
             await ff.load({
                 classWorkerURL,
                 coreURL:await toBlobURL(core+'/ffmpeg-core.js','text/javascript'),
