@@ -1,8 +1,12 @@
 {
   "rewrites": [
     {
-      "source": "/ffmpeg-worker.js",
-      "destination": "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/814.ffmpeg.js"
+      "source": "/vendor/ffmpeg/:path*",
+      "destination": "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm/:path*"
+    },
+    {
+      "source": "/vendor/ffmpeg-core/:path*",
+      "destination": "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm/:path*"
     }
   ]
 }
