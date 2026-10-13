@@ -6111,30 +6111,31 @@ KOVÁCS DÁVID MÁTÉ
         }
         async function clipLoadFfmpeg(status){
             if(clipFfmpeg)return clipFfmpeg;
-            status.textContent='MP4 feldolgozó betöltése…';
-            if(!window.FFmpegWASM){
-                await new Promise((resolve,reject)=>{
-                    const script=document.createElement('script');
-                    script.src='https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/ffmpeg.js';
-                    script.onload=resolve;script.onerror=()=>reject(Error('Nem sikerült letölteni az MP4 feldolgozót.'));
-                    document.head.appendChild(script);
-                });
-            }
-            const ff=new window.FFmpegWASM.FFmpeg();
-            const core='https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd';
+            status.textContent='MP4 feldolgozó betöltése (ESM)…';
+            // A régi UMD Worker Node-szerű require()-t használ a blob: core fájlra,
+            // amit a böngésző nem tud modulnévként feloldani. Az ESM Worker import()-ot használ.
+            const version='0.12.15',coreVersion='0.12.10';
+            const cdn='https://cdn.jsdelivr.net/npm/';
+            const {FFmpeg}=await import(cdn+'@ffmpeg/ffmpeg@'+version+'/dist/esm/index.js');
             const toBlobURL=async(url,type)=>{
-                const response=await fetch(url);if(!response.ok)throw Error('Nem tölthető be a videófeldolgozó: '+response.status);
+                const response=await fetch(url,{mode:'cors'});
+                if(!response.ok)throw Error('Nem tölthető be a videófeldolgozó: '+response.status+' '+url);
                 return URL.createObjectURL(new Blob([await response.arrayBuffer()],{type}));
             };
-            // UMD FFmpeg külön Worker-fájlt indít. Külső URL-ről ezt a böngésző tiltja;
-            // a Worker-t ezért az oldal saját blob: URL-jéről indítjuk.
-            const classWorkerURL=new URL('/ffmpeg-worker.js',location.origin).href;
-            await ff.load({
-                classWorkerURL,
-                coreURL:await toBlobURL(core+'/ffmpeg-core.js','text/javascript'),
-                wasmURL:await toBlobURL(core+'/ffmpeg-core.wasm','application/wasm')
-            });
-            clipFfmpeg=ff;return ff;
+            const workerURL=await toBlobURL(cdn+'@ffmpeg/ffmpeg@'+version+'/dist/esm/worker.js','text/javascript');
+            const coreBase=cdn+'@ffmpeg/core@'+coreVersion+'/dist/esm';
+            const coreURL=await toBlobURL(coreBase+'/ffmpeg-core.js','text/javascript');
+            const wasmURL=await toBlobURL(coreBase+'/ffmpeg-core.wasm','application/wasm');
+            const ff=new FFmpeg();
+            try{
+                await ff.load({classWorkerURL:workerURL,coreURL,wasmURL});
+                clipFfmpeg=ff;
+                return ff;
+            }catch(e){
+                ff.terminate();
+                URL.revokeObjectURL(workerURL);URL.revokeObjectURL(coreURL);URL.revokeObjectURL(wasmURL);
+                throw e;
+            }
         }
         async function clipExportMp4(merge){
             if(clipExportBusy)return;
