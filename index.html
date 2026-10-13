@@ -6126,7 +6126,11 @@ KOVÁCS DÁVID MÁTÉ
                 const response=await fetch(url);if(!response.ok)throw Error('Nem tölthető be a videófeldolgozó: '+response.status);
                 return URL.createObjectURL(new Blob([await response.arrayBuffer()],{type}));
             };
+            // UMD FFmpeg külön Worker-fájlt indít. Külső URL-ről ezt a böngésző tiltja;
+            // a Worker-t ezért az oldal saját blob: URL-jéről indítjuk.
+            const classWorkerURL=await toBlobURL('https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/umd/814.ffmpeg.js','text/javascript');
             await ff.load({
+                classWorkerURL,
                 coreURL:await toBlobURL(core+'/ffmpeg-core.js','text/javascript'),
                 wasmURL:await toBlobURL(core+'/ffmpeg-core.wasm','application/wasm')
             });
