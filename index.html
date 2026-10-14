@@ -1065,10 +1065,10 @@
 <button class="btn-arch-action" onclick="clipTeamSelectVisible(false)">Kijelölés törlése</button>
 <button class="btn-arch-action btn-arch-stat" onclick="clipTeamExportMp4()">Kijelöltek összefűzése egy MP4-be</button>
 <span id="clip-team-selection-count"></span>
-</div><p style="font-size:12px;color:var(--text-muted)">A videókat a böngésző helyi tárhelyén őrizzük meg. Exportáláskor csak a még nem mentett eredeti fájlokat kell kiválasztani. Másik eszközön nem érhetők el automatikusan.</p>
+</div><p style="font-size:12px;color:var(--text-muted)">A videókat helyben és összekapcsolt Google Drive esetén a saját privát Drive-fiókodban is tárolhatod. A Drive-hoz az adott böngészőben be kell jelentkezni.</p>
 <div id="clip-team-results"></div><div id="clip-team-export-status" style="margin:10px 0;color:var(--text-muted)"></div></div><h3>Mérkőzésprojektek</h3><div id="clip-projects-list"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
       <button class="back-btn" onclick="clipSave();showScreen('view-home')"><i class="fas fa-arrow-left"></i> Főmenü</button>
-      <h2 class="page-title"><i class="fas fa-cut"></i> Videóvágó</h2><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input id="clip-project-title" placeholder="Projekt neve" onchange="clipSave()" style="padding:10px"><button class="btn-arch-action" onclick="clipSave()">Mentés</button><button class="btn-arch-action" onclick="clipSave();openClipEditor()">Projektek</button><span id="clip-save-status"></span></div>
+      <h2 class="page-title"><i class="fas fa-cut"></i> Videóvágó</h2><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input id="clip-project-title" placeholder="Projekt neve" onchange="clipSave()" style="padding:10px"><button class="btn-arch-action" onclick="clipSave()">Mentés</button><button class="btn-arch-action" onclick="clipDriveConnectAndSave()">Google Drive összekapcsolás / videó mentése</button><button class="btn-arch-action" onclick="clipSave();openClipEditor()">Projektek</button><span id="clip-save-status"></span></div>
       <div class="match-setup-form" style="max-width:1250px;">
         <h3>1. MKSZ jegyzőkönyv</h3>
         <input type="file" accept=".pdf,application/pdf" onchange="clipImportPdf(event)">
@@ -5925,6 +5925,63 @@ KOVÁCS DÁVID MÁTÉ
 
         const CLIP_KEY='handball_lab_clips_v1',CLIP_PROJECTS_KEY='handball_lab_video_projects_v2';
         let clipProjectId=null,clipProjectVideoName='',clipSaveTimer=null,clipProjectCache=[];
+        // Google Drive videótár: a meglévő Drive-fiók drive.file jogosultságával.
+        const CLIP_DRIVE_FOLDER='Handball Lab Videos';
+        let clipDriveFolderId='',clipDriveUploading=new Set();
+        async function clipDriveFolder(){
+            if(clipDriveFolderId)return clipDriveFolderId;
+            const q="name='"+driveEscapeQueryValue(CLIP_DRIVE_FOLDER)+"' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+            const result=await driveFetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&fields=files(id,name)&spaces=drive');
+            let id=result?.files?.[0]?.id;
+            if(!id){const folder=await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:CLIP_DRIVE_FOLDER,mimeType:'application/vnd.google-apps.folder'})});id=folder.id;}
+            clipDriveFolderId=id;return id;
+        }
+        async function clipDriveFind(projectId){
+            const q="appProperties has { key='handballProjectId' and value='"+driveEscapeQueryValue(projectId)+"' } and trashed=false";
+            const r=await driveFetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&fields=files(id,name,size),nextPageToken&page_size=10');
+            return r?.files?.[0]||null;
+        }
+        async function clipDriveUpload(projectId,file,status){
+            if(clipDriveUploading.has(projectId))return;
+            if(!isDriveAuthorized())throw Error('Előbb kapcsold össze a Google Drive-fiókodat.');
+            clipDriveUploading.add(projectId);
+            try{
+                const old=await clipDriveFind(projectId),folder=old?null:await clipDriveFolder();
+                const meta=old?{name:file.name,appProperties:{handballProjectId:projectId}}:{name:file.name,mimeType:file.type||'video/mp4',parents:[folder],appProperties:{handballProjectId:projectId}};
+                const endpoint='https://www.googleapis.com/upload/drive/v3/files'+(old?'/'+encodeURIComponent(old.id):'')+'?uploadType=resumable&fields=id,name,size';
+                const init=await fetch(endpoint,{method:old?'PATCH':'POST',headers:{Authorization:'Bearer '+driveAccessToken,'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':file.type||'video/mp4','X-Upload-Content-Length':String(file.size)},body:JSON.stringify(meta)});
+                if(!init.ok)throw Error('Drive feltöltés indítása sikertelen ('+init.status+').');
+                const session=init.headers.get('Location');if(!session)throw Error('A Drive nem adott feltöltési munkamenetet.');
+                const chunkSize=8*1024*1024;let uploaded=0;
+                while(uploaded<file.size){
+                    const end=Math.min(uploaded+chunkSize,file.size);
+                    const response=await fetch(session,{method:'PUT',headers:{'Content-Range':'bytes '+uploaded+'-'+(end-1)+'/'+file.size,'Content-Type':file.type||'application/octet-stream'},body:file.slice(uploaded,end)});
+                    if(response.status!==308&&!response.ok)throw Error('Drive feltöltési hiba ('+response.status+').');
+                    uploaded=end;
+                    if(status)status.textContent='Google Drive feltöltés: '+Math.round(uploaded/file.size*100)+'% – '+file.name;
+                }
+                if(status)status.textContent='Google Drive-ra mentve: '+file.name;
+            }finally{clipDriveUploading.delete(projectId);}
+        }
+        async function clipDriveDownload(projectId,status){
+            if(!isDriveAuthorized())return null;
+            const remote=await clipDriveFind(projectId);if(!remote)return null;
+            if(status)status.textContent='Videó letöltése Google Drive-ról: '+remote.name;
+            const res=await fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(remote.id)+'?alt=media',{headers:{Authorization:'Bearer '+driveAccessToken}});
+            if(!res.ok)throw Error('Drive videóletöltés sikertelen ('+res.status+').');
+            const blob=await res.blob();
+            return new File([blob],remote.name,{type:blob.type||'video/mp4'});
+        }
+        async function clipDriveConnectAndSave(){
+            const status=document.getElementById('clip-save-status');
+            try{
+                if(!isDriveAuthorized())await requestDriveAccessToken();
+                if(!clipProjectId)return;
+                const file=clipOriginalFile||await clipGetStoredVideo(clipProjectId);
+                if(!file){status.textContent='Előbb tölts be egy mérkőzésvideót.';return;}
+                await clipDriveUpload(clipProjectId,file,status);
+            }catch(e){status.textContent='Google Drive hiba: '+(e.message||e);}
+        }
         // A nagy videófájlok nem localStorage-ba kerülnek: IndexedDB-ben Blobként tároljuk őket.
         let clipVideoRestoreToken=0;
         function clipVideoDb(){
@@ -5969,7 +6026,7 @@ KOVÁCS DÁVID MÁTÉ
                 const file=await clipGetStoredVideo(projectId);
                 if(token!==clipVideoRestoreToken||clipProjectId!==projectId)return;
                 if(file){clipAttachVideo(file);if(status)status.textContent='Mentett videó automatikusan betöltve (helyi tárhely)';}
-                else if(status)status.textContent='Ehhez a projekthez még nincs helyben mentett videó. Töltsd be egyszer.';
+                else if(isDriveAuthorized()){const remote=await clipDriveDownload(projectId,status);if(token!==clipVideoRestoreToken||clipProjectId!==projectId)return;if(remote){clipAttachVideo(remote);if(status)status.textContent='Google Drive-videó betöltve';try{await clipStoreVideo(projectId,remote);}catch(e){console.warn(e);}}else if(status)status.textContent='Ehhez a projekthez még nincs mentett videó.';}else if(status)status.textContent='Helyi videó nincs. Kapcsold össze a Google Drive-ot vagy töltsd be a fájlt.';
             }catch(e){if(token===clipVideoRestoreToken&&status)status.textContent='Videó visszatöltési hiba: '+e.message;}
         }
 
@@ -6043,6 +6100,7 @@ KOVÁCS DÁVID MÁTÉ
                 status.textContent='Mentett videó keresése: '+p.title;
                 let file=null;
                 try{file=await clipGetStoredVideo(p.id);}catch(e){console.warn('Videó keresése',e);}
+                if(!file&&isDriveAuthorized()){try{file=await clipDriveDownload(p.id,status);}catch(e){status.textContent='Drive hiba: '+e.message;}}
                 if(!file){
                     status.textContent='Válaszd ki a hiányzó videót: '+p.title+' ('+(p.videoName||'ismeretlen fájlnév')+')';
                     file=await clipTeamAskVideo(p);
@@ -6198,6 +6256,7 @@ KOVÁCS DÁVID MÁTÉ
             try{
                 await clipStoreVideo(clipProjectId,file);
                 if(status)status.textContent='Videó és projekt helyben mentve';
+                if(isDriveAuthorized())clipDriveUpload(clipProjectId,file,status).catch(e=>{if(status)status.textContent='Helyben mentve, Drive hiba: '+e.message;});
             }catch(e){
                 if(status)status.textContent='A videó nem menthető helyben: '+e.message;
                 alert('A videó most lejátszható, de nem sikerült tartósan elmenteni. Lehet, hogy nincs elég böngészőtárhely. '+e.message);
