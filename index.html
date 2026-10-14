@@ -1060,7 +1060,13 @@
     </div>
 
     <!-- 3. MKSZ IMPORT KÉPERNYŐ -->
-    <div class="screen" id="view-clip-projects" style="padding:20px;overflow-y:auto"><button class="back-btn" onclick="showScreen('view-home')">← Főmenü</button><h2 class="page-title">Videóvágó – mentett projektek</h2><button class="btn-arch-action btn-arch-stat" onclick="clipNewProject()">+ Új videóelemzés</button><div id="clip-team-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0"></div><div id="clip-team-library" style="display:none;border:1px solid var(--border-color);border-radius:10px;padding:14px;margin:12px 0"><h3 id="clip-team-heading"></h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><select id="clip-team-category" class="team-select" onchange="clipRenderTeamLibrary()"><option value="">Minden kategória</option></select><select id="clip-team-player" class="team-select" onchange="clipRenderTeamLibrary()"><option value="">Minden játékos</option></select><input id="clip-team-search" placeholder="Jelenetek keresése" oninput="clipRenderTeamLibrary()" style="padding:9px"></div><div id="clip-team-results"></div></div><h3>Mérkőzésprojektek</h3><div id="clip-projects-list"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
+    <div class="screen" id="view-clip-projects" style="padding:20px;overflow-y:auto"><button class="back-btn" onclick="showScreen('view-home')">← Főmenü</button><h2 class="page-title">Videóvágó – mentett projektek</h2><button class="btn-arch-action btn-arch-stat" onclick="clipNewProject()">+ Új videóelemzés</button><div id="clip-team-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0"></div><div id="clip-team-library" style="display:none;border:1px solid var(--border-color);border-radius:10px;padding:14px;margin:12px 0"><h3 id="clip-team-heading"></h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><select id="clip-team-category" class="team-select" onchange="clipRenderTeamLibrary()"><option value="">Minden kategória</option></select><select id="clip-team-player" class="team-select" onchange="clipRenderTeamLibrary()"><option value="">Minden játékos</option></select><input id="clip-team-search" placeholder="Jelenetek keresése" oninput="clipRenderTeamLibrary()" style="padding:9px"></div><div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:12px 0">
+<button class="btn-arch-action" onclick="clipTeamSelectVisible(true)">Szűrt jelenetek kijelölése</button>
+<button class="btn-arch-action" onclick="clipTeamSelectVisible(false)">Kijelölés törlése</button>
+<button class="btn-arch-action btn-arch-stat" onclick="clipTeamExportMp4()">Kijelöltek összefűzése egy MP4-be</button>
+<span id="clip-team-selection-count"></span>
+</div><p style="font-size:12px;color:var(--text-muted)">A mérkőzésvideók nem kerülnek a felhőbe. Exportáláskor ki kell választani az eredeti videófájlokat az érintett mérkőzésekhez.</p>
+<div id="clip-team-results"></div><div id="clip-team-export-status" style="margin:10px 0;color:var(--text-muted)"></div></div><h3>Mérkőzésprojektek</h3><div id="clip-projects-list"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
       <button class="back-btn" onclick="clipSave();showScreen('view-home')"><i class="fas fa-arrow-left"></i> Főmenü</button>
       <h2 class="page-title"><i class="fas fa-cut"></i> Videóvágó</h2><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input id="clip-project-title" placeholder="Projekt neve" onchange="clipSave()" style="padding:10px"><button class="btn-arch-action" onclick="clipSave()">Mentés</button><button class="btn-arch-action" onclick="clipSave();openClipEditor()">Projektek</button><span id="clip-save-status"></span></div>
       <div class="match-setup-form" style="max-width:1250px;">
@@ -5957,6 +5963,78 @@ KOVÁCS DÁVID MÁTÉ
             }
         }
 
+        let clipTeamSelected=new Set(),clipTeamVisible=[];
+        function clipTeamSceneKey(p,c){return p.id+'::'+c.id;}
+        function clipTeamSelectVisible(checked){
+            for(const {project,clip} of clipTeamVisible){const key=clipTeamSceneKey(project,clip);if(checked)clipTeamSelected.add(key);else clipTeamSelected.delete(key);}
+            clipRenderTeamLibrary();
+        }
+        function clipTeamUpdateCount(){
+            const el=document.getElementById('clip-team-selection-count');
+            if(el)el.textContent=clipTeamSelected.size+' jelenet kijelölve';
+        }
+        async function clipTeamAskVideo(project){
+            return new Promise(resolve=>{
+                const input=document.createElement('input');input.type='file';input.accept='video/*';input.style.display='none';
+                document.body.appendChild(input);
+                input.onchange=()=>{const file=input.files?.[0]||null;input.remove();resolve(file);};
+                input.addEventListener('cancel',()=>{input.remove();resolve(null);},{once:true});
+                input.click();
+            });
+        }
+        async function clipTeamExportMp4(){
+            if(clipExportBusy)return;
+            const chosen=clipTeamScenes().filter(({project,clip})=>clipTeamSelected.has(clipTeamSceneKey(project,clip)));
+            if(!chosen.length)return alert('Jelölj ki legalább egy jelenetet a csapatnál.');
+            const projects=[...new Map(chosen.map(x=>[x.project.id,x.project])).values()];
+            const total=chosen.reduce((n,x)=>n+Math.max(0,x.clip.end-x.clip.start),0);
+            if(!confirm(chosen.length+' jelenetet fűzünk össze '+projects.length+' mérkőzésből ('+Math.ceil(total)+' másodperc). Az eredeti videókat újra ki kell választani. Folytatod?'))return;
+            const status=document.getElementById('clip-team-export-status');
+            const files=new Map();
+            for(const p of projects){
+                status.textContent='Válaszd ki a videót: '+p.title+' ('+(p.videoName||'ismeretlen fájlnév')+')';
+                const file=await clipTeamAskVideo(p);
+                if(!file){status.textContent='Exportálás megszakítva. A jelenetek megmaradtak.';return;}
+                if(p.videoName&&file.name!==p.videoName&&!confirm('Másik fájlt választottál, mint a mentett videó.\nVárt: '+p.videoName+'\nKiválasztott: '+file.name+'\nBiztosan folytatod?')){status.textContent='Exportálás megszakítva.';return;}
+                files.set(p.id,file);
+            }
+            clipExportBusy=true;
+            let ff=null;
+            const temp=new Set();
+            try{
+                ff=await clipLoadFfmpeg(status);
+                const outputs=[];
+                // A kijelölt jelenetek a mérkőzésprojektek sorrendjében, azokon belül időrendben kerülnek az összeállításba.
+                const ordered=[...chosen].sort((a,b)=>projects.findIndex(p=>p.id===a.project.id)-projects.findIndex(p=>p.id===b.project.id)||a.clip.start-b.clip.start);
+                let previousId=null,sourceName='';
+                for(let i=0;i<ordered.length;i++){
+                    const {project,clip}=ordered[i];
+                    if(project.id!==previousId){
+                        if(sourceName){await ff.deleteFile(sourceName);temp.delete(sourceName);}
+                        const file=files.get(project.id);
+                        sourceName='team_source_'+i+'.'+(file.name.split('.').pop()||'mp4').replace(/[^a-z0-9]/gi,'');
+                        status.textContent='Mérkőzésvideó betöltése: '+project.title;
+                        await ff.writeFile(sourceName,new Uint8Array(await file.arrayBuffer()));temp.add(sourceName);
+                        previousId=project.id;
+                    }
+                    const out='team_part_'+i+'.mp4';
+                    status.textContent='Jelenetek vágása: '+(i+1)+' / '+ordered.length+' – '+project.title;
+                    const code=await ff.exec(['-ss',String(clip.start),'-i',sourceName,'-t',String(clip.end-clip.start),'-map','0:v:0','-map','0:a?','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-ar','44100','-movflags','+faststart',out]);
+                    if(code!==0)throw Error('Nem sikerült a(z) '+(i+1)+'. jelenetet feldolgozni (FFmpeg '+code+').');
+                    outputs.push(out);temp.add(out);
+                }
+                if(sourceName){await ff.deleteFile(sourceName);temp.delete(sourceName);}
+                status.textContent='Összefűzés folyamatban…';
+                await ff.writeFile('team_concat.txt',new TextEncoder().encode(outputs.map(n=>"file '"+n+"'").join('\n')+'\n'));temp.add('team_concat.txt');
+                const code=await ff.exec(['-f','concat','-safe','0','-i','team_concat.txt','-c','copy','-movflags','+faststart','team_merged.mp4']);
+                if(code!==0)throw Error('Az összefűzés sikertelen (FFmpeg '+code+').');
+                temp.add('team_merged.mp4');
+                const bytes=await ff.readFile('team_merged.mp4');
+                clipDownload(new Blob([bytes],{type:'video/mp4'}),'handball-lab-csapat-osszeallitas.mp4');
+                status.textContent='Kész! '+chosen.length+' jelenetből elkészült az MP4. A letöltés elindult.';
+            }catch(e){status.textContent='MP4-export hiba: '+(e?.message||String(e));console.error(e);}
+            finally{for(const name of temp)try{await ff.deleteFile(name);}catch(e){}clipExportBusy=false;}
+        }
         let clipActiveTeam='';
         function clipNormalizeTeam(name){return String(name||'').toLocaleLowerCase('hu-HU').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');}
         function clipProjectTeams(p){
@@ -5993,7 +6071,7 @@ KOVÁCS DÁVID MÁTÉ
             panel.style.display='block';
             const scenes=clipTeamScenes(),category=document.getElementById('clip-team-category'),player=document.getElementById('clip-team-player'),search=document.getElementById('clip-team-search');
             const catVal=reset?'':category.value,playerVal=reset?'':player.value;
-            if(reset)search.value='';
+            if(reset){search.value='';clipTeamSelected.clear();}
             category.innerHTML='<option value="">Minden kategória</option>';
             for(const c of [...new Set(scenes.map(x=>x.clip.category))].sort()){const o=document.createElement('option');o.value=c;o.textContent=c;category.appendChild(o);}category.value=catVal;
             player.innerHTML='<option value="">Minden játékos</option>';
@@ -6008,12 +6086,14 @@ KOVÁCS DÁVID MÁTÉ
                 const team=project.match?.[clip.player?.side+'Name']||'';
                 return (!category.value||clip.category===category.value)&&(!player.value||(clipNormalizeTeam(team)+'|'+clip.player?.num)===player.value)&&(!query||(project.title+' '+clip.category+' '+(clip.player?.name||'')+' '+(clip.player?.num||'')).toLocaleLowerCase('hu-HU').includes(query));
             });
+            clipTeamVisible=filtered;clipTeamUpdateCount();
             if(!filtered.length)box.textContent='Nincs a szűrésnek megfelelő jelenet.';
             for(const {project,clip} of filtered){
                 const row=document.createElement('div');row.style.cssText='display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding:9px';
                 const info=document.createElement('span');info.style.flex='1';info.textContent=project.title+' · '+formatTime(clip.start)+'–'+formatTime(clip.end)+' · '+clip.category+(clip.player?' · #'+clip.player.num+' '+clip.player.name:'');
                 const open=document.createElement('button');open.className='btn-arch-action';open.textContent='Projekt megnyitása';open.onclick=()=>{clipOpenProject(project);document.getElementById('clip-filter-category').value='';document.getElementById('clip-filter-search').value='';clipRenderList();};
-                row.append(info,open);box.appendChild(row);
+                const tick=document.createElement('input');tick.type='checkbox';tick.checked=clipTeamSelected.has(clipTeamSceneKey(project,clip));tick.onchange=()=>{const key=clipTeamSceneKey(project,clip);if(tick.checked)clipTeamSelected.add(key);else clipTeamSelected.delete(key);clipTeamUpdateCount();};
+                row.append(tick,info,open);box.appendChild(row);
             }
         }
         function clipNewProject(){clipOpenProject({id:crypto.randomUUID(),title:'Új videóelemzés',match:null,clips:[],videoName:''});clipSave();}
