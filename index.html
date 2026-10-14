@@ -5955,7 +5955,7 @@ KOVÁCS DÁVID MÁTÉ
                 const chunkSize=8*1024*1024;let uploaded=0;
                 while(uploaded<file.size){
                     const end=Math.min(uploaded+chunkSize,file.size);
-                    const response=await fetch(session,{method:'PUT',headers:{'Content-Range':'bytes '+uploaded+'-'+(end-1)+'/'+file.size,'Content-Type':file.type||'application/octet-stream'},body:file.slice(uploaded,end)});
+                    const response=await fetch(session,{method:'PUT',headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Range':'bytes '+uploaded+'-'+(end-1)+'/'+file.size,'Content-Type':file.type||'application/octet-stream'},body:file.slice(uploaded,end)});
                     if(response.status!==308&&!response.ok)throw Error('Drive feltöltési hiba ('+response.status+').');
                     uploaded=end;
                     if(status)status.textContent='Google Drive feltöltés: '+Math.round(uploaded/file.size*100)+'% – '+file.name;
