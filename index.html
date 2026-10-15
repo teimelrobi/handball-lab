@@ -908,7 +908,7 @@
             </div>
 
             <div id="running-projects-panel" style="display:none;width:min(100%,980px);max-height:58vh;overflow:auto;padding:16px;border:1px solid var(--border-color);border-radius:12px;background:var(--modal-bg);margin-bottom:16px"><h3 style="margin:0 0 12px;color:var(--green-accent)">Futó projektek</h3><div id="running-projects-list"></div><button class="back-btn" onclick="document.getElementById('running-projects-panel').style.display='none'">Bezárás</button></div>
-            <div class="menu-grid"><div class="menu-card" onclick="showRunningProjects()"><i class="fas fa-folder-open"></i><h3>Futó projektek</h3><p>Félbehagyott mérkőzések folytatása vagy törlése</p></div>
+            <div class="menu-grid"><div class="menu-card" onclick="libraryOpen()"><i class="fas fa-photo-video"></i><h3>Videótár</h3><p>Google Drive videók központi kezelése</p></div><div class="menu-card" onclick="showRunningProjects()"><i class="fas fa-folder-open"></i><h3>Futó projektek</h3><p>Félbehagyott mérkőzések folytatása vagy törlése</p></div>
                 <div class="menu-card" onclick="startSetup(false)">
                     <i class="fas fa-play-circle"></i>
                     <h3>Új mérkőzés (Élő)</h3>
@@ -1078,7 +1078,7 @@
           <label><input type="checkbox" id="clip-away" checked onchange="clipRenderPlayers();clipSave()"> Vendégcsapat</label>
         </div>
         <h3>2. Videó és jelenetek</h3>
-        <input type="file" accept="video/*" onchange="clipLoadVideo(event)">
+        <input type="file" accept="video/*" onchange="clipLoadVideo(event)"> <button class="btn-arch-action" onclick="libraryOpen('clip')">Videótárból betöltés</button>
         <video id="clip-video" controls playsinline style="display:block;width:100%;max-height:56vh;background:#000;margin:12px 0;border-radius:10px;"></video>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
           <button class="btn-arch-action" onclick="clipStep(-2)">◀ −2 mp</button>
@@ -1513,7 +1513,8 @@ KOVÁCS DÁVID MÁTÉ
         </div>
     </div>
 
-    <!-- 7. ÚJ: VIDEÓSZOBA (Archívumból) MINT KÜLÖN SCREEN -->
+    <div class="screen" id="view-video-library"><button class="back-btn" onclick="showScreen(libraryReturn)">← Vissza</button><h2 class="page-title">Videótár</h2><div class="match-setup-form" style="max-width:1000px"><p>Egyszeri feltöltés a saját Google Drive-ba. A mérkőzéshez rendelt videó az Archívum Videószobájában automatikusan betöltődik.</p><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn-stat-main" onclick="libraryConnect()">Google Drive összekapcsolása</button><button class="btn-stat-main" onclick="libraryRefresh()">Videók frissítése</button></div><label>Mérkőzés kiválasztása</label><select class="team-select" id="library-match"><option value="">Nincs hozzárendelés</option></select><label>Videófájl feltöltése</label><input type="file" id="library-file" accept="video/*"><button class="btn-stat-main" onclick="libraryUpload()">Videó feltöltése</button><div id="library-status" role="status" style="color:var(--green-accent)"></div><h3>Google Drive videók</h3><div id="library-list"></div></div></div>
+<!-- 7. ÚJ: VIDEÓSZOBA (Archívumból) MINT KÜLÖN SCREEN -->
     <div class="screen" id="view-video-room" style="padding: 0;">
         <div class="top-nav">
             <div class="logo-area">
@@ -1538,7 +1539,7 @@ KOVÁCS DÁVID MÁTÉ
                         <i class="fas fa-file-video"></i> Meccs videó betöltése (MP4)
                         <input type="file" id="video-file" accept="video/mp4,video/*" style="display:none;" onchange="loadVideoFile(event)">
                     </label>
-                    <button class="btn-stat-main" onclick="startPlayTimeCorrection()" style="font-size:11px;padding:9px 13px;"><i class="fas fa-stopwatch"></i> Játékidő újraszámolás</button>
+                    <button class="btn-stat-main" onclick="libraryOpen('room')" style="font-size:11px;padding:9px 13px">Videótárból betöltés</button><button class="btn-stat-main" onclick="startPlayTimeCorrection()" style="font-size:11px;padding:9px 13px;"><i class="fas fa-stopwatch"></i> Játékidő újraszámolás</button>
                 </div>
                 <div style="width:100%; background:#000; border-radius:12px; flex:1; display:flex; align-items:center; justify-content:center; min-height:300px; overflow:hidden;">
                     <video id="match-video" controls style="width:100%; max-height:100%; outline:none;" ontimeupdate="updateOfficialClockStatus('room')"></video>
@@ -6476,5 +6477,6 @@ KOVÁCS DÁVID MÁTÉ
             finally{v.pause();v.currentTime=savedTime;if(!savedPaused)v.play().catch(()=>{});clipExportBusy=false;}
         }
     </script>
+    <script src="./video-library.js?v=1"></script>
 </body>
 </html>
