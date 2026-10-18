@@ -887,7 +887,23 @@
  #view-main-app .player-card, #view-main-app .player-item {min-height:46px;}
 }
 </style>
-</head>
+<style id="live-shot-wizard-css">
+@media (pointer:coarse) and (min-width:600px) {
+ #unified-modal-overlay.live-shot-wizard .unified-modal {max-height:94dvh;height:auto;display:flex;flex-direction:column;overflow:hidden;}
+ #unified-modal-overlay.live-shot-wizard #tab-shot {overflow-y:auto;overscroll-behavior:contain;min-height:0;}
+ #unified-modal-overlay.live-shot-wizard .u-header {flex-shrink:0;}
+ #unified-modal-overlay.live-shot-wizard .u-actions {flex-shrink:0;}
+ #unified-modal-overlay.live-shot-wizard #live-shot-wizard-controls {display:flex!important;flex-shrink:0;}
+ #unified-modal-overlay.live-shot-wizard .u-footer {flex-shrink:0;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-1 #tab-shot .u-bottom-row {display:none!important;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-1 #btn-save-event {display:none!important;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-2 #tab-shot > .u-section {display:none!important;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-2 #tab-shot .u-bottom-row {display:flex!important;flex-wrap:wrap;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-2 #live-shot-next {display:none!important;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-2 #live-shot-back {display:inline-block!important;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-2 #tab-shot .u-bottom-row > .u-section {min-width:220px;}
+}
+</style></head>
 <body>
 
     <div id="app-login-gate">
@@ -1742,7 +1758,7 @@ KOVÁCS DÁVID MÁTÉ
             <div id="tab-error" class="tab-content"><div class="u-section"><div class="u-section-title"><div class="u-step-num">1</div> Támadási hiba</div><div class="simple-grid"><button class="simple-btn" onclick="selectSimpleAction(this, 'Lépéshiba')">Lépéshiba</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Eladott labda')">Eladott labda</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Belemenés')">Belemenés</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Kétszerindulás')">Kétszerindulás</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Rossz passz')">Rossz passz</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Vonal')">Vonal</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Technikai hiba')">Technikai hiba</button></div></div></div>
             <div id="tab-defense" class="tab-content"><div class="u-section"><div class="u-section-title"><div class="u-step-num">1</div> Védekezés</div><div class="simple-grid"><button class="simple-btn" onclick="selectSimpleAction(this, 'Labdaszerzés')">Labdaszerzés</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Sánc')">Sánc</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Fault')">Fault</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Kiharcolt belemenés')">Kiharcolt belemenés</button><button class="simple-btn" onclick="selectSimpleAction(this, 'Okozott 7m')">Okozott 7m</button></div></div></div>
             <div id="tab-penalty" class="tab-content"><div class="u-section"><div class="u-section-title"><div class="u-step-num">1</div> Büntetés</div><div class="simple-grid"><button class="simple-btn" style="color:#f1c40f;" onclick="selectSimpleAction(this, 'Sárga lap')">Sárga lap</button><button class="simple-btn" onclick="selectSimpleAction(this, '2 perc')">2 perc</button><button class="simple-btn" style="color:var(--red-accent);" onclick="selectSimpleAction(this, 'Piros lap')">Piros lap</button></div></div></div>
-            <div class="u-footer"><button class="btn-cancel" onclick="closeModal()">Mégse</button><button class="btn-save" id="btn-save-event" onclick="saveEvent()">Kész · mentés</button></div>
+            <div id="live-shot-wizard-controls" style="display:none;gap:10px;padding:10px 14px;align-items:center;justify-content:space-between;"><button type="button" id="live-shot-back" onclick="liveShotWizardStep(1)" style="display:none;min-height:48px;padding:8px 18px;">← Vissza</button><span id="live-shot-step-label" style="font-weight:700;">Lövés · 1/2</span><button type="button" id="live-shot-next" onclick="liveShotWizardStep(2)" style="min-height:48px;padding:8px 22px;background:#167d60;color:white;border:0;border-radius:8px;">Tovább →</button></div><div class="u-footer"><button class="btn-cancel" onclick="closeModal()">Mégse</button><button class="btn-save" id="btn-save-event" onclick="saveEvent()">Kész · mentés</button></div>
         </div>
     </div>
 
@@ -4553,7 +4569,7 @@ KOVÁCS DÁVID MÁTÉ
             populateModalHeader(roster, '?', `${document.getElementById('timer-text').innerText} · ${currentPeriod}. Félidő`);
             const assistSelect = document.getElementById('assist-select'); assistSelect.innerHTML = '<option value="">Nincs gólpassz</option>'; roster.forEach(p => { if(p.name.trim() !== "" && p.onCourt) assistSelect.innerHTML += `<option value="${p.num}">#${p.num} ${p.name}</option>`; }); 
             const gkContainer = document.getElementById('gk-buttons-container'); gkContainer.innerHTML = ''; const oppRoster = activeMatch.homeRoster; let targetGk = null; oppRoster.forEach(p => { if(p.isGk && p.name.trim() !== "") { if(p.onCourt) targetGk = p.num; gkContainer.innerHTML += `<button class="gk-btn" id="gk-btn-${p.num}" onclick="selectDefendingGk(this, '${p.num}')">${p.name}</button>`; } }); if(!targetGk) { const fallback = oppRoster.find(p => p.isGk && p.name.trim() !== ""); if(fallback) targetGk = fallback.num; } if(targetGk) selectDefendingGk(document.getElementById(`gk-btn-${targetGk}`), targetGk); else gkContainer.innerHTML = '<div style="font-size:11px; color:var(--text-muted);">Nincs kapus</div>'; 
-            resetSelections(true); switchModalTabSilently('shot'); setAttackTypePanelVisibility(); applyAttackTypeSuggestion('away'); applyDefenseSystemSuggestion(); updatePlayerPositionHint(); document.getElementById('btn-save-event').innerText = "Kész · mentés"; document.getElementById('unified-modal-overlay').style.display = 'flex'; 
+            resetSelections(true); switchModalTabSilently('shot'); setAttackTypePanelVisibility(); applyAttackTypeSuggestion('away'); applyDefenseSystemSuggestion(); updatePlayerPositionHint(); document.getElementById('btn-save-event').innerText = "Kész · mentés"; document.getElementById('unified-modal-overlay').style.display = 'flex'; syncLiveShotWizard();
         }
 
         function populateModalHeader(roster, selectedNum, timeText) {
@@ -4696,6 +4712,21 @@ KOVÁCS DÁVID MÁTÉ
             checkReady();
         }
 
+        function liveShotWizardStep(step) {
+            const overlay=document.getElementById('unified-modal-overlay');
+            if(!overlay.classList.contains('live-shot-wizard'))return;
+            overlay.classList.toggle('wizard-step-1',step===1);
+            overlay.classList.toggle('wizard-step-2',step===2);
+            document.getElementById('live-shot-step-label').textContent='Lövés · '+step+'/2';
+            const panel=document.getElementById('tab-shot');if(panel)panel.scrollTop=0;
+        }
+        function syncLiveShotWizard() {
+            const overlay=document.getElementById('unified-modal-overlay');
+            const enabled=!isVideoAnalysis && activeActionGroup==='shot' && !document.getElementById('view-video-room').classList.contains('active');
+            overlay.classList.toggle('live-shot-wizard',enabled);
+            if(enabled)liveShotWizardStep(1);
+            else overlay.classList.remove('wizard-step-1','wizard-step-2');
+        }
         function openModal(playerIndex, side) { 
             pauseVideoForTagging();
             activeTeamSide = side; const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster; activePlayer = roster[playerIndex]; 
@@ -4754,7 +4785,7 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('unified-modal-overlay').style.display = 'none';
             resumeVideoAfterSavedTag();
         }
-        function changeActionGroup(group, btn) { activeActionGroup = group; document.querySelectorAll('.u-btn-action').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active')); document.getElementById(`tab-${group}`).classList.add('active'); resetSelections(false); setAttackTypePanelVisibility(); markAttackTypeButton(selAttackType); applyDefenseSystemSuggestion(); if(group === 'shot') updatePlayerPositionHint(); checkReady(); }
+        function changeActionGroup(group, btn) { activeActionGroup = group; syncLiveShotWizard(); document.querySelectorAll('.u-btn-action').forEach(b => b.classList.remove('active')); btn.classList.add('active'); document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active')); document.getElementById(`tab-${group}`).classList.add('active'); resetSelections(false); setAttackTypePanelVisibility(); markAttackTypeButton(selAttackType); applyDefenseSystemSuggestion(); if(group === 'shot') updatePlayerPositionHint(); checkReady(); }
         function deriveShotOrigin() {
             if(selShotFinish) return selShotFinish;
             if(selShotWing) return selShotWing;
