@@ -870,6 +870,14 @@
         .login-note{text-align:center;color:#71867c;font-size:12px;margin-top:16px;line-height:1.45}
 
     </style>
+<style id="tablet-live-optimizations">
+@media (pointer:coarse) and (min-width:600px) {
+ #view-main-app button, #view-main-app select, #view-main-app input[type="checkbox"] {touch-action:manipulation;}
+ #view-main-app .btn-start, #view-main-app .btn-undo, #view-main-app .btn-stat-main, #view-main-app .btn-end-match {min-height:48px;min-width:48px;}
+ #view-main-app .main-controls {gap:10px;flex-wrap:wrap;}
+ #view-main-app .player-card, #view-main-app .player-item {min-height:46px;}
+}
+</style>
 </head>
 <body>
 
@@ -5017,7 +5025,18 @@ KOVÁCS DÁVID MÁTÉ
                 adjustTime(0); 
             }
         }
-        function adjustTime(amount) { seconds += amount; if (seconds < 0) seconds = 0; updateTimerDisplay(); if(amount !== 0) { activeMatch.homeRoster.forEach(p => { if(p.onCourt) { p.playTime += amount; if(p.playTime < 0) p.playTime = 0; } }); activeMatch.awayRoster.forEach(p => { if(p.onCourt) { p.playTime += amount; if(p.playTime < 0) p.playTime = 0; } }); } globalEvents.forEach(e => { if(e.period === currentPeriod && amount !== 0) { e.seconds += amount; if (e.seconds < 0) e.seconds = 0; const em = Math.floor(e.seconds / 60).toString().padStart(2, '0'); const es = (e.seconds % 60).toString().padStart(2, '0'); e.time = `${em}:${es}`; } }); updateRosterPlayTimeUI(); updateLiveUI(); saveLiveState(); refreshCurrentStatView(); updatePenaltiesUI(); }
+        function adjustTime(amount) {
+            const delta=Number(amount)||0;
+            seconds=Math.max(0,seconds+delta);
+            updateTimerDisplay();
+            if(delta!==0 && activeMatch){
+                for(const roster of [activeMatch.homeRoster||[],activeMatch.awayRoster||[]]){
+                    for(const player of roster){if(player.onCourt)player.playTime=Math.max(0,(Number(player.playTime)||0)+delta);}
+                }
+            }
+            // A már rögzített események időpontjai változatlanok maradnak.
+            updateRosterPlayTimeUI();updateLiveUI();saveLiveState();refreshCurrentStatView();updatePenaltiesUI();
+        }
         function updatePenaltiesUI() {
             const checkTeam = (roster, side) => {
                 const activePenaltyCount = getActivePenaltyCount(roster);
@@ -5069,7 +5088,24 @@ KOVÁCS DÁVID MÁTÉ
             checkTeam(activeMatch.homeRoster, 'home');
             checkTeam(activeMatch.awayRoster, 'away');
         }
-        function toggleTimer() { const btn = document.getElementById('start-btn'); if (timer) { clearInterval(timer); timer = null; btn.innerHTML = '<i class="fas fa-play"></i> Indítás'; btn.classList.remove('running'); } else { timer = setInterval(() => { adjustTime(1); }, 1000); btn.innerHTML = '<i class="fas fa-pause"></i> Szünet'; btn.classList.add('running'); } }
+        let liveTimerLastTick=0;
+        function toggleTimer() {
+            const btn=document.getElementById('start-btn');
+            if(timer){
+                liveTimerTick();
+                clearInterval(timer);timer=null;liveTimerLastTick=0;
+                btn.innerHTML='<i class="fas fa-play"></i> Indítás';btn.classList.remove('running');
+            }else{
+                liveTimerLastTick=Date.now();
+                timer=setInterval(liveTimerTick,250);
+                btn.innerHTML='<i class="fas fa-pause"></i> Szünet';btn.classList.add('running');
+            }
+        }
+        function liveTimerTick(){
+            if(!timer||!liveTimerLastTick)return;
+            const now=Date.now(),delta=Math.floor((now-liveTimerLastTick)/1000);
+            if(delta>0){liveTimerLastTick+=delta*1000;adjustTime(delta);}
+        }
 
         function clearStatPrintMode() {
             document.querySelectorAll('#stat-dashboard .stat-content').forEach(el=>el.classList.remove('print-target'));
