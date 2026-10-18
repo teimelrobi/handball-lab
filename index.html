@@ -870,6 +870,15 @@
         .login-note{text-align:center;color:#71867c;font-size:12px;margin-top:16px;line-height:1.45}
 
     </style>
+<style id="android-tablet-live">
+@media (pointer:coarse) and (orientation:landscape) and (min-width:700px) {
+ #view-main-app .top-nav {position:sticky;top:0;z-index:15;background:var(--bg-primary,#0b1116);}
+ #view-main-app button {touch-action:manipulation;}
+ #view-main-app .main-controls button {min-height:54px;padding:10px 14px;}
+ #view-main-app .btn-undo {min-width:54px;}
+ #view-main-app .btn-end-match {border:2px solid var(--red-accent,#ef4444);}
+}
+</style>
 <style id="tablet-live-optimizations">
 @media (pointer:coarse) and (min-width:600px) {
  #view-main-app button, #view-main-app select, #view-main-app input[type="checkbox"] {touch-action:manipulation;}
@@ -3613,7 +3622,7 @@ KOVÁCS DÁVID MÁTÉ
         function saveLiveState() { const state = { activeMatch, globalEvents, seconds, currentPeriod, isVideoAnalysis }; saveRunningProject(state); localStorage.setItem('live_match_state', JSON.stringify(state)); localStorage.setItem('handball_db_updated_at', new Date().toISOString()); updateCloudCounts(); scheduleCloudSync(); }
 
         function endMatch() {
-            if(!confirm("Biztosan lezárod a mérkőzést? Ez elmenti az archívumba és kilép a főmenübe.")) return;
+            if(!confirm("MÉRKŐZÉS VÉGE: biztosan lezárod és archiválod a mérkőzést?")) return;
             if(timer) toggleTimer();
             if(!db.matches) db.matches = [];
             activeMatch.matchEndAbs = (isVideoAnalysis && currentPeriod===2) ? 3600 : currentMatchAbsoluteSeconds();
