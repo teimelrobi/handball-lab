@@ -888,7 +888,7 @@
 }
 </style>
 <style id="live-shot-wizard-css">
-@media (pointer:coarse) and (min-width:600px) {
+/* Live shot wizard applies on every tablet/browser input mode. */
  #unified-modal-overlay.live-shot-wizard .unified-modal {max-height:94dvh;height:auto;display:flex;flex-direction:column;overflow:hidden;}
  #unified-modal-overlay.live-shot-wizard #tab-shot {overflow-y:auto;overscroll-behavior:contain;min-height:0;}
  #unified-modal-overlay.live-shot-wizard .u-header {flex-shrink:0;}
@@ -905,7 +905,6 @@
  #unified-modal-overlay.live-shot-wizard.wizard-step-2 #live-shot-next {display:none!important;}
  #unified-modal-overlay.live-shot-wizard.wizard-step-2 #live-shot-back {display:inline-block!important;}
  #unified-modal-overlay.live-shot-wizard.wizard-step-2 #tab-shot .u-bottom-row > .u-section {min-width:220px;}
-}
 </style></head>
 <body>
 
@@ -4734,7 +4733,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function syncLiveShotWizard() {
             const overlay=document.getElementById('unified-modal-overlay');
-            const enabled=!isVideoAnalysis && activeActionGroup==='shot' && !editingEventId && document.getElementById('view-main-app').classList.contains('active');
+            const enabled=!isVideoAnalysis && activeActionGroup==='shot' && !editingEventId && !!activeMatch && document.getElementById('view-main-app').classList.contains('active');
             overlay.classList.toggle('live-shot-wizard',enabled);
             if(enabled)liveShotWizardStep(1);
             else overlay.classList.remove('wizard-step-1','wizard-step-2');
