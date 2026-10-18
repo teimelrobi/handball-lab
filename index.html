@@ -892,6 +892,9 @@
  #unified-modal-overlay.live-shot-wizard .unified-modal {max-height:94dvh;height:auto;display:flex;flex-direction:column;overflow:hidden;}
  #unified-modal-overlay.live-shot-wizard #tab-shot {overflow-y:auto;overscroll-behavior:contain;min-height:0;}
  #unified-modal-overlay.live-shot-wizard .u-header {flex-shrink:0;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-1 #tab-shot .shot-pitch-wrap {max-height:40vh;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-1 #tab-shot .shot-pitch {max-height:38vh;}
+ #unified-modal-overlay.live-shot-wizard.wizard-step-2 #tab-shot .goal-grid-container {max-height:48vh;}
  #unified-modal-overlay.live-shot-wizard .u-actions {flex-shrink:0;}
  #unified-modal-overlay.live-shot-wizard #live-shot-wizard-controls {display:flex!important;flex-shrink:0;}
  #unified-modal-overlay.live-shot-wizard .u-footer {flex-shrink:0;}
@@ -4715,6 +4718,15 @@ KOVÁCS DÁVID MÁTÉ
         function liveShotWizardStep(step) {
             const overlay=document.getElementById('unified-modal-overlay');
             if(!overlay.classList.contains('live-shot-wizard'))return;
+            if(step===2){
+                const emptyGoal=selShotSituation.includes('Üres kapu');
+                const locationOk=emptyGoal||!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish);
+                const finishOk=emptyGoal||!!selShotFinish||!!selShotWing;
+                if(!locationOk||!finishOk){
+                    alert('Előbb jelöld a rajzos pályán, honnan lőtt, és válaszd ki a befejezés módját!');
+                    return;
+                }
+            }
             overlay.classList.toggle('wizard-step-1',step===1);
             overlay.classList.toggle('wizard-step-2',step===2);
             document.getElementById('live-shot-step-label').textContent='Lövés · '+step+'/2';
@@ -4722,7 +4734,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function syncLiveShotWizard() {
             const overlay=document.getElementById('unified-modal-overlay');
-            const enabled=!isVideoAnalysis && activeActionGroup==='shot' && !document.getElementById('view-video-room').classList.contains('active');
+            const enabled=!isVideoAnalysis && activeActionGroup==='shot' && !editingEventId && document.getElementById('view-main-app').classList.contains('active');
             overlay.classList.toggle('live-shot-wizard',enabled);
             if(enabled)liveShotWizardStep(1);
             else overlay.classList.remove('wizard-step-1','wizard-step-2');
@@ -4779,7 +4791,7 @@ KOVÁCS DÁVID MÁTÉ
             const playPromise = vid.play();
             if(playPromise && typeof playPromise.catch === 'function') playPromise.catch(() => {});
         }
-        function closeModal() { editingEventId = null; resumeVideoAfterSaveId = null; document.getElementById('unified-modal-overlay').style.display = 'none'; }
+        function closeModal() { editingEventId = null; resumeVideoAfterSaveId = null; const overlay=document.getElementById('unified-modal-overlay'); overlay.style.display='none';overlay.classList.remove('live-shot-wizard','wizard-step-1','wizard-step-2'); }
         function closeModalAfterSave() {
             editingEventId = null;
             document.getElementById('unified-modal-overlay').style.display = 'none';
