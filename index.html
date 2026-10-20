@@ -4722,9 +4722,9 @@ KOVÁCS DÁVID MÁTÉ
             if(step===2){
                 const emptyGoal=selShotSituation.includes('Üres kapu');
                 const locationOk=emptyGoal||!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish);
-                const finishOk=emptyGoal||selAttackType==='Lerohanás'||!!selShotFinish||!!selShotWing;
+                const finishOk=emptyGoal||selShotSituation.includes('Indítás')||selAttackType==='Lerohanás'||!!selShotFinish||!!selShotWing;
                 if(!locationOk||!finishOk){
-                    alert('Előbb jelöld a rajzos pályán, honnan lőtt, és válaszd ki a befejezés módját!');
+                    alert('Jelöld a lövés helyét! Indításnál és lerohanásnál nem kell külön befejezési módot választani, üres kapunál a hely sem kötelező.');
                     return;
                 }
             }
@@ -4812,7 +4812,7 @@ KOVÁCS DÁVID MÁTÉ
             const hint=document.getElementById('shot-zone-description');
             if(!hint)return;
             const place=selShotZone||selShotWing||(selShotFinish==='7 méteres'?'7 méteres':'Nincs kijelölve');
-            const finish=selShotFinish||(selShotWing?'Szélről':(selAttackType==='Lerohanás'?'Lerohanás':'Nincs kiválasztva'));
+            const finish=selShotFinish||(selShotSituation.includes('Üres kapu')?'Üres kapu':selShotSituation.includes('Indítás')?'Indítás':selAttackType==='Lerohanás'?'Lerohanás':selShotWing?'Szélről':'Nincs kiválasztva');
             const extras=[...selShotSituation];
             if(selAttackType==='Lerohanás')extras.push('Lerohanás');
             hint.innerText='Hely: '+place+' · Befejezés: '+finish+(extras.length?' · '+extras.join(' + '):'');
@@ -4921,7 +4921,7 @@ KOVÁCS DÁVID MÁTÉ
             const legacyEdit=!!originalEvent&&!originalEvent.shotFinish&&!!selFrom;
             const emptyGoalShot=selShotSituation.includes('Üres kapu');
             const shotLocationOk=emptyGoalShot||!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish)||legacyEdit;
-            const shotFinishOk=emptyGoalShot||selAttackType==='Lerohanás'||!!selShotFinish||!!selShotWing||legacyEdit;
+            const shotFinishOk=emptyGoalShot||selShotSituation.includes('Indítás')||selAttackType==='Lerohanás'||!!selShotFinish||!!selShotWing||legacyEdit;
             if(activeActionGroup==='shot'&&shotLocationOk&&shotFinishOk&&selResult&&shotTargetOk&&selAttackType&&defenseOk)btn.classList.add('active');
             else if(['attack','error'].includes(activeActionGroup)&&selSimpleAction&&selAttackType&&defenseOk)btn.classList.add('active');
             else if(['defense','penalty'].includes(activeActionGroup)&&selSimpleAction&&defenseOk)btn.classList.add('active');
@@ -4993,7 +4993,7 @@ KOVÁCS DÁVID MÁTÉ
                 if (ev) { 
                     ev.playerNum = activePlayer.num; ev.playerName = activePlayer.name; ev.isGk = activePlayer.isGk; ev.playerPosition = activePlayer.position || (activePlayer.isGk ? 'Kapus' : ''); 
                     ev.group = activeActionGroup; ev.action = actionText; ev.result = resultText; 
-                    ev.detailsFrom = selFrom; ev.detailsTo = selTo; ev.shotZone = activeActionGroup==='shot'?(selShotZone||''):''; ev.shotWing = activeActionGroup==='shot'?(selShotWing||''):''; ev.shotFinish = activeActionGroup==='shot'?(selShotFinish||(selAttackType==='Lerohanás'?'Lerohanás':'')):''; ev.shotSituation = activeActionGroup==='shot'?[...selShotSituation]:[]; ev.shotType = activeActionGroup === 'shot' ? (selType || '') : ''; ev.assist = assistVal; 
+                    ev.detailsFrom = selFrom; ev.detailsTo = selTo; ev.shotZone = activeActionGroup==='shot'?(selShotZone||''):''; ev.shotWing = activeActionGroup==='shot'?(selShotWing||''):''; ev.shotFinish = activeActionGroup==='shot'?(selShotFinish||(selShotSituation.includes('Indítás')?'Indítás':selAttackType==='Lerohanás'?'Lerohanás':'')):''; ev.shotSituation = activeActionGroup==='shot'?[...selShotSituation]:[]; ev.shotType = activeActionGroup === 'shot' ? (selType || '') : ''; ev.assist = assistVal; 
                     ev.defendingGk = activeActionGroup === 'shot' ? selDefendingGk : ""; 
                     const oldPossessionId = ev.possessionId; ev.attackType = isAttackTypeGroup(activeActionGroup) ? selAttackType : ''; ev.defenseSide = defenseSideFor(activeActionGroup, activeTeamSide); ev.defenseSystem = selDefenseSystem;
                     if(oldPossessionId && ev.attackType) globalEvents.forEach(x => { if(x.possessionId === oldPossessionId && x.team === ev.team && isPossessionOffenseEvent(x)) x.attackType = ev.attackType; });
@@ -5005,7 +5005,7 @@ KOVÁCS DÁVID MÁTÉ
                 }
                 editingEventId = null;
             } else {
-                const eventId = 'ev_' + Date.now(); const newEvent = { id: eventId, time: currentActionTime, seconds: currentActionSeconds, period: currentActionPeriod, videoTime: typeof currentActionVideoTime === 'number' ? currentActionVideoTime : null, team: activeTeamSide, playerNum: activePlayer.num, playerName: activePlayer.name, isGk: activePlayer.isGk, playerPosition: activePlayer.position || (activePlayer.isGk ? 'Kapus' : ''), group: activeActionGroup, action: actionText, result: resultText, detailsFrom: selFrom, detailsTo: selTo, shotZone:activeActionGroup==='shot'?(selShotZone||''):'', shotWing:activeActionGroup==='shot'?(selShotWing||''):'', shotFinish:activeActionGroup==='shot'?(selShotFinish||(selAttackType==='Lerohanás'?'Lerohanás':'')):'', shotSituation:activeActionGroup==='shot'?[...selShotSituation]:[], shotType: activeActionGroup === 'shot' ? (selType || '') : '', assist: assistVal, defendingGk: activeActionGroup === 'shot' ? selDefendingGk : "", attackType: isAttackTypeGroup(activeActionGroup) ? selAttackType : '', defenseSide: defenseSideFor(activeActionGroup, activeTeamSide), defenseSystem: selDefenseSystem, homeCourt: activeMatch.homeRoster.filter(p=>p.onCourt).map(p=>p.num.toString()), awayCourt: activeMatch.awayRoster.filter(p=>p.onCourt).map(p=>p.num.toString()) };
+                const eventId = 'ev_' + Date.now(); const newEvent = { id: eventId, time: currentActionTime, seconds: currentActionSeconds, period: currentActionPeriod, videoTime: typeof currentActionVideoTime === 'number' ? currentActionVideoTime : null, team: activeTeamSide, playerNum: activePlayer.num, playerName: activePlayer.name, isGk: activePlayer.isGk, playerPosition: activePlayer.position || (activePlayer.isGk ? 'Kapus' : ''), group: activeActionGroup, action: actionText, result: resultText, detailsFrom: selFrom, detailsTo: selTo, shotZone:activeActionGroup==='shot'?(selShotZone||''):'', shotWing:activeActionGroup==='shot'?(selShotWing||''):'', shotFinish:activeActionGroup==='shot'?(selShotFinish||(selShotSituation.includes('Indítás')?'Indítás':selAttackType==='Lerohanás'?'Lerohanás':'')):'', shotSituation:activeActionGroup==='shot'?[...selShotSituation]:[], shotType: activeActionGroup === 'shot' ? (selType || '') : '', assist: assistVal, defendingGk: activeActionGroup === 'shot' ? selDefendingGk : "", attackType: isAttackTypeGroup(activeActionGroup) ? selAttackType : '', defenseSide: defenseSideFor(activeActionGroup, activeTeamSide), defenseSystem: selDefenseSystem, homeCourt: activeMatch.homeRoster.filter(p=>p.onCourt).map(p=>p.num.toString()), awayCourt: activeMatch.awayRoster.filter(p=>p.onCourt).map(p=>p.num.toString()) };
                 if(selSimpleAction === '2 perc') { const penaltyAbs=lineupAbsOverride===null?eventAbsoluteSeconds(currentActionPeriod,currentActionSeconds):lineupAbsOverride; activePlayer.penaltyEnd = currentActionSeconds + 120; activePlayer.penaltyEndAbs = penaltyAbs + 120; if(!(isVideoAnalysis && activeTeamSide==='away')) { activePlayer.onCourt = false; pendingSubstitution[activeTeamSide] = null; recordLineupSnapshot(`2 perc ${activeTeamSide}`,penaltyAbs); syncRosterPlayTimesFromLineup(penaltyAbs); } if(isVideoAnalysis)renderAnalysisRosters();else renderRosterUI(`roster-${activeTeamSide}`, activeTeamSide === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster, `${activeTeamSide}-num`, activeTeamSide); } globalEvents.unshift(newEvent); 
                 globalEvents.sort((a,b) => (b.period - a.period) || (b.seconds - a.seconds));
             }
