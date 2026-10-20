@@ -3356,7 +3356,7 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('display-name-home').innerText = activeMatch.homeName; document.getElementById('sb-name-home').innerText = activeMatch.homeName; document.getElementById('tab-btn-home').innerText = activeMatch.homeName;
             document.getElementById('display-name-away').innerText = activeMatch.awayName; document.getElementById('sb-name-away').innerText = activeMatch.awayName; document.getElementById('tab-btn-away').innerText = activeMatch.awayName;
             document.getElementById('live-meta-league').innerHTML = `<i class="fas fa-trophy"></i> ${activeMatch.league}`; document.getElementById('live-meta-location').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${activeMatch.location}`; document.getElementById('live-meta-date').innerHTML = `<i class="far fa-calendar-alt"></i> ${activeMatch.date}`;
-            renderRosterUI('roster-home', activeMatch.homeRoster, 'home-num', 'home'); renderRosterUI('roster-away', activeMatch.awayRoster, 'away-num', 'away');
+            renderAnalysisRosters();
             
             if(isVideoAnalysis) {
                 document.getElementById('live-video-container').style.display = 'block';
@@ -3607,7 +3607,7 @@ KOVÁCS DÁVID MÁTÉ
             document.getElementById('display-name-away').innerText = activeMatch.awayName; document.getElementById('sb-name-away').innerText = activeMatch.awayName; document.getElementById('tab-btn-away').innerText = activeMatch.awayName; 
             document.getElementById('live-meta-league').innerHTML = `<i class="fas fa-trophy"></i> ${activeMatch.league || 'Bajnokság'}`; document.getElementById('live-meta-location').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${activeMatch.location || 'Helyszín'}`; document.getElementById('live-meta-date').innerHTML = `<i class="far fa-calendar-alt"></i> ${activeMatch.date || 'Dátum'}`;
             document.getElementById('btn-period-toggle').innerText = `${currentPeriod}. FÉLIDŐ`; updateTimerDisplay();
-            renderRosterUI('roster-home', activeMatch.homeRoster, 'home-num', 'home'); renderRosterUI('roster-away', activeMatch.awayRoster, 'away-num', 'away'); updateLiveUI();
+            renderAnalysisRosters(); updateLiveUI();
             document.getElementById('live-video-container').style.display=isVideoAnalysis?'block':'none';
             document.getElementById('time-adj-row').style.display=isVideoAnalysis?'none':'flex';
             document.getElementById('start-btn').style.display=isVideoAnalysis?'none':'block';
@@ -4482,6 +4482,18 @@ KOVÁCS DÁVID MÁTÉ
             refreshAfterSubstitution(side);
         }
         function videoOwnTeamSide() { const home=String(activeMatch?.homeName||'').toLocaleLowerCase('hu'); const away=String(activeMatch?.awayName||'').toLocaleLowerCase('hu'); const isOwn=name=>/budai\s*farkasok/.test(name)&&/fu\s*1[68]|u\s*1[68]/.test(name); if(isOwn(away)&&!isOwn(home))return 'away'; return 'home'; }
+        function renderAnalysisRosters() {
+            const ownAway=isVideoAnalysis && videoOwnTeamSide()==='away';
+            const leftSide=ownAway?'away':'home', rightSide=ownAway?'home':'away';
+            const leftRoster=leftSide==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
+            const rightRoster=rightSide==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
+            document.getElementById('display-name-home').innerText=leftSide==='home'?activeMatch.homeName:activeMatch.awayName;
+            document.getElementById('display-name-away').innerText=rightSide==='home'?activeMatch.homeName:activeMatch.awayName;
+            document.querySelector('#view-main-app .sidebar-home .team-badge').textContent='SAJÁT CSAPAT';
+            document.querySelector('#view-main-app .sidebar-away .team-badge').textContent='ELLENFÉL';
+            renderRosterUI('roster-home',leftRoster,'home-num',leftSide);
+            renderRosterUI('roster-away',rightRoster,'away-num',rightSide);
+        }
         function renderCompactVideoOpponentRoster(container,players,side) {
             const sorted=players.map((p,index)=>({p,index})).filter(x=>x.p&&String(x.p.num||'').trim()).sort((a,b)=>Number(a.p.num)-Number(b.p.num));
             container.innerHTML='<div class="roster-divider">ELLENFÉL · MEZSZÁMOK</div><div class="video-opp-number-grid">'+sorted.map(({p,index})=>{
