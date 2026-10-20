@@ -4393,7 +4393,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function refreshAfterSubstitution(side) {
             const roster = side === 'home' ? activeMatch.homeRoster : activeMatch.awayRoster;
-            renderRosterUI(`roster-${side}`, roster, `${side}-num`, side);
+            if(isVideoAnalysis)renderAnalysisRosters();else renderRosterUI(`roster-${side}`, roster, `${side}-num`, side);
             saveLiveState();
             refreshCurrentStatView();
         }
