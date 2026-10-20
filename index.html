@@ -4721,7 +4721,7 @@ KOVÁCS DÁVID MÁTÉ
             if(!overlay.classList.contains('live-shot-wizard'))return;
             if(step===2){
                 const emptyGoal=selShotSituation.includes('Üres kapu');
-                const locationOk=emptyGoal||!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish);
+                const locationOk=emptyGoal||selShotSituation.includes('Indítás')||selAttackType==='Lerohanás'||!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish);
                 const finishOk=emptyGoal||selShotSituation.includes('Indítás')||selAttackType==='Lerohanás'||!!selShotFinish||!!selShotWing;
                 if(!locationOk||!finishOk){
                     alert('Jelöld a lövés helyét! Indításnál és lerohanásnál nem kell külön befejezési módot választani, üres kapunál a hely sem kötelező.');
@@ -4920,7 +4920,7 @@ KOVÁCS DÁVID MÁTÉ
             const originalEvent=editingEventId?globalEvents.find(e=>e.id===editingEventId):null;
             const legacyEdit=!!originalEvent&&!originalEvent.shotFinish&&!!selFrom;
             const emptyGoalShot=selShotSituation.includes('Üres kapu');
-            const shotLocationOk=emptyGoalShot||!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish)||legacyEdit;
+            const shotLocationOk=emptyGoalShot||selShotSituation.includes('Indítás')||selAttackType==='Lerohanás'||!!selShotZone||!!selShotWing||['7 méteres','Beálló'].includes(selShotFinish)||legacyEdit;
             const shotFinishOk=emptyGoalShot||selShotSituation.includes('Indítás')||selAttackType==='Lerohanás'||!!selShotFinish||!!selShotWing||legacyEdit;
             if(activeActionGroup==='shot'&&shotLocationOk&&shotFinishOk&&selResult&&shotTargetOk&&selAttackType&&defenseOk)btn.classList.add('active');
             else if(['attack','error'].includes(activeActionGroup)&&selSimpleAction&&selAttackType&&defenseOk)btn.classList.add('active');
