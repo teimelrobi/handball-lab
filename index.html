@@ -4338,7 +4338,7 @@ KOVÁCS DÁVID MÁTÉ
             const panel=document.getElementById('auto-sub-panel');
             if(!panel||!activeMatch)return;
             const esc=x=>String(x??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-            const parts=(isVideoAnalysis?['home']:['home','away']).map(side=>{
+            const parts=(isVideoAnalysis?[videoOwnTeamSide()]:['home','away']).map(side=>{
                 const roster=side==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
                 const pairs=autoSubPairs(side),plan=autoSubPlan(side);
                 const name=side==='home'?activeMatch.homeName:activeMatch.awayName;
@@ -4481,7 +4481,12 @@ KOVÁCS DÁVID MÁTÉ
             syncRosterPlayTimesFromLineup(exactAbs);
             refreshAfterSubstitution(side);
         }
-        function videoOwnTeamSide() { const home=String(activeMatch?.homeName||'').toLocaleLowerCase('hu'); const away=String(activeMatch?.awayName||'').toLocaleLowerCase('hu'); const isOwn=name=>/budai\s*farkasok/.test(name)&&/fu\s*1[68]|u\s*1[68]/.test(name); if(isOwn(away)&&!isOwn(home))return 'away'; return 'home'; }
+        function videoOwnTeamSide() {
+            if(!activeMatch)return 'home';
+            const home=isBudaiFarkasokTeam(activeMatch.homeName);
+            const away=isBudaiFarkasokTeam(activeMatch.awayName);
+            return away&&!home?'away':'home';
+        }
         function renderAnalysisRosters() {
             const ownAway=isVideoAnalysis && videoOwnTeamSide()==='away';
             const leftSide=ownAway?'away':'home', rightSide=ownAway?'home':'away';
@@ -4564,11 +4569,11 @@ KOVÁCS DÁVID MÁTÉ
 
         function quickOpponentShot() {
             pauseVideoForTagging();
-            activeTeamSide = 'away'; activePlayer = {num: '?', name: 'Ismeretlen', isGk: false}; const roster = activeMatch.awayRoster;
+            activeTeamSide = isVideoAnalysis ? (videoOwnTeamSide()==='home'?'away':'home') : 'away'; activePlayer = {num: '?', name: 'Ismeretlen', isGk: false}; const roster = activeTeamSide==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
             populateModalHeader(roster, '?', `${document.getElementById('timer-text').innerText} · ${currentPeriod}. Félidő`);
             const assistSelect = document.getElementById('assist-select'); assistSelect.innerHTML = '<option value="">Nincs gólpassz</option>'; roster.forEach(p => { if(p.name.trim() !== "" && p.onCourt) assistSelect.innerHTML += `<option value="${p.num}">#${p.num} ${p.name}</option>`; }); 
-            const gkContainer = document.getElementById('gk-buttons-container'); gkContainer.innerHTML = ''; const oppRoster = activeMatch.homeRoster; let targetGk = null; oppRoster.forEach(p => { if(p.isGk && p.name.trim() !== "") { if(p.onCourt) targetGk = p.num; gkContainer.innerHTML += `<button class="gk-btn" id="gk-btn-${p.num}" onclick="selectDefendingGk(this, '${p.num}')">${p.name}</button>`; } }); if(!targetGk) { const fallback = oppRoster.find(p => p.isGk && p.name.trim() !== ""); if(fallback) targetGk = fallback.num; } if(targetGk) selectDefendingGk(document.getElementById(`gk-btn-${targetGk}`), targetGk); else gkContainer.innerHTML = '<div style="font-size:11px; color:var(--text-muted);">Nincs kapus</div>'; 
-            resetSelections(true); switchModalTabSilently('shot'); setAttackTypePanelVisibility(); applyAttackTypeSuggestion('away'); applyDefenseSystemSuggestion(); updatePlayerPositionHint(); document.getElementById('btn-save-event').innerText = "Kész · mentés"; document.getElementById('unified-modal-overlay').style.display = 'flex'; syncLiveShotWizard(); 
+            const gkContainer = document.getElementById('gk-buttons-container'); gkContainer.innerHTML = ''; const oppRoster = activeTeamSide==='home'?activeMatch.awayRoster:activeMatch.homeRoster; let targetGk = null; oppRoster.forEach(p => { if(p.isGk && p.name.trim() !== "") { if(p.onCourt) targetGk = p.num; gkContainer.innerHTML += `<button class="gk-btn" id="gk-btn-${p.num}" onclick="selectDefendingGk(this, '${p.num}')">${p.name}</button>`; } }); if(!targetGk) { const fallback = oppRoster.find(p => p.isGk && p.name.trim() !== ""); if(fallback) targetGk = fallback.num; } if(targetGk) selectDefendingGk(document.getElementById(`gk-btn-${targetGk}`), targetGk); else gkContainer.innerHTML = '<div style="font-size:11px; color:var(--text-muted);">Nincs kapus</div>'; 
+            resetSelections(true); switchModalTabSilently('shot'); setAttackTypePanelVisibility(); applyAttackTypeSuggestion(activeTeamSide); applyDefenseSystemSuggestion(); updatePlayerPositionHint(); document.getElementById('btn-save-event').innerText = "Kész · mentés"; document.getElementById('unified-modal-overlay').style.display = 'flex'; syncLiveShotWizard(); 
         }
 
         function populateModalHeader(roster, selectedNum, timeText) {
