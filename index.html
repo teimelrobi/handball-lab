@@ -984,6 +984,10 @@
                 <div><label>1. Csapat</label><select id="career-team-select" onchange="loadCareerPlayers()"></select></div>
                 <div><label>2. Játékos</label><select id="career-player-select" onchange="renderCareerPlayerStats()"></select></div>
             </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 18px;">
+                <button class="btn-save" type="button" onclick="exportCareerGraphicPDF('team')" style="padding:11px 16px;"><i class="fas fa-file-pdf"></i> Csapat · grafikus PDF</button>
+                <button class="btn-save" type="button" onclick="exportCareerGraphicPDF('player')" style="padding:11px 16px;"><i class="fas fa-file-pdf"></i> Játékos · grafikus PDF</button>
+            </div>
             <div id="career-stat-content"><div class="career-empty">Válassz csapatot és játékost.</div></div>
         </div>
     </div>
@@ -2684,6 +2688,48 @@ KOVÁCS DÁVID MÁTÉ
         }
         function careerSortableHead(table,labels) {
             return labels.map((label,i)=>'<th style="cursor:pointer;user-select:none" aria-sort="none" onclick="sortCareerTable(&quot;'+table+'&quot;,'+i+')" title="Kattintás a rendezéshez">'+label+'<span style="opacity:.65"> ⇅</span></th>').join('');
+        }
+        function exportCareerGraphicPDF(kind) {
+            const team=careerSelectedTeamName();
+            if(!team){alert('Előbb válassz csapatot!');return;}
+            const key=careerSelectedPlayerKey();
+            if(kind==='player'&&(!key||key==='__team__')){alert('A játékos PDF-hez válassz egy játékost a listából!');return;}
+            const data=kind==='team'?buildCareerTeamData(team):buildCareerPlayerData(team,key);
+            const meta=kind==='player'?careerPlayersForTeam(team).find(p=>p.key===key):null;
+            const title=kind==='team'?careerTeamRef(team).label:(meta?meta.name:'Játékos');
+            const safe=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const pie=(heading,values)=>{
+                const items=Object.entries(values||{}).filter(([k,v])=>Number(v)>0).sort((a,b)=>b[1]-a[1]).slice(0,9);
+                const total=items.reduce((a,x)=>a+Number(x[1]),0);
+                if(!total)return '<section class="panel"><h3>'+safe(heading)+'</h3><p>Nincs rögzített adat.</p></section>';
+                const colors=['#16a34a','#2563eb','#f59e0b','#dc2626','#8b5cf6','#06b6d4','#ea580c','#64748b','#84cc16'];
+                let offset=0;
+                const stops=items.map((item,i)=>{const start=offset;offset+=Number(item[1])/total*100;return colors[i]+' '+start.toFixed(3)+'% '+offset.toFixed(3)+'%';}).join(',');
+                const legend=items.map((item,i)=>'<div class="legend"><i style="background:'+colors[i]+'"></i><span>'+safe(item[0])+'</span><b>'+Math.round(Number(item[1])/total*100)+'% ('+Number(item[1])+')</b></div>').join('');
+                return '<section class="panel"><h3>'+safe(heading)+'</h3><div class="pie-row"><div class="pie" style="background:conic-gradient('+stops+')"></div><div class="legends">'+legend+'</div></div></section>';
+            };
+            const shotResults=data.shotResults||{};
+            const types=data.attackTypes||{};
+            const defense=data.defenseSystems||{};
+            const source=data.shotMap||data.shotFrom||{};
+            const shotSources={};
+            Object.entries(source).forEach(([name,value])=>{const count=typeof value==='object'?(Number(value.s)||0):Number(value);if(count>0)shotSources[name]=count;});
+            const outcome=Object.keys(shotResults).length?shotResults:{'Gól':data.goals||0,'Nem gól':Math.max(0,(data.shots||0)-(data.goals||0))};
+            const panels=[pie('Lövések eredménye',outcome),pie('Támadástípusok',types),pie('Védekezési rendszerek',defense),pie('Lövéshelyek és befejezések',shotSources)];
+            if(kind==='team') {
+                const players=Object.values(data.players||{}).sort((a,b)=>b.playTime-a.playTime).slice(0,18);
+                const max=Math.max(1,...players.map(p=>p.playTime));
+                panels.push('<section class="panel wide"><h3>Játékidő játékosonként</h3>'+players.map(p=>'<div class="barrow"><span>'+safe(p.name)+'</span><div class="track"><div style="width:'+(p.playTime/max*100).toFixed(1)+'%"></div></div><b>'+formatPlayTime(p.playTime)+'</b></div>').join('')+'</section>');
+            } else {
+                const games=(data.matchRows||[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+                const max=Math.max(1,...games.map(g=>Number(g.time)||0));
+                panels.push('<section class="panel wide"><h3>Játékidő mérkőzésenként</h3>'+games.map(g=>'<div class="barrow"><span>'+safe(g.date+' · '+g.opponent)+'</span><div class="track"><div style="width:'+((Number(g.time)||0)/max*100).toFixed(1)+'%"></div></div><b>'+formatPlayTime(g.time)+'</b></div>').join('')+'</section>');
+            }
+            const totals='<div class="metrics"><div><b>'+data.matches+'</b><small>Mérkőzés</small></div><div><b>'+formatPlayTime(kind==='player'?data.playTime:Object.values(data.players||{}).reduce((n,p)=>n+(Number(p.playTime)||0),0))+'</b><small>Összes játékidő</small></div><div><b>'+data.goals+'/'+data.shots+'</b><small>Gól / lövés</small></div><div><b>'+data.assists+'</b><small>Gólpassz</small></div></div>';
+            const html='<!DOCTYPE html><html lang="hu"><head><meta charset="utf-8"><title>'+safe(title)+' · Handball Lab statisztika</title><style>@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font-family:Arial,sans-serif;color:#142034;margin:0;background:white}header{border-bottom:3px solid #16a34a;padding-bottom:12px;margin-bottom:16px}h1{font-size:23px;margin:0 0 5px}h3{font-size:15px;margin:0 0 12px}p,small{color:#64748b}.metrics{display:flex;gap:12px;margin-bottom:18px}.metrics>div{flex:1;background:#f1f5f9;padding:10px;text-align:center;border-radius:8px}.metrics b{display:block;font-size:19px}.metrics small{display:block;font-size:10px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.panel{border:1px solid #dce3e8;border-radius:10px;padding:14px;break-inside:avoid;page-break-inside:avoid}.wide{grid-column:1/-1}.pie-row{display:flex;align-items:center;gap:14px}.pie{width:135px;height:135px;border-radius:50%;flex-shrink:0}.legends{flex:1;min-width:0}.legend{display:flex;align-items:center;gap:5px;font-size:10px;margin:5px 0}.legend i{height:9px;width:9px;flex-shrink:0}.legend span{flex:1;overflow-wrap:anywhere}.legend b{white-space:nowrap}.barrow{display:flex;align-items:center;gap:9px;font-size:11px;margin:7px 0}.barrow span{width:34%;overflow-wrap:anywhere}.barrow b{width:55px;text-align:right}.track{flex:1;height:12px;background:#e2e8f0;border-radius:4px;overflow:hidden}.track div{height:100%;background:#16a34a}footer{margin-top:18px;color:#64748b;font-size:10px}.toolbar{padding:12px;background:#f1f5f9;margin-bottom:14px}@media print{.toolbar{display:none}body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><div class="toolbar"><button onclick="window.print()">Mentés PDF-ként / Nyomtatás</button> · A nyomtatási ablakban válaszd a Mentés PDF-ként lehetőséget.</div><header><h1>'+safe(title)+'</h1><div>Handball Lab · '+(kind==='team'?'Csapatösszesítő':'Játékosösszesítő')+' · '+new Date().toLocaleDateString('hu-HU')+'</div></header>'+totals+'<main class="grid">'+panels.join('')+'</main><footer>A grafikonok a Handball Labban mentett mérkőzések alapján készültek. Hiányzó eseményadatok esetén egyes diagramok nem jelennek meg.</footer></body></html>';
+            const win=window.open('','_blank');
+            if(!win){alert('Engedélyezd a felugró ablakokat a PDF-exporthoz.');return;}
+            win.document.open();win.document.write(html);win.document.close();win.focus();
         }
         function renderCareerTeamStats(teamName) {
             const root=document.getElementById('career-stat-content'); if(!root)return;
