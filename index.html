@@ -2566,6 +2566,25 @@ KOVÁCS DÁVID MÁTÉ
         function careerNum(value) {
             const n=Number(value); return Number.isFinite(n)?n:0;
         }
+        function careerMatchPlayTimes(match,side) {
+            const roster=(side==='home'?match.homeRoster:match.awayRoster)||[];
+            const saved=Object.fromEntries(roster.map(p=>[String(p.num),Math.max(0,Number(p.playTime)||0)]));
+            if(roster.some(p=>saved[String(p.num)]>0)) return saved;
+            if(match.lineupHistoryComplete===true && Array.isArray(match.lineupHistory) && match.lineupHistory.length) {
+                const previous=activeMatch;
+                try {
+                    activeMatch=match;
+                    syncRosterPlayTimesFromLineup(Number(match.matchEndAbs)||3600);
+                    return Object.fromEntries(roster.map(p=>[String(p.num),Math.max(0,Number(p.playTime)||0)]));
+                } finally { activeMatch=previous; }
+            }
+            const events=(match.events||[]).filter(e=>Array.isArray(e.homeCourt)||Array.isArray(e.awayCourt));
+            if(!events.length)return saved;
+            const rows=[['Felido','Masodperc','Hazai_Palyan','Vendeg_Palyan']];
+            events.forEach(e=>rows.push([e.period,e.seconds,(e.homeCourt||[]).join('|'),(e.awayCourt||[]).join('|')]));
+            try { return calculatePlayTimesFromCSVRows(rows,match).totals[side]; }
+            catch(err) { return saved; }
+        }
         function buildCareerTeamData(teamName) {
             const out={matches:0,wins:0,draws:0,losses:0,gf:0,ga:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,errors:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,twoMin:0,gkSaves:0,gkFaced:0,shotMap:{},shotResults:{},attackTypes:{},defenseSystems:{},players:{},matchRows:[]};
             (db.matches||[]).forEach(match=>{
@@ -2580,11 +2599,12 @@ KOVÁCS DÁVID MÁTÉ
                 out.matches++; out.gf+=gf; out.ga+=ga; if(gf>ga)out.wins++;else if(gf===ga)out.draws++;else out.losses++;
 
                 const byNum={};
+                const matchPlayTimes=careerMatchPlayTimes(match,side);
                 roster.forEach(p=>{
                     const key=careerNorm(p.name); if(!key) return;
                     byNum[String(p.num)]=key;
                     if(!out.players[key]) out.players[key]={name:p.name,num:p.num,isGk:!!p.isGk||careerNorm(p.position).includes('kapus'),playTime:0,goals:0,shots:0,assists:0,steals:0,blocks:0,errors:0,gkSaves:0,gkFaced:0};
-                    out.players[key].playTime+=Number(p.playTime)||0;
+                    out.players[key].playTime+=Number(matchPlayTimes[String(p.num)])||0;
                 });
                 let mGoals=0,mShots=0,mErrors=0,mSteals=0,mSaves=0,mFaced=0;
                 const seenAttackPossessions=new Set(), seenDefensePossessions=new Set();
