@@ -416,6 +416,13 @@
         .simple-btn.selected { background: var(--green-accent); color: #000; border-color: var(--green-accent); }
 
 
+        /* STAT lenyitható panelek */
+        .career-fold > summary { cursor:pointer;list-style:none;color:var(--green-accent);font-size:15px;font-weight:700;padding:3px 0;display:flex;align-items:center;gap:10px; }
+        .career-fold > summary::-webkit-details-marker {display:none;}
+        .career-fold > summary::before {content:'▸';font-size:18px;color:var(--text-muted);transition:transform .15s;}
+        .career-fold[open] > summary::before {transform:rotate(90deg);}
+        .career-fold[open] > summary {margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border-color);}
+        .career-stat-card:has(> .career-fold:not([open])) {padding:14px 16px;}
         /* --- ÖSSZESÍTETT JÁTÉKOS STAT --- */
         .career-stat-wrap { width:min(1400px,96vw); margin:0 auto; padding:20px 0 50px; }
         .career-stat-selectors { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:18px 0; }
@@ -2995,7 +3002,32 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-stat-card full"><h3>Kapusok összesítése</h3><table class="stats-table" data-career-table="gk"><thead><tr>'+careerSortableHead('gk',["Kapus","Játékidő","Védés/lövés","Védési %"])+'</tr></thead><tbody>'+gkRows+'</tbody></table></div>'+
                     '<div class="career-stat-card full"><h3>Meccsenkénti bontás</h3><table class="stats-table" data-career-table="matches"><thead><tr>'+careerSortableHead('matches',["Dátum","Ellenfél","Eredmény","Kimenetel","Gól/lövés","Hiba","Labdaszerzés","Kapus"])+'</tr></thead><tbody>'+matchRows+'</tbody></table></div>'+
                 '</div>';
+            // STAT panelek: minden részletes blokk külön lenyitható, alapból zárt fül.
+            root.querySelectorAll('.career-stat-card').forEach((card,index)=>{
+                if(card.id==='career-together') return; // ezt a panelt a következő render tölti fel
+                const heading=card.querySelector(':scope > h3');
+                if(!heading)return;
+                const details=document.createElement('details');
+                details.className='career-fold';
+                const summary=document.createElement('summary');
+                summary.innerHTML=heading.innerHTML;
+                details.appendChild(summary);
+                heading.remove();
+                while(card.firstChild)details.appendChild(card.firstChild);
+                card.appendChild(details);
+            });
             careerTogetherRender();
+            const together=document.getElementById('career-together');
+            if(together && !together.querySelector(':scope > details')) {
+                const heading=together.querySelector(':scope > h3');
+                if(heading){
+                    const details=document.createElement('details');details.className='career-fold';
+                    const summary=document.createElement('summary');summary.innerHTML=heading.innerHTML;
+                    details.appendChild(summary);heading.remove();
+                    while(together.firstChild)details.appendChild(together.firstChild);
+                    together.appendChild(details);
+                }
+            }
             const sortedTrend=performance.matches.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
             root.querySelectorAll('[data-career-trend-index]').forEach(el=>el.addEventListener('click',()=>{
                 const match=sortedTrend[Number(el.dataset.careerTrendIndex)];
