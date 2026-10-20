@@ -2835,10 +2835,33 @@ KOVÁCS DÁVID MÁTÉ
                 '<p style="margin-top:10px">Legjobb lövési hatékonyság (min. 3 lövés): '+(shooters.length?'#'+shooters[0].num+' '+shooters[0].name+' – '+Math.round(100*shooters[0].goals/(shooters[0].goals+shooters[0].misses))+'%':'Nincs elegendő adat')+'</p>';
             target.scrollIntoView({behavior:'smooth',block:'nearest'});
         }
+        function careerAllCombos(team) {
+            const pairs=new Map(),lines=new Map();
+            (db.matches||[]).forEach(m=>{
+                const side=careerTeamSide(m,team);if(!side)return;
+                const roster=(side==='home'?m.homeRoster:m.awayRoster)||[],lookup=new Map(roster.map(p=>[String(p.num),p])),field=side==='home'?'homeCourt':'awayCourt';
+                const accumulate=(nums,time,gf,ga)=>{
+                    const names=[...new Set((nums||[]).map(String))].filter(n=>lookup.has(n)&&!lookup.get(n).isGk).map(n=>lookup.get(n).name);
+                    const put=(map,list)=>{const key=list.map(careerNorm).sort().join('|');if(!key)return;let r=map.get(key);if(!r){r={names:list.slice().sort(),time:0,gf:0,ga:0,matches:new Set()};map.set(key,r);}r.time+=time;r.gf+=gf;r.ga+=ga;r.matches.add(m.id);};
+                    for(let i=0;i<names.length;i++)for(let j=i+1;j<names.length;j++)put(pairs,[names[i],names[j]]);
+                    if(names.length>=4)put(lines,names);
+                };
+                const hist=(m.lineupHistory||[]).slice().sort((a,b)=>Number(a.abs)-Number(b.abs)),end=Number(m.matchEndAbs)||3600;
+                hist.forEach((h,i)=>{const start=Number(h.abs)||0,stop=i+1<hist.length?Number(hist[i+1].abs)||start:end;if(stop>start)accumulate(h[field],stop-start,0,0);});
+                (m.events||[]).forEach(e=>{if(e.group!=='shot'||e.result!=='Gól')return;accumulate(e[field],0,e.team===side?1:0,e.team!==side?1:0);});
+            });
+            return {pairs:[...pairs.values()],lines:[...lines.values()]};
+        }
+        function careerComboHTML(items) {
+            const rows=items.filter(x=>x.time||x.gf||x.ga).sort((a,b)=>b.time-a.time).slice(0,30);
+            if(!rows.length)return '<p>Nincs elegendő mentett összeállításadat.</p>';
+            return '<div style="overflow-x:auto"><table class="stats-table"><thead><tr><th>Játékosok</th><th>Meccs</th><th>Együtt</th><th>Lőtt</th><th>Kapott</th><th>+/-</th></tr></thead><tbody>'+
+                rows.map(x=>'<tr><td>'+x.names.join(' · ')+'</td><td>'+x.matches.size+'</td><td>'+formatPlayTime(x.time)+'</td><td>'+x.gf+'</td><td>'+x.ga+'</td><td>'+(x.gf-x.ga>0?'+':'')+(x.gf-x.ga)+'</td></tr>').join('')+'</tbody></table></div>';
+        }
         function renderCareerTeamStats(teamName) {
             const root=document.getElementById('career-stat-content'); if(!root)return;
             const d=buildCareerTeamData(teamName), avg=n=>d.matches?(n/d.matches).toFixed(1):'0.0', shotPct=d.shots?Math.round(d.goals/d.shots*100):0, savePct=d.gkFaced?Math.round(d.gkSaves/d.gkFaced*100):0;
-            const players=Object.values(d.players), performance=careerPerformanceData(teamName);
+            const players=Object.values(d.players), performance=careerPerformanceData(teamName), combos=careerAllCombos(teamName);
             const fieldRows=players.filter(p=>!p.isGk).sort((a,b)=>b.goals-a.goals||b.assists-a.assists).map(p=>{
                 const pct=p.shots?Math.round(p.goals/p.shots*100):0;
                 return '<tr><td><strong>#'+p.num+' '+p.name+'</strong></td><td>'+formatPlayTime(p.playTime)+'</td><td>'+p.goals+'/'+p.shots+'</td><td>'+pct+'%</td><td>'+p.assists+'</td><td>'+p.steals+'</td><td>'+p.blocks+'</td><td>'+p.errors+'</td></tr>';
@@ -2875,6 +2898,8 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-stat-card"><h3>Védekezési rendszerek</h3>'+careerCountHTML(d.defenseSystems)+'</div>'+
                     '<div class="career-stat-card"><h3>Labdabiztonság</h3>'+careerCountHTML({'Támadási hibák':d.errors,'Hiba / meccs':avg(d.errors)})+'</div>'+
                     '<div class="career-stat-card full"><h3><i class="fas fa-chart-line"></i> Eredménytrend · kattints egy mérkőzés oszlopaira</h3>'+careerTeamTrendHTML(d.matchRows)+'<div id="career-match-best" style="margin-top:12px"></div></div>'+
+                    '<div class="career-stat-card full"><h3>Összesített játékospárok</h3>'+careerComboHTML(combos.pairs)+'</div>'+
+                    '<div class="career-stat-card full"><h3>Összesített sorok (kapus nélkül)</h3>'+careerComboHTML(combos.lines)+'<p style="font-size:11px;color:var(--text-muted)">Az együtt töltött idő a mentett csereelőzményekből, a gólkülönbség az események pályán lévő játékosaiból számolódik. Hiányzó adatok esetén részleges.</p></div>'+
                     '<div class="career-stat-card full"><h3>Mezőnyjátékosok összesítése</h3><table class="stats-table" data-career-table="field"><thead><tr>'+careerSortableHead('field',["Játékos","Játékidő","Gól/lövés","Lövés %","GP","Labda","Sánc","Hiba"])+'</tr></thead><tbody>'+fieldRows+'</tbody></table></div>'+
                     '<div class="career-stat-card full"><h3>Kapusok összesítése</h3><table class="stats-table" data-career-table="gk"><thead><tr>'+careerSortableHead('gk',["Kapus","Játékidő","Védés/lövés","Védési %"])+'</tr></thead><tbody>'+gkRows+'</tbody></table></div>'+
                     '<div class="career-stat-card full"><h3>Meccsenkénti bontás</h3><table class="stats-table" data-career-table="matches"><thead><tr>'+careerSortableHead('matches',["Dátum","Ellenfél","Eredmény","Kimenetel","Gól/lövés","Hiba","Labdaszerzés","Kapus"])+'</tr></thead><tbody>'+matchRows+'</tbody></table></div>'+
