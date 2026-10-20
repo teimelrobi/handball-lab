@@ -2882,7 +2882,7 @@ KOVÁCS DÁVID MÁTÉ
             const team=careerSelectedTeamName(), players=careerPlayersForTeam(team).filter(p=>!p.isGk);
             const valid=new Set(players.map(p=>p.key));
             careerTogetherSelection=careerTogetherSelection.filter(k=>valid.has(k));
-            const keys=careerTogetherSelection, results=[], individual=new Map(keys.map(k=>[k,{goals:0,shots:0,assists:0,steals:0,blocks:0,faults:0,errors:0,won7:0,twoMin:0}])), total={time:0,gf:0,ga:0,shots:0,errors:0,steals:0,blocks:0,faults:0,assists:0,attacks:new Set(),defenses:new Set(),matches:0,unverified:0};
+            const keys=careerTogetherSelection, results=[], individual=new Map(keys.map(k=>[k,{goals:0,shots:0,assists:0,steals:0,blocks:0,faults:0,errors:0,won7:0,twoMin:0,details:{}}])), total={time:0,gf:0,ga:0,shots:0,errors:0,steals:0,blocks:0,faults:0,assists:0,attacks:new Set(),defenses:new Set(),matches:0,unverified:0};
             if(keys.length>=2)(db.matches||[]).forEach(m=>{
                 const side=careerTeamSide(m,team);if(!side)return;
                 const roster=(side==='home'?m.homeRoster:m.awayRoster)||[],field=side==='home'?'homeCourt':'awayCourt';
@@ -2919,25 +2919,32 @@ KOVÁCS DÁVID MÁTÉ
                     if(careerTogetherPhase==='defense'&&ownEvent)return;
                     // Egyéni teljesítmények kizárólag a kijelölt játékosok közös pályán léte alatt.
                     if(ownEvent){
+                        const record=(row,kind,event,extra='')=>{
+                            if(!row)return;
+                            if(!row.details[kind])row.details[kind]=[];
+                            const at=String(event.period||'?')+'. félidő '+formatPlayTime(Math.max(0,Number(event.seconds)||0));
+                            row.details[kind].push({date:m.date||'',opponent:side==='home'?m.awayName:m.homeName,at,from:event.detailsFrom||'',to:event.detailsTo||'',type:event.attackType||event.shotType||'',extra});
+                        };
+                        const assistPlayer=val=>{const found=roster.find(x=>String(x.num)===String(val)||careerNorm(x.name)===careerNorm(val));return found?found.name:(val?'#'+val:'Nincs rögzítve');};
                         const actor=nums.find(p=>careerNorm(e.playerName)===careerNorm(p.name) ||
                             (!e.playerName && String(e.playerNum)===String(p.num)));
                         if(actor){
                             const row=individual.get(careerNorm(actor.name));
                             if(row){
-                                if(e.group==='shot'){row.shots++;if(e.result==='Gól')row.goals++;}
-                                if(e.group==='error')row.errors++;
+                                if(e.group==='shot'){row.shots++;record(row,'shots',e,e.result||'');if(e.result==='Gól'){row.goals++;record(row,'goals',e,'Gólpassz: '+assistPlayer(e.assist));}}
+                                if(e.group==='error'){row.errors++;record(row,'errors',e,e.result||'');}
                                 if(e.group==='defense'){
-                                    if(e.result==='Labdaszerzés')row.steals++;
-                                    if(e.result==='Sánc')row.blocks++;
-                                    if(e.result==='Fault')row.faults++;
+                                    if(e.result==='Labdaszerzés'){row.steals++;record(row,'steals',e); }
+                                    if(e.result==='Sánc'){row.blocks++;record(row,'blocks',e); }
+                                    if(e.result==='Fault'){row.faults++;record(row,'faults',e); }
                                 }
-                                if(e.group==='attack'&&e.result==='Kiharcolt 7m')row.won7++;
-                                if(e.group==='penalty'&&e.result==='2 perc')row.twoMin++;
+                                if(e.group==='attack'&&e.result==='Kiharcolt 7m'){row.won7++;record(row,'won7',e); }
+                                if(e.group==='penalty'&&e.result==='2 perc'){row.twoMin++;record(row,'twoMin',e); }
                             }
                         }
                         if(e.assist!==undefined&&e.assist!==null&&String(e.assist)!==''){
                             const assister=nums.find(p=>String(p.num)===String(e.assist) || careerNorm(p.name)===careerNorm(e.assist));
-                            if(assister)individual.get(careerNorm(assister.name)).assists++;
+                            if(assister){const row=individual.get(careerNorm(assister.name));row.assists++;record(row,'assists',e,'Gólszerző: '+(e.playerName||assistPlayer(e.playerNum)));}
                         }
                     }
                     if(e.group==='shot') {
@@ -2971,7 +2978,7 @@ KOVÁCS DÁVID MÁTÉ
                 '<div class="career-kpis"><div class="career-kpi"><span>Közös játékidő</span><strong>'+(careerTogetherPhase==='all'?formatPlayTime(total.time):'—')+'</strong></div><div class="career-kpi"><span>Mérkőzés</span><strong>'+total.matches+'</strong></div><div class="career-kpi"><span>Lőtt / kapott</span><strong>'+total.gf+' / '+total.ga+'</strong></div><div class="career-kpi"><span>+/-</span><strong>'+(total.gf-total.ga>0?'+':'')+(total.gf-total.ga)+'</strong></div><div class="career-kpi"><span>+/- / 60 perc</span><strong>'+(careerTogetherPhase==='all'&&total.time?(3600*(total.gf-total.ga)/total.time).toFixed(1):'—')+'</strong></div><div class="career-kpi"><span>Lövés %</span><strong>'+(total.shots?Math.round(total.gf/total.shots*100)+'%':'—')+'</strong></div></div>'+
                 '<div class="career-mini-grid">'+[['Lövések',total.shots],['Gólpasszok',total.assists],['Labdaszerzések',total.steals],['Sáncok',total.blocks],['Faultok',total.faults],['Technikai hibák',total.errors],['Azonosított támadások',total.attacks.size],['Azonosított védekezések',total.defenses.size]].map(([n,v])=>'<div class="career-mini"><span>'+n+'</span><b>'+v+'</b></div>').join('')+'</div>'+
                 '<h4 style="margin:18px 0 8px">Kijelölt játékosok egyéni teljesítménye</h4><p class="lineup-note">Kattints a játékos nevére! Csak a közös pályán tartózkodásuk alatt rögzített események szerepelnek.</p>'+
-                keys.map(k=>{const p=players.find(x=>x.key===k),r=individual.get(k);return '<details class="career-fold" style="border:1px solid var(--border-color);border-radius:8px;padding:12px;margin-bottom:8px"><summary>'+esc(p?p.name:k)+'</summary><div class="career-mini-grid">'+[['Gól',r.goals],['Lövés',r.shots],['Lövés %',r.shots?Math.round(r.goals/r.shots*100)+'%':'—'],['Gólpassz',r.assists],['Labdaszerzés',r.steals],['Sánc',r.blocks],['Fault',r.faults],['Technikai hiba',r.errors],['Kiharcolt 7m',r.won7],['2 perc',r.twoMin]].map(([name,val])=>'<div class="career-mini"><span>'+name+'</span><b>'+val+'</b></div>').join('')+'</div></details>';}).join('')+
+                keys.map(k=>{const p=players.find(x=>x.key===k),r=individual.get(k);return '<details class="career-fold" style="border:1px solid var(--border-color);border-radius:8px;padding:12px;margin-bottom:8px"><summary>'+esc(p?p.name:k)+'</summary><div class="career-mini-grid">'+[['Gól',r.goals,'goals'],['Lövés',r.shots,'shots'],['Lövés %',r.shots?Math.round(r.goals/r.shots*100)+'%':'—',null],['Gólpassz',r.assists,'assists'],['Labdaszerzés',r.steals,'steals'],['Sánc',r.blocks,'blocks'],['Fault',r.faults,'faults'],['Technikai hiba',r.errors,'errors'],['Kiharcolt 7m',r.won7,'won7'],['2 perc',r.twoMin,'twoMin']].map(([name,val,kind])=>kind?'<details style="border:1px solid var(--border-color);border-radius:6px;padding:8px"><summary style="cursor:pointer">'+name+': <b>'+val+'</b></summary>'+((r.details[kind]||[]).length?'<div style="overflow-x:auto"><table class="stats-table"><thead><tr><th>Dátum</th><th>Ellenfél</th><th>Idő</th><th>Honnan</th><th>Hova</th><th>Típus / kapcsolódó adat</th></tr></thead><tbody>'+r.details[kind].map(d=>'<tr><td>'+esc(d.date)+'</td><td>'+esc(d.opponent)+'</td><td>'+esc(d.at)+'</td><td>'+esc(d.from)+'</td><td>'+esc(d.to)+'</td><td>'+esc([d.type,d.extra].filter(Boolean).join(' · '))+'</td></tr>').join('')+'</tbody></table></div>':'<p>Nincs rögzített esemény.</p>')+'</details>':'<div class="career-mini"><span>'+name+'</span><b>'+val+'</b></div>').join('')+'</div></details>';}).join('')+
                 '<h4 style="margin:18px 0 8px">Mérkőzésenként</h4><div style="overflow-x:auto"><table class="stats-table"><thead><tr><th>Dátum</th><th>Ellenfél</th><th>Közös idő</th><th>Lőtt</th><th>Kapott</th><th>+/-</th></tr></thead><tbody>'+results.map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.opponent)+'</td><td>'+(careerTogetherPhase==='all'?formatPlayTime(r.time):'—')+'</td><td>'+r.gf+'</td><td>'+r.ga+'</td><td>'+(r.gf-r.ga)+'</td></tr>').join('')+'</tbody></table></div>'+
                 '<p class="lineup-note">Az idő csak teljes, mentett csereelőzményből számolható. '+(total.unverified?'Hiányos csereelőzményű mérkőzések: '+total.unverified+'. ':'')+'A támadás/védekezés szűrő eseményeket szűr; fázisonkénti percet pontos birtoklási időadat nélkül nem becslünk. A létszámhelyzetek időbontása közelítő (30 mp-es mintavétel). A 7:6 külön időszűréséhez teljes taktikai idővonal szükséges.</p>');
             root.querySelectorAll('[data-together-player]').forEach(b=>b.addEventListener('click',()=>careerTogetherToggle(decodeURIComponent(b.dataset.togetherPlayer))));
