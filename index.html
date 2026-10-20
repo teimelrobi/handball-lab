@@ -2683,7 +2683,7 @@ KOVÁCS DÁVID MÁTÉ
             el.querySelectorAll('thead th').forEach((th,i)=>{th.setAttribute('aria-sort',i===col?(dir===-1?'descending':'ascending'):'none');const arrow=th.querySelector('span');if(arrow)arrow.textContent=i===col?(dir===-1?' ▼':' ▲'):' ⇅';});
         }
         function careerSortableHead(table,labels) {
-            return labels.map((label,i)=>'<th style="cursor:pointer;user-select:none" aria-sort="none" onclick="sortCareerTable(\\''+table+'\\','+i+')" title="Kattintás a rendezéshez">'+label+'<span style="opacity:.65"> ⇅</span></th>').join('');
+            return labels.map((label,i)=>'<th style="cursor:pointer;user-select:none" aria-sort="none" onclick="sortCareerTable(&quot;'+table+'&quot;,'+i+')" title="Kattintás a rendezéshez">'+label+'<span style="opacity:.65"> ⇅</span></th>').join('');
         }
         function renderCareerTeamStats(teamName) {
             const root=document.getElementById('career-stat-content'); if(!root)return;
