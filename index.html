@@ -4486,7 +4486,7 @@ KOVÁCS DÁVID MÁTÉ
             const sorted=players.map((p,index)=>({p,index})).filter(x=>x.p&&String(x.p.num||'').trim()).sort((a,b)=>Number(a.p.num)-Number(b.p.num));
             container.innerHTML='<div class="roster-divider">ELLENFÉL · MEZSZÁMOK</div><div class="video-opp-number-grid">'+sorted.map(({p,index})=>{
                 const susp=getPlayerPenaltyRemaining(p)>0;
-                return '<button type="button" class="video-opp-number'+(susp?' suspended':'')+'" onclick="openModal('+index+', \'away\')" title="'+(p.isGk?'Kapus · ':'')+'#'+String(p.num).replace(/"/g,'')+'">'+(p.isGk?'🧤 ':'')+'#'+p.num+(susp?'<small>2 perc</small>':'')+'</button>';
+                return '<button type="button" class="video-opp-number'+(susp?' suspended':'')+'" onclick="openModal('+index+', \''+side+'\')" title="'+(p.isGk?'Kapus · ':'')+'#'+String(p.num).replace(/"/g,'')+'">'+(p.isGk?'🧤 ':'')+'#'+p.num+(susp?'<small>2 perc</small>':'')+'</button>';
             }).join('')+'</div>';
         }
         function renderRosterUI(containerId, players, numClass, side) {
