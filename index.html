@@ -2898,6 +2898,9 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-stat-card"><h3>Védekezési rendszerek</h3>'+careerCountHTML(d.defenseSystems)+'</div>'+
                     '<div class="career-stat-card"><h3>Labdabiztonság</h3>'+careerCountHTML({'Támadási hibák':d.errors,'Hiba / meccs':avg(d.errors)})+'</div>'+
                     '<div class="career-stat-card full"><h3><i class="fas fa-chart-line"></i> Eredménytrend · kattints egy mérkőzés oszlopaira</h3>'+careerTeamTrendHTML(d.matchRows)+'<div id="career-match-best" style="margin-top:12px"></div></div>'+
+                    '<div class="career-stat-card full"><h3>Játékosranglista · összpontszám</h3>'+careerPerformanceRankHTML(performance,false)+'</div>'+
+                    '<div class="career-stat-card full"><h3>Játékosranglista · 60 percre vetítve (min. 15 perc)</h3>'+careerPerformanceRankHTML(performance,true)+'</div>'+
+                    '<div class="career-stat-card full"><p style="font-size:12px">Pontozás: gól +2, gólpassz +2, labdaszerzés +3, sánc +2, kiharcolt 7m +2, kiharcolt belemenés +2, technikai hiba −2, rontott lövés −1. Fault külön mutató.</p></div>'+
                     '<div class="career-stat-card full"><h3>Összesített játékospárok</h3>'+careerComboHTML(combos.pairs)+'</div>'+
                     '<div class="career-stat-card full"><h3>Összesített sorok (kapus nélkül)</h3>'+careerComboHTML(combos.lines)+'<p style="font-size:11px;color:var(--text-muted)">Az együtt töltött idő a mentett csereelőzményekből, a gólkülönbség az események pályán lévő játékosaiból számolódik. Hiányzó adatok esetén részleges.</p></div>'+
                     '<div class="career-stat-card full"><h3>Mezőnyjátékosok összesítése</h3><table class="stats-table" data-career-table="field"><thead><tr>'+careerSortableHead('field',["Játékos","Játékidő","Gól/lövés","Lövés %","GP","Labda","Sánc","Hiba"])+'</tr></thead><tbody>'+fieldRows+'</tbody></table></div>'+
