@@ -3018,6 +3018,15 @@ KOVÁCS DÁVID MÁTÉ
                 while(card.firstChild)details.appendChild(card.firstChild);
                 card.appendChild(details);
             });
+            // A lenyitható blokkok mindig a teljes csapatstatisztika végére kerülnek.
+            const statGrid=root.querySelector('.career-stat-grid');
+            if(statGrid){
+                const folds=Array.from(statGrid.children).filter(card=>
+                    card.classList.contains('career-stat-card') &&
+                    card.querySelector(':scope > details.career-fold')
+                );
+                folds.forEach(card=>statGrid.appendChild(card));
+            }
             const sortedTrend=performance.matches.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
             root.querySelectorAll('[data-career-trend-index]').forEach(el=>el.addEventListener('click',()=>{
                 const match=sortedTrend[Number(el.dataset.careerTrendIndex)];
