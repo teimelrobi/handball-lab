@@ -2816,8 +2816,8 @@ KOVÁCS DÁVID MÁTÉ
             return {players:Array.from(players.values()).map(p=>({...p,score:score(p),per60:p.seconds>0?score(p)*3600/p.seconds:null})),matches,score};
         }
         function careerPerformanceRankHTML(data,rate) {
-            const eligible=data.players.filter(p=>!p.isGk&&(!rate||p.seconds>=1800)).sort((a,b)=>(rate?b.per60-a.per60:b.score-a.score)||b.goals-a.goals);
-            if(!eligible.length)return '<p>Nincs elegendő játékidőadat (minimum 30 perc).</p>';
+            const eligible=data.players.filter(p=>!p.isGk&&(!rate||p.seconds>=900)).sort((a,b)=>(rate?b.per60-a.per60:b.score-a.score)||b.goals-a.goals);
+            if(!eligible.length)return '<p>Nincs elegendő játékidőadat (minimum 15 perc).</p>';
             return '<table class="stats-table"><thead><tr><th>#</th><th>Játékos</th><th>Játékidő</th><th>Pont</th><th>Gól</th><th>Gólpassz</th><th>Labdaszerzés</th></tr></thead><tbody>'+
                 eligible.map((p,i)=>'<tr><td>'+(i+1)+'</td><td>#'+p.num+' '+p.name+'</td><td>'+formatPlayTime(p.seconds)+'</td><td><b>'+(rate?p.per60.toFixed(1):p.score)+'</b></td><td>'+p.goals+'</td><td>'+p.assists+'</td><td>'+p.steals+'</td></tr>').join('')+'</tbody></table>';
         }
