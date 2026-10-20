@@ -2800,9 +2800,9 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-kpi"><span>Védési %</span><strong>'+savePct+'%</strong></div>'+
                 '</div>'+
                 '<div class="career-stat-card full"><h3>Létszámhelyzetek · kattints a részletekért</h3><div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">'+
-                    '<button class="btn-save" onclick="careerStrengthDetails(&quot;advantage&quot;)">Létszámfölény</button>'+
-                    '<button class="btn-save" onclick="careerStrengthDetails(&quot;even&quot;)">Azonos létszám</button>'+
-                    '<button class="btn-save" onclick="careerStrengthDetails(&quot;disadvantage&quot;)">Létszámhátrány</button>'+
+                    '<button class="btn-save" type="button" data-strength-choice="advantage">Létszámfölény</button>'+
+                    '<button class="btn-save" type="button" data-strength-choice="even">Azonos létszám</button>'+
+                    '<button class="btn-save" type="button" data-strength-choice="disadvantage">Létszámhátrány</button>'+
                     '</div><div id="career-strength-detail" style="min-height:24px;color:var(--text-muted)">Válassz egy létszámhelyzetet a támadások, gólok, lövések és hibák megtekintéséhez.</div></div>'+
                 '<div class="career-stat-grid">'+
                     '<div class="career-stat-card"><h3>Támadás · összesen / meccsátlag</h3>'+careerCountHTML({'Gól':d.goals+' · '+avg(d.goals)+'/m','Gólpassz':d.assists+' · '+avg(d.assists)+'/m','Kulcspassz':d.keyPass+' · '+avg(d.keyPass)+'/m','Kiharcolt 7m':d.won7+' · '+avg(d.won7)+'/m','Kiharcolt 2 perc':d.won2+' · '+avg(d.won2)+'/m','Megnyert 1:1':d.won1v1+' · '+avg(d.won1v1)+'/m'})+'</div>'+
@@ -2817,6 +2817,13 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-stat-card full"><h3>Kapusok összesítése</h3><table class="stats-table" data-career-table="gk"><thead><tr>'+careerSortableHead('gk',["Kapus","Játékidő","Védés/lövés","Védési %"])+'</tr></thead><tbody>'+gkRows+'</tbody></table></div>'+
                     '<div class="career-stat-card full"><h3>Meccsenkénti bontás</h3><table class="stats-table" data-career-table="matches"><thead><tr>'+careerSortableHead('matches',["Dátum","Ellenfél","Eredmény","Kimenetel","Gól/lövés","Hiba","Labdaszerzés","Kapus"])+'</tr></thead><tbody>'+matchRows+'</tbody></table></div>'+
                 '</div>';
+            root.querySelectorAll('[data-strength-choice]').forEach(btn=>{
+                btn.addEventListener('click',()=>{
+                    root.querySelectorAll('[data-strength-choice]').forEach(b=>b.style.outline='');
+                    btn.style.outline='2px solid #fff';
+                    careerStrengthDetails(btn.dataset.strengthChoice);
+                });
+            });
         }
 
         function buildCareerPlayerData(teamName, playerKey) {
