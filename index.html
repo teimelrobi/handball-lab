@@ -3343,14 +3343,14 @@ KOVÁCS DÁVID MÁTÉ
             const awaySelected = selectedMatchRoster('away');
             if(homeSelected.length === 0 || awaySelected.length === 0) return alert('Mindkét csapatnál válassz legalább egy játékost a mérkőzéskeretbe!');
             if(homeSelected.length > MAX_MATCH_ROSTER || awaySelected.length > MAX_MATCH_ROSTER) return alert(`Egy mérkőzésre csapatonként legfeljebb ${MAX_MATCH_ROSTER} játékos nevezhető.`);
-            if(!pendingStartingLineup) { requestStartingLineup(homeSelected); return; }
-            const confirmedStarters = pendingStartingLineup;
+            if(!isVideoAnalysis && !pendingStartingLineup) { requestStartingLineup(homeSelected); return; }
+            const confirmedStarters = pendingStartingLineup || [];
             pendingStartingLineup = null;
             activeMatch.matchName = document.getElementById('ms-name').value || 'Mérkőzés'; activeMatch.date = document.getElementById('ms-date').value || new Date().toISOString().split('T')[0]; activeMatch.location = document.getElementById('ms-location').value || 'Ismeretlen helyszín'; activeMatch.league = document.getElementById('ms-league').value || 'Barátságos';
             activeMatch.homeTeamId = importedMkszMatch ? '' : hId; activeMatch.awayTeamId = importedMkszMatch ? '' : aId;
             if(importedMkszMatch){activeMatch.mkszMatchId=importedMkszMatch.matchId;activeMatch.kickoff=importedMkszMatch.kickoff;}
             const setStarters = (roster) => { let gk = 0, fp = 0; roster.forEach(p => { p.penaltyEnd = 0; p.penaltyEndAbs = 0; p.playTime = 0; if(p.name.trim() === "") { p.onCourt = false; return; } if(p.isGk) { p.onCourt = (gk < 1); if(p.onCourt) gk++; } else { p.onCourt = (fp < 6); if(p.onCourt) fp++; } }); };
-            activeMatch.homeRoster = JSON.parse(JSON.stringify(homeSelected)); setStarters(activeMatch.homeRoster); activeMatch.homeRoster.forEach(p => { p.onCourt = confirmedStarters.includes(String(p.num)); }); activeMatch.awayRoster = JSON.parse(JSON.stringify(awaySelected)); setStarters(activeMatch.awayRoster);
+            activeMatch.homeRoster = JSON.parse(JSON.stringify(homeSelected)); setStarters(activeMatch.homeRoster); if(!isVideoAnalysis) activeMatch.homeRoster.forEach(p => { p.onCourt = confirmedStarters.includes(String(p.num)); }); activeMatch.awayRoster = JSON.parse(JSON.stringify(awaySelected)); setStarters(activeMatch.awayRoster);
             activeMatch.homeRoster.sort((a,b) => (a.isGk === b.isGk)? 0 : a.isGk ? -1 : 1); activeMatch.awayRoster.sort((a,b) => (a.isGk === b.isGk)? 0 : a.isGk ? -1 : 1);
             activeMatch.homeName = importedMkszMatch ? importedMkszMatch.homeName : db.teams[hId].name; activeMatch.awayName = importedMkszMatch ? importedMkszMatch.awayName : db.teams[aId].name;
             document.getElementById('display-name-home').innerText = activeMatch.homeName; document.getElementById('sb-name-home').innerText = activeMatch.homeName; document.getElementById('tab-btn-home').innerText = activeMatch.homeName;
@@ -4481,7 +4481,8 @@ KOVÁCS DÁVID MÁTÉ
             syncRosterPlayTimesFromLineup(exactAbs);
             refreshAfterSubstitution(side);
         }
-        function renderCompactVideoOpponentRoster(container,players) {
+        function videoOwnTeamSide() { const home=String(activeMatch?.homeName||'').toLocaleLowerCase('hu'); const away=String(activeMatch?.awayName||'').toLocaleLowerCase('hu'); const isOwn=name=>/budai\s*farkasok/.test(name)&&/fu\s*1[68]|u\s*1[68]/.test(name); if(isOwn(away)&&!isOwn(home))return 'away'; return 'home'; }
+        function renderCompactVideoOpponentRoster(container,players,side) {
             const sorted=players.map((p,index)=>({p,index})).filter(x=>x.p&&String(x.p.num||'').trim()).sort((a,b)=>Number(a.p.num)-Number(b.p.num));
             container.innerHTML='<div class="roster-divider">ELLENFÉL · MEZSZÁMOK</div><div class="video-opp-number-grid">'+sorted.map(({p,index})=>{
                 const susp=getPlayerPenaltyRemaining(p)>0;
@@ -4490,7 +4491,7 @@ KOVÁCS DÁVID MÁTÉ
         }
         function renderRosterUI(containerId, players, numClass, side) {
             const container = document.getElementById(containerId);
-            if(isVideoAnalysis && side==='away') {renderCompactVideoOpponentRoster(container,players);return;}
+            if(isVideoAnalysis && side !== videoOwnTeamSide()) {renderCompactVideoOpponentRoster(container,players,side);return;}
             let selectedOutIndex = pendingSubstitution[side];
             if(Number.isInteger(selectedOutIndex) && (!players[selectedOutIndex] || !players[selectedOutIndex].onCourt)) {
                 pendingSubstitution[side] = null;
