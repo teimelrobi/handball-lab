@@ -2589,6 +2589,48 @@ KOVÁCS DÁVID MÁTÉ
             try { return calculatePlayTimesFromCSVRows(rows,match).totals[side]; }
             catch(err) { return saved; }
         }
+        function careerStrengthBreakdown(teamName) {
+            const result={advantage:{attacks:0,goals:0,shots:0,errors:0,againstGoals:0,againstShots:0},even:{attacks:0,goals:0,shots:0,errors:0,againstGoals:0,againstShots:0},disadvantage:{attacks:0,goals:0,shots:0,errors:0,againstGoals:0,againstShots:0}};
+            (db.matches||[]).forEach(match=>{
+                const side=careerTeamSide(match,teamName);if(!side)return;
+                const opp=side==='home'?'away':'home',seen=new Set();
+                (match.events||[]).forEach((e,index)=>{
+                    if(e.team!==side&&e.team!==opp)return;
+                    const code=strengthCodeForPerspective(e,side);
+                    if(!result[code])return;
+                    const r=result[code];
+                    if(e.team===side){
+                        if(['shot','attack','error'].includes(e.group)){
+                            const key=e.possessionId?String(e.possessionId):'event_'+index;
+                            if(!seen.has(key)){seen.add(key);r.attacks++;}
+                        }
+                        if(e.group==='shot'){r.shots++;if(e.result==='Gól')r.goals++;}
+                        if(e.group==='error')r.errors++;
+                    } else if(e.group==='shot'){
+                        r.againstShots++;if(e.result==='Gól')r.againstGoals++;
+                    }
+                });
+            });
+            return result;
+        }
+        function careerStrengthDetails(code) {
+            const team=careerSelectedTeamName();if(!team)return;
+            const data=careerStrengthBreakdown(team),r=data[code];if(!r)return;
+            const label={advantage:'Létszámfölény',even:'Azonos létszám',disadvantage:'Létszámhátrány'}[code];
+            const pct=(n,d)=>d?Math.round(n/d*100)+'%':'–';
+            const target=document.getElementById('career-strength-detail');if(!target)return;
+            target.innerHTML='<h3>'+label+' · részletes mutatók</h3><div class="career-kpis">'+
+                '<div class="career-kpi"><span>Támadások</span><strong>'+r.attacks+'</strong></div>'+
+                '<div class="career-kpi"><span>Lőtt gól</span><strong>'+r.goals+'</strong></div>'+
+                '<div class="career-kpi"><span>Lövés</span><strong>'+r.shots+'</strong></div>'+
+                '<div class="career-kpi"><span>Lövési hatékonyság</span><strong>'+pct(r.goals,r.shots)+'</strong></div>'+
+                '<div class="career-kpi"><span>Gól / támadás</span><strong>'+pct(r.goals,r.attacks)+'</strong></div>'+
+                '<div class="career-kpi"><span>Technikai hiba</span><strong>'+r.errors+'</strong></div>'+
+                '<div class="career-kpi"><span>Kapott gól</span><strong>'+r.againstGoals+'</strong></div>'+
+                '<div class="career-kpi"><span>Kapott lövés</span><strong>'+r.againstShots+'</strong></div>'+
+                '</div><p style="font-size:12px;color:var(--text-muted)">A létszámviszony a mentett kiállítási adatokból számolódik. A támadásszám a rendelkezésre álló labdabirtoklás-azonosítók alapján becsült, ha nincs teljes támadásnapló.</p>';
+            target.scrollIntoView({behavior:'smooth',block:'nearest'});
+        }
         function buildCareerTeamData(teamName) {
             const out={matches:0,wins:0,draws:0,losses:0,gf:0,ga:0,goals:0,shots:0,assists:0,keyPass:0,won7:0,won2:0,won1v1:0,errors:0,steals:0,blocks:0,faults:0,wonCharges:0,caused7:0,twoMin:0,gkSaves:0,gkFaced:0,shotMap:{},shotResults:{},attackTypes:{},defenseSystems:{},players:{},matchRows:[]};
             (db.matches||[]).forEach(match=>{
@@ -2757,6 +2799,11 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-kpi"><span>Lövés %</span><strong>'+shotPct+'%</strong></div>'+
                     '<div class="career-kpi"><span>Védési %</span><strong>'+savePct+'%</strong></div>'+
                 '</div>'+
+                '<div class="career-stat-card full"><h3>Létszámhelyzetek · kattints a részletekért</h3><div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;">'+
+                    '<button class="btn-save" onclick="careerStrengthDetails(&quot;advantage&quot;)">Létszámfölény</button>'+
+                    '<button class="btn-save" onclick="careerStrengthDetails(&quot;even&quot;)">Azonos létszám</button>'+
+                    '<button class="btn-save" onclick="careerStrengthDetails(&quot;disadvantage&quot;)">Létszámhátrány</button>'+
+                    '</div><div id="career-strength-detail" style="min-height:24px;color:var(--text-muted)">Válassz egy létszámhelyzetet a támadások, gólok, lövések és hibák megtekintéséhez.</div></div>'+
                 '<div class="career-stat-grid">'+
                     '<div class="career-stat-card"><h3>Támadás · összesen / meccsátlag</h3>'+careerCountHTML({'Gól':d.goals+' · '+avg(d.goals)+'/m','Gólpassz':d.assists+' · '+avg(d.assists)+'/m','Kulcspassz':d.keyPass+' · '+avg(d.keyPass)+'/m','Kiharcolt 7m':d.won7+' · '+avg(d.won7)+'/m','Kiharcolt 2 perc':d.won2+' · '+avg(d.won2)+'/m','Megnyert 1:1':d.won1v1+' · '+avg(d.won1v1)+'/m'})+'</div>'+
                     '<div class="career-stat-card"><h3>Védekezés · összesen / meccsátlag</h3>'+careerCountHTML({'Labdaszerzés':d.steals+' · '+avg(d.steals)+'/m','Sánc':d.blocks+' · '+avg(d.blocks)+'/m','Fault':d.faults+' · '+avg(d.faults)+'/m','Kiharcolt belemenés':d.wonCharges+' · '+avg(d.wonCharges)+'/m','Okozott 7m':d.caused7+' · '+avg(d.caused7)+'/m','2 perc':d.twoMin+' · '+avg(d.twoMin)+'/m'})+'</div>'+
