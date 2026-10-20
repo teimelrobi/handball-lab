@@ -2858,6 +2858,94 @@ KOVÁCS DÁVID MÁTÉ
             return '<div style="overflow-x:auto"><table class="stats-table"><thead><tr><th>Játékosok</th><th>Meccs</th><th>Együtt</th><th>Lőtt</th><th>Kapott</th><th>+/-</th></tr></thead><tbody>'+
                 rows.map(x=>'<tr><td>'+x.names.join(' · ')+'</td><td>'+x.matches.size+'</td><td>'+formatPlayTime(x.time)+'</td><td>'+x.gf+'</td><td>'+x.ga+'</td><td>'+(x.gf-x.ga>0?'+':'')+(x.gf-x.ga)+'</td></tr>').join('')+'</tbody></table></div>';
         }
+
+        // Szabadon kijelölt játékosok közös pályán töltött ideje (STAT).
+        let careerTogetherSelection=[], careerTogetherPhase='all', careerTogetherStrength='all';
+        function careerTogetherToggle(key) {
+            if(careerTogetherSelection.includes(key)) careerTogetherSelection=careerTogetherSelection.filter(x=>x!==key);
+            else if(careerTogetherSelection.length<6) careerTogetherSelection.push(key);
+            careerTogetherRender();
+        }
+        function careerTogetherSetFilter(kind,value) {
+            if(kind==='phase')careerTogetherPhase=value;else careerTogetherStrength=value;
+            careerTogetherRender();
+        }
+        function careerTogetherRender() {
+            const root=document.getElementById('career-together');if(!root)return;
+            const team=careerSelectedTeamName(), players=careerPlayersForTeam(team).filter(p=>!p.isGk);
+            const valid=new Set(players.map(p=>p.key));
+            careerTogetherSelection=careerTogetherSelection.filter(k=>valid.has(k));
+            const keys=careerTogetherSelection, results=[], total={time:0,gf:0,ga:0,shots:0,errors:0,steals:0,blocks:0,faults:0,assists:0,attacks:new Set(),defenses:new Set(),matches:0,unverified:0};
+            if(keys.length>=2)(db.matches||[]).forEach(m=>{
+                const side=careerTeamSide(m,team);if(!side)return;
+                const roster=(side==='home'?m.homeRoster:m.awayRoster)||[],field=side==='home'?'homeCourt':'awayCourt';
+                const nums=keys.map(k=>roster.find(p=>careerNorm(p.name)===k)).filter(Boolean);
+                if(nums.length!==keys.length)return;
+                const selected=nums.map(p=>String(p.num)),hasAll=court=>Array.isArray(court)&&selected.every(n=>court.map(String).includes(n));
+                const hist=(m.lineupHistory||[]).filter(h=>Number.isFinite(Number(h.abs))).slice().sort((a,b)=>Number(a.abs)-Number(b.abs));
+                const end=Math.max(0,Number(m.matchEndAbs)||3600),events=m.events||[];
+                let time=0,gf=0,ga=0,shots=0,errors=0,steals=0,blocks=0,faults=0,assists=0;
+                const attackIds=new Set(),defenseIds=new Set();
+                if(hist.length && m.lineupHistoryComplete===true) {
+                    hist.forEach((h,i)=>{
+                        const start=Math.max(0,Number(h.abs)),stop=Math.min(end,i+1<hist.length?Number(hist[i+1].abs):end);
+                        if(stop<=start||!hasAll(h[field]))return;
+                        // A kiállítások miatt a létszámhelyzetet másodperces szakaszokra bontjuk.
+                        if(careerTogetherPhase!=='all')return; // fázisonként pontos idő csak birtoklási időbélyegekkel állítható elő
+                        for(let t=start;t<stop;t+=30) {
+                            const finish=Math.min(stop,t+30),mid=(t+finish)/2;
+                            const counts=getSuspensionCountsAt(events,Math.floor(mid/1800)+1,mid%1800);
+                            const own=Number(counts[side])||0,other=Number(counts[side==='home'?'away':'home'])||0;
+                            const strength=own<other?'disadvantage':own>other?'advantage':'even';
+                            if(careerTogetherStrength==='all'||careerTogetherStrength===strength)time+=finish-t;
+                        }
+                    });
+                } else total.unverified++;
+                events.forEach((e,i)=>{
+                    if(!hasAll(e[field]))return;
+                    const counts=getSuspensionCountsAt(events,e.period,e.seconds);
+                    const own=Number(counts[side])||0,other=Number(counts[side==='home'?'away':'home'])||0;
+                    const strength=own<other?'disadvantage':own>other?'advantage':'even';
+                    if(careerTogetherStrength!=='all'&&careerTogetherStrength!==strength)return;
+                    const ownEvent=e.team===side;
+                    if(careerTogetherPhase==='attack'&&!ownEvent)return;
+                    if(careerTogetherPhase==='defense'&&ownEvent)return;
+                    if(e.group==='shot') {
+                        if(ownEvent){shots++;if(e.result==='Gól')gf++;}
+                        else if(e.result==='Gól')ga++;
+                    }
+                    if(ownEvent) {
+                        if(e.group==='error')errors++;
+                        if(e.group==='defense'){
+                            if(e.result==='Labdaszerzés')steals++;
+                            if(e.result==='Sánc')blocks++;
+                            if(e.result==='Fault')faults++;
+                        }
+                        if(e.assist!==undefined&&e.assist!==null&&String(e.assist)!=='')assists++;
+                        if(e.possessionId)attackIds.add(String(e.possessionId));
+                    }else if(e.possessionId)defenseIds.add(String(e.possessionId));
+                });
+                if(time||gf||ga||shots||errors||steals||blocks||faults) {
+                    total.matches++;results.push({date:m.date||'',opponent:side==='home'?m.awayName:m.homeName,time,gf,ga,shots,errors,steals,blocks,faults,assists});
+                }
+                total.time+=time;total.gf+=gf;total.ga+=ga;total.shots+=shots;total.errors+=errors;total.steals+=steals;total.blocks+=blocks;total.faults+=faults;total.assists+=assists;
+                attackIds.forEach(id=>total.attacks.add(String(m.id)+':'+id));
+                defenseIds.forEach(id=>total.defenses.add(String(m.id)+':'+id));
+            });
+            const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const choices=players.map(p=>'<button type="button" class="lineup-btn '+(keys.includes(p.key)?'selected':'')+'" data-together-player="'+encodeURIComponent(p.key)+'">#'+esc([...p.nums].join('/'))+' '+esc(p.name)+'</button>').join('');
+            const filters=(kind,options,current)=>'<select data-together-filter="'+kind+'" style="padding:10px;background:var(--bg-card);color:white;border:1px solid var(--border-color);border-radius:7px;">'+options.map(([v,label])=>'<option value="'+v+'" '+(current===v?'selected':'')+'>'+label+'</option>').join('')+'</select>';
+            root.innerHTML='<h3>Játékoskapcsolatok · közös játékidő</h3><p class="lineup-note">Jelölj ki 2–6 mezőnyjátékost. Csak az egyszerre pályán töltött idő számít, a mellettük játszóktól függetlenül.</p><div class="lineup-selector-grid">'+choices+'</div>'+
+                '<div style="display:flex;gap:12px;flex-wrap:wrap;margin:16px 0">'+filters('phase',[['all','Összes játékfázis'],['attack','Támadás eseményei'],['defense','Védekezés eseményei']],careerTogetherPhase)+filters('strength',[['all','Összes létszámhelyzet'],['even','Azonos létszám'],['advantage','Létszámfölény'],['disadvantage','Létszámhátrány']],careerTogetherStrength)+'</div>'+
+                (keys.length<2?'<p>Válassz legalább két játékost.</p>':
+                '<div class="career-kpis"><div class="career-kpi"><span>Közös játékidő</span><strong>'+(careerTogetherPhase==='all'?formatPlayTime(total.time):'—')+'</strong></div><div class="career-kpi"><span>Mérkőzés</span><strong>'+total.matches+'</strong></div><div class="career-kpi"><span>Lőtt / kapott</span><strong>'+total.gf+' / '+total.ga+'</strong></div><div class="career-kpi"><span>+/-</span><strong>'+(total.gf-total.ga>0?'+':'')+(total.gf-total.ga)+'</strong></div><div class="career-kpi"><span>+/- / 60 perc</span><strong>'+(careerTogetherPhase==='all'&&total.time?(3600*(total.gf-total.ga)/total.time).toFixed(1):'—')+'</strong></div><div class="career-kpi"><span>Lövés %</span><strong>'+(total.shots?Math.round(total.gf/total.shots*100)+'%':'—')+'</strong></div></div>'+
+                '<div class="career-mini-grid">'+[['Lövések',total.shots],['Gólpasszok',total.assists],['Labdaszerzések',total.steals],['Sáncok',total.blocks],['Faultok',total.faults],['Technikai hibák',total.errors],['Azonosított támadások',total.attacks.size],['Azonosított védekezések',total.defenses.size]].map(([n,v])=>'<div class="career-mini"><span>'+n+'</span><b>'+v+'</b></div>').join('')+'</div>'+
+                '<h4 style="margin:18px 0 8px">Mérkőzésenként</h4><div style="overflow-x:auto"><table class="stats-table"><thead><tr><th>Dátum</th><th>Ellenfél</th><th>Közös idő</th><th>Lőtt</th><th>Kapott</th><th>+/-</th></tr></thead><tbody>'+results.map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.opponent)+'</td><td>'+(careerTogetherPhase==='all'?formatPlayTime(r.time):'—')+'</td><td>'+r.gf+'</td><td>'+r.ga+'</td><td>'+(r.gf-r.ga)+'</td></tr>').join('')+'</tbody></table></div>'+
+                '<p class="lineup-note">Az idő csak teljes, mentett csereelőzményből számolható. '+(total.unverified?'Hiányos csereelőzményű mérkőzések: '+total.unverified+'. ':'')+'A támadás/védekezés szűrő eseményeket szűr; fázisonkénti percet pontos birtoklási időadat nélkül nem becslünk. A létszámhelyzetek időbontása közelítő (30 mp-es mintavétel). A 7:6 külön időszűréséhez teljes taktikai idővonal szükséges.</p>');
+            root.querySelectorAll('[data-together-player]').forEach(b=>b.addEventListener('click',()=>careerTogetherToggle(decodeURIComponent(b.dataset.togetherPlayer))));
+            root.querySelectorAll('[data-together-filter]').forEach(el=>el.addEventListener('change',()=>careerTogetherSetFilter(el.dataset.togetherFilter,el.value)));
+        }
+
         function renderCareerTeamStats(teamName) {
             const root=document.getElementById('career-stat-content'); if(!root)return;
             const d=buildCareerTeamData(teamName), avg=n=>d.matches?(n/d.matches).toFixed(1):'0.0', shotPct=d.shots?Math.round(d.goals/d.shots*100):0, savePct=d.gkFaced?Math.round(d.gkSaves/d.gkFaced*100):0;
@@ -2901,12 +2989,13 @@ KOVÁCS DÁVID MÁTÉ
                     '<div class="career-stat-card full"><h3>Játékosranglista · összpontszám</h3>'+careerPerformanceRankHTML(performance,false)+'</div>'+
                     '<div class="career-stat-card full"><h3>Játékosranglista · 60 percre vetítve (min. 15 perc)</h3>'+careerPerformanceRankHTML(performance,true)+'</div>'+
                     '<div class="career-stat-card full"><p style="font-size:12px">Pontozás: gól +2, gólpassz +2, labdaszerzés +3, sánc +2, kiharcolt 7m +2, kiharcolt belemenés +2, technikai hiba −2, rontott lövés −1. Fault külön mutató.</p></div>'+
-                    '<div class="career-stat-card full"><h3>Összesített játékospárok</h3>'+careerComboHTML(combos.pairs)+'</div>'+
+                    '<div class="career-stat-card full" id="career-together"></div>'+'<div class="career-stat-card full"><h3>Összesített játékospárok</h3>'+careerComboHTML(combos.pairs)+'</div>'+
                     '<div class="career-stat-card full"><h3>Összesített sorok (kapus nélkül)</h3>'+careerComboHTML(combos.lines)+'<p style="font-size:11px;color:var(--text-muted)">Az együtt töltött idő a mentett csereelőzményekből, a gólkülönbség az események pályán lévő játékosaiból számolódik. Hiányzó adatok esetén részleges.</p></div>'+
                     '<div class="career-stat-card full"><h3>Mezőnyjátékosok összesítése</h3><table class="stats-table" data-career-table="field"><thead><tr>'+careerSortableHead('field',["Játékos","Játékidő","Gól/lövés","Lövés %","GP","Labda","Sánc","Hiba"])+'</tr></thead><tbody>'+fieldRows+'</tbody></table></div>'+
                     '<div class="career-stat-card full"><h3>Kapusok összesítése</h3><table class="stats-table" data-career-table="gk"><thead><tr>'+careerSortableHead('gk',["Kapus","Játékidő","Védés/lövés","Védési %"])+'</tr></thead><tbody>'+gkRows+'</tbody></table></div>'+
                     '<div class="career-stat-card full"><h3>Meccsenkénti bontás</h3><table class="stats-table" data-career-table="matches"><thead><tr>'+careerSortableHead('matches',["Dátum","Ellenfél","Eredmény","Kimenetel","Gól/lövés","Hiba","Labdaszerzés","Kapus"])+'</tr></thead><tbody>'+matchRows+'</tbody></table></div>'+
                 '</div>';
+            careerTogetherRender();
             const sortedTrend=performance.matches.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
             root.querySelectorAll('[data-career-trend-index]').forEach(el=>el.addEventListener('click',()=>{
                 const match=sortedTrend[Number(el.dataset.careerTrendIndex)];
