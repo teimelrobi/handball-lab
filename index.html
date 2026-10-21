@@ -1032,7 +1032,7 @@
         <h2 class="page-title" id="ms-page-title"><i class="fas fa-play-circle"></i> Új Mérkőzés Indítása</h2>
         
         <div id="mksz-roster-import-box" style="display:none;max-width:1000px;width:100%;margin:0 auto 14px;padding:14px;border:1px solid var(--green-accent);border-radius:10px;background:var(--bg-panel);">
-            <strong style="color:var(--green-accent)">MKSZ-jegyzőkönyv: csak keretimport, események nélkül</strong>
+            <strong style="color:var(--green-accent)">MKSZ-jegyzőkönyv import · élő és utólagos elemzéshez (események nélkül)</strong>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;">
                 <input type="file" id="mksz-roster-pdf" accept=".pdf,application/pdf" onchange="importMkszRosterPdf(event)" style="max-width:100%;font-size:13px;">
                 <span id="mksz-roster-import-status" style="font-size:12px;color:var(--text-muted)">Töltsd fel a versenyjegyzőkönyv PDF-jét.</span>
@@ -3457,7 +3457,7 @@ function renderCareerTeamStats(teamName) {
         function startSetup(isVid) {
             isVideoAnalysis = isVid;
             clearMkszRosterImport();
-            document.getElementById('mksz-roster-import-box').style.display=isVid?'block':'none';
+            document.getElementById('mksz-roster-import-box').style.display='block';
             document.getElementById('ms-page-title').innerHTML = isVid ? '<i class="fas fa-film"></i> Utólagos Videó Elemzés' : '<i class="fas fa-play-circle"></i> Új Mérkőzés Indítása';
             matchRosterSelection = { home: new Set(), away: new Set() };
             populateTeamSelectors();
@@ -3645,7 +3645,7 @@ function renderCareerTeamStats(teamName) {
                 if(parsed.date)document.getElementById('ms-date').value=parsed.date.replace(/\./g,'-');
                 document.getElementById('ms-location').value=parsed.location;
                 document.getElementById('ms-league').value=parsed.title;
-                status.textContent='✓ '+parsed.home.length+' + '+parsed.away.length+' játékos, kapusok jelölve. Nincs importált esemény.';
+                status.textContent='✓ '+parsed.home.length+' hazai + '+parsed.away.length+' vendég játékos, mezszámok és kapusok betöltve. Ellenőrizd a dátumot, helyszínt és a keretet! Események nem kerültek importálásra.';
             } catch(err) {
                 importedMkszMatch=null;
                 status.textContent='Hiba: '+err.message;
