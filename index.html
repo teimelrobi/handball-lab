@@ -1390,6 +1390,7 @@ KOVÁCS DÁVID MÁTÉ
                 <button class="stat-tab-btn home-tab" id="tab-btn-home" onclick="switchStatTab('home')">Saját Csapat</button>
                 <button class="stat-tab-btn away-tab" id="tab-btn-away" onclick="switchStatTab('away')">Ellenfél</button>
                 <button class="stat-tab-btn lineup-tab" id="tab-btn-lineup" onclick="switchStatTab('lineup')">Párok &amp; sorok</button>
+                <button class="stat-tab-btn" onclick="openPlayerWaveFromStat()" title="Játékos 5 perces teljesítménygörbéje">📈 Játékos hullámzása</button>
             </div>
             <div>
                 <button class="btn-close-stat" style="background:var(--green-accent); color:#000; border:none; margin-right:10px;" onclick="printStatDashboard()"><i class="fas fa-print"></i> PDF / Nyomtatás</button>
@@ -1495,7 +1496,10 @@ KOVÁCS DÁVID MÁTÉ
                 <div style="margin-top:18px; font-size:12px; font-weight:bold;"><i class="fas fa-shield-alt"></i> Védekezési rendszer szerinti bontás</div>
                 <table class="defense-system-table" id="defense-system-stat-table"><thead><tr><th>Rendszer</th><th>Védekezések</th><th>Kapott gól</th><th>Véd. hatékonyság</th><th>Labdaszerzés</th><th>Sánc</th></tr></thead><tbody></tbody></table>
             </div>
-            <div class="stat-card" style="padding:14px;margin:12px 0"><div class="stat-card-title">Játékos teljesítményének hullámzása · 5 perces bontás</div><div id="stat-player-wave-content">Kattints egy játékosra a statisztikai táblázatban.</div></div>
+            <div class="stat-card" style="padding:14px;margin:12px 0"><div class="stat-card-title">Játékos teljesítményének hullámzása · 5 perces bontás</div>
+                <label for="stat-wave-player-select" style="display:block;margin-bottom:8px">Játékos kiválasztása:</label>
+                <select id="stat-wave-player-select" onchange="selectWavePlayer(this.value)" style="width:100%;max-width:450px;padding:9px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:7px;margin-bottom:12px"></select>
+                <div id="stat-player-wave-content">Kattints egy játékosra a statisztikai táblázatban.</div></div>
             <div class="stat-top-row">
                 <div class="stat-left">
                     <div class="stat-card">
@@ -5989,9 +5993,27 @@ function renderCareerTeamStats(teamName) {
             set('summary-leader-home-title',activeMatch.homeName||'Saját csapat'); set('summary-leader-away-title',activeMatch.awayName||'Ellenfél'); renderSummaryLeaders('home','summary-leaders-home'); renderSummaryLeaders('away','summary-leaders-away'); renderSummaryCombos(); renderFiveMinuteTimeline();
         }
 
+        function openPlayerWaveFromStat(){
+            const side=summaryOwnSide();
+            switchStatTab(side);
+            const roster=side==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
+            if(filterPlayerNum==null&&roster.length){filterPlayerNum=roster.find(p=>p.name?.trim())?.num??null;populateStatDashboard(side);}
+            requestAnimationFrame(()=>document.getElementById('stat-wave-player-select')?.scrollIntoView({behavior:'smooth',block:'center'}));
+        }
+        function selectWavePlayer(num){
+            filterPlayerNum=num===''?null:num;
+            populateStatDashboard(currentStatView);
+        }
         function renderPlayerMatchWave(side){
             const root=document.getElementById('stat-player-wave-content');if(!root)return;
             const roster=side==='home'?activeMatch.homeRoster:activeMatch.awayRoster;
+            const select=document.getElementById('stat-wave-player-select');
+            if(select){
+                select.replaceChildren();
+                const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Válassz játékost';select.appendChild(placeholder);
+                roster.filter(x=>x.name?.trim()).forEach(x=>{const opt=document.createElement('option');opt.value=String(x.num);opt.textContent='#'+x.num+' '+x.name;select.appendChild(opt);});
+                select.value=filterPlayerNum==null?'':String(filterPlayerNum);
+            }
             const p=roster.find(x=>String(x.num)===String(filterPlayerNum));
             if(!p){root.textContent='Kattints egy játékosra a statisztikai táblázatban.';return;}
             const bins=Array.from({length:12},()=>({points:0,goals:0,shots:0,errors:0}));
