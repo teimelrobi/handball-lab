@@ -1956,15 +1956,39 @@ KOVÁCS DÁVID MÁTÉ
             if(last) { let label='—'; if(lastIso){ const d=new Date(lastIso); if(!Number.isNaN(d.getTime())) label=d.toLocaleString('hu-HU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); } last.innerText='Utolsó Drive-mentés: '+label; }
         }
         async function ensureGoogleDriveLibrary() {
-            if(window.google?.accounts?.oauth2) return true;
-            return await new Promise(resolve=>{
-                let script=document.getElementById('handball-google-gis'), settled=false;
-                const finish=ok=>{ if(settled)return; settled=true; resolve(ok); };
-                if(!script){ script=document.createElement('script'); script.id='handball-google-gis'; script.src='https://accounts.google.com/gsi/client'; script.async=true; script.defer=true; document.head.appendChild(script); }
-                script.addEventListener('load',()=>finish(!!window.google?.accounts?.oauth2),{once:true});
-                script.addEventListener('error',()=>finish(false),{once:true});
-                setTimeout(()=>finish(!!window.google?.accounts?.oauth2),10000);
+            if(window.google?.accounts?.oauth2)return true;
+            // A korábbi betöltő a már létező (akár hibás) scriptre csak 'load'
+            // eseményt várt, amely addigra lefuthatott. Ilyenkor újrapróbálás
+            // nélkül mindig ugyanaz a 10 másodperces hiba jelent meg.
+            const waitForScript=script=>new Promise(resolve=>{
+                let settled=false;
+                const finish=ok=>{if(settled)return;settled=true;clearTimeout(timeout);script.removeEventListener('load',onLoad);script.removeEventListener('error',onError);resolve(ok);};
+                const onLoad=()=>finish(!!window.google?.accounts?.oauth2);
+                const onError=()=>finish(false);
+                script.addEventListener('load',onLoad);
+                script.addEventListener('error',onError);
+                const timeout=setTimeout(()=>finish(!!window.google?.accounts?.oauth2),12000);
+                if(window.google?.accounts?.oauth2)finish(true);
             });
+            let script=document.getElementById('handball-google-gis');
+            if(script){
+                if(script.dataset.failed==='1'||script.dataset.loaded==='1'){
+                    script.remove();script=null;
+                }else{
+                    const ok=await waitForScript(script);
+                    if(ok)return true;
+                    script.remove();script=null;
+                }
+            }
+            script=document.createElement('script');
+            script.id='handball-google-gis';
+            script.src='https://accounts.google.com/gsi/client';
+            script.async=true;script.defer=true;
+            const loading=waitForScript(script);
+            script.addEventListener('load',()=>{script.dataset.loaded='1';},{once:true});
+            script.addEventListener('error',()=>{script.dataset.failed='1';},{once:true});
+            document.head.appendChild(script);
+            return await loading;
         }
         async function initDriveTokenClient() {
             if(driveTokenClient) return true;
@@ -1973,7 +1997,7 @@ KOVÁCS DÁVID MÁTÉ
             return true;
         }
         async function requestDriveAccessToken() {
-            if(!await initDriveTokenClient()) throw new Error('A Google bejelentkezési modul nem tölthető be.');
+            if(!await initDriveTokenClient()) throw new Error('A Google bejelentkezési modul nem tölthető be. Ellenőrizd, hogy a böngésző nem blokkolja-e az accounts.google.com oldalt (reklámblokkoló, követésvédelem vagy hálózati szűrő), majd próbáld újra.');
             return await new Promise((resolve,reject)=>{
                 driveTokenClient.callback=resp=>{
                     if(resp?.error) return reject(new Error(resp.error_description||resp.error));
