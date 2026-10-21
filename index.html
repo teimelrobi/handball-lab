@@ -3351,6 +3351,41 @@ function renderCareerTeamStats(teamName) {
             return '<div class="career-mini-grid">'+rows.map(r=>'<div class="career-mini"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>').join('')+'</div>';
         }
 
+        function careerPlayerWaveHTML(teamName,playerKey){
+            const matches=(db.matches||[]).filter(m=>{const side=careerTeamSide(m,teamName);return side&&careerMatchPlayer(m,side,playerKey);}).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+            if(!matches.length)return '';
+            const safe=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&#39;'}[c]));
+            const options=matches.map((m,i)=>'<option value="'+i+'">'+safe(m.date||'Dátum nélkül')+' · '+safe(careerTeamSide(m,teamName)==='home'?m.awayName:m.homeName)+'</option>').join('');
+            return '<section class="career-stat-card full" style="margin-top:18px"><h3>📈 Mérkőzésen belüli teljesítményhullámzás</h3><label for="career-wave-match">Mérkőzés:</label> <select id="career-wave-match" onchange="renderCareerWaveChart()" style="max-width:100%;padding:9px;margin:8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border-color);border-radius:6px">'+options+'</select><div id="career-wave-chart"></div></section>';
+        }
+        function renderCareerWaveChart(){
+            const root=document.getElementById('career-wave-chart'),sel=document.getElementById('career-wave-match');if(!root||!sel)return;
+            const teamName=careerSelectedTeamName(),playerKey=careerSelectedPlayerKey();
+            const matches=(db.matches||[]).filter(m=>{const side=careerTeamSide(m,teamName);return side&&careerMatchPlayer(m,side,playerKey);}).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+            const match=matches[Number(sel.value)];if(!match)return;
+            const side=careerTeamSide(match,teamName),p=careerMatchPlayer(match,side,playerKey),opp=side==='home'?'away':'home';
+            const bins=Array.from({length:12},()=>({score:0,goals:0,shots:0,errors:0}));
+            (match.events||[]).forEach(e=>{
+                const idx=Math.floor(eventAbsoluteSeconds(e.period,e.seconds)/300);
+                if(idx<0||idx>=12)return;
+                const b=bins[idx],direct=e.team===side&&(careerNorm(e.playerName)===playerKey||(!e.playerName&&String(e.playerNum)===String(p.num)));
+                if(direct){
+                    if(e.group==='shot'){b.shots++;if(e.result==='Gól'){b.goals++;b.score++;}else if(['Kapufa','Mellé','Fölé','Sánc'].includes(e.result))b.score--;}
+                    if(e.group==='attack'&&['Kulcspassz','Kiharcolt 7m','Kiharcolt 2 perc','Megnyert 1:1'].includes(e.result))b.score++;
+                    if(e.group==='error'){b.errors++;b.score--;}
+                    if(e.group==='penalty')b.score-=e.result==='Piros lap'?3:2;
+                    if(e.group==='defense'){if(['Labdaszerzés','Sánc','Kiharcolt belemenés'].includes(e.result))b.score++;if(e.result==='Okozott 7m')b.score--;}
+                }
+                if(e.team===side&&String(e.assist)===String(p.num))b.score++;
+                if(p.isGk&&e.team===opp&&e.group==='shot'&&String(e.defendingGk)===String(p.num)&&e.result==='Védés')b.score++;
+            });
+            const max=Math.max(1,...bins.map(b=>Math.abs(b.score)));
+            let cumulative=0;
+            const bars=bins.map((b,i)=>{const h=Math.abs(b.score)*68/max,x=i*60+12,y=b.score>=0?85-h:85;cumulative+=b.score;
+                return '<rect x="'+x+'" y="'+y+'" width="36" height="'+Math.max(2,h)+'" rx="4" fill="'+(b.score>0?'#20c997':b.score<0?'#e76872':'#87909a')+'"><title>'+(i*5)+'–'+((i+1)*5)+'. perc · '+b.score+' pont · '+b.goals+'/'+b.shots+' gól/lövés · '+b.errors+' hiba</title></rect><text x="'+(x+18)+'" y="'+(b.score>=0?y-5:y+h+14)+'" text-anchor="middle" font-size="11" fill="currentColor">'+b.score+'</text><text x="'+(x+18)+'" y="171" text-anchor="middle" font-size="10" fill="currentColor">'+(i*5)+'–'+((i+1)*5)+'</text>';
+            }).join('');
+            root.innerHTML='<div style="margin:8px 0">Összesített eseményindex: <b>'+cumulative+'</b></div><svg viewBox="0 0 720 185" role="img" aria-label="Játékos teljesítménye ötperces szakaszokban" style="width:100%;max-width:850px;color:var(--text-primary)"><line x1="0" y1="85" x2="720" y2="85" stroke="#87909a"/>'+bars+'</svg><small>Zöld: pozitív, piros: negatív. A nulla lehet pályán kívüli időszak vagy esemény nélküli játék. Az index a rögzített eseményekből számolódik.</small>';
+        }
         function renderCareerPlayerStats() {
             const teamName=careerSelectedTeamName(), playerKey=careerSelectedPlayerKey(), root=document.getElementById('career-stat-content');
             if(!root) return;
@@ -3389,6 +3424,7 @@ function renderCareerTeamStats(teamName) {
                         '<div class="career-stat-card full"><h3>Meccsenkénti bontás</h3><table class="stats-table"><thead><tr><th>Dátum</th><th>Ellenfél</th><th>Játékidő</th><th>Védés/lövés</th><th>Védési %</th><th>Kapott gól</th><th>+/-</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
                     '</div>';
                 const insight=document.createElement('div');insight.className='career-stat-card full';insight.innerHTML='<details class="career-fold"><summary>Tendenciák és összefüggések · játékos</summary>'+careerInsightsHTML(d.matchRows,'player')+'</details>';root.querySelector('.career-stat-grid').appendChild(insight);
+                root.insertAdjacentHTML('beforeend',careerPlayerWaveHTML(teamName,playerKey));renderCareerWaveChart();
                 return;
             }
             root.innerHTML=header+
@@ -3416,6 +3452,7 @@ function renderCareerTeamStats(teamName) {
             const insight=document.createElement('div');insight.className='career-stat-card full';
             insight.innerHTML='<details class="career-fold"><summary>Tendenciák és összefüggések · játékos</summary>'+careerInsightsHTML(d.matchRows,'player')+'</details>';
             root.querySelector('.career-stat-grid').appendChild(insight);
+                root.insertAdjacentHTML('beforeend',careerPlayerWaveHTML(teamName,playerKey));renderCareerWaveChart();
         }
 
         const RUNNING_PROJECTS_KEY='handball_running_projects_v1';
