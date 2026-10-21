@@ -1569,6 +1569,8 @@ KOVÁCS DÁVID MÁTÉ
                         <i class="fas fa-file-video"></i> Meccs videó betöltése (MP4)
                         <input type="file" id="video-file" accept="video/mp4,video/*" style="display:none;" onchange="loadVideoFile(event)">
                     </label>
+                    <button class="btn-stat-main" onclick="roomConnectDriveAndSave()" style="font-size:11px;padding:9px 13px;"><i class="fab fa-google-drive"></i> Drive videómentés</button>
+                    <span id="room-video-save-status" style="font-size:11px;color:var(--text-muted)"></span>
                     <button class="btn-stat-main" onclick="startPlayTimeCorrection()" style="font-size:11px;padding:9px 13px;"><i class="fas fa-stopwatch"></i> Játékidő újraszámolás</button>
                 </div>
                 <div style="width:100%; background:#000; border-radius:12px; flex:1; display:flex; align-items:center; justify-content:center; min-height:300px; overflow:hidden;">
@@ -6198,7 +6200,44 @@ function renderCareerTeamStats(teamName) {
             const context=document.getElementById('u-context-text');
             if(context)context.innerText=(side==='home'?currentVideoMatch.homeName:currentVideoMatch.awayName)+' · '+(video?.src&&Number.isFinite(video.currentTime)?formatTime(video.currentTime):'Videó-idő nincs');
         }
-        function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
+                let roomVideoRestoreToken=0,roomVideoObjectUrl=null,roomVideoFile=null;
+        function roomVideoId(match){return match?.id==null?null:'room-'+String(match.id);}
+        function roomAttachVideo(file){
+            const video=document.getElementById('match-video');
+            if(roomVideoObjectUrl)URL.revokeObjectURL(roomVideoObjectUrl);
+            roomVideoObjectUrl=URL.createObjectURL(file);roomVideoFile=file;
+            video.src=roomVideoObjectUrl;
+            video.onloadedmetadata=()=>{initializeVideoSliders(video);seekTimelineFilterStart(video,true);};
+            video.load();
+        }
+        async function roomRestoreVideo(match){
+            const projectId=roomVideoId(match),token=++roomVideoRestoreToken;
+            const status=document.getElementById('room-video-save-status');
+            if(!projectId)return;
+            if(status)status.textContent='Mentett videó keresése…';
+            try{
+                let file=await clipGetStoredVideo(projectId);
+                if(token!==roomVideoRestoreToken||currentVideoMatch?.id!==match.id)return;
+                if(!file&&isDriveAuthorized()){
+                    file=await clipDriveDownload(projectId,status);
+                    if(token!==roomVideoRestoreToken||currentVideoMatch?.id!==match.id)return;
+                    if(file)clipStoreVideo(projectId,file).catch(e=>console.warn('Helyi videógyorsítótár:',e));
+                }
+                if(file){roomAttachVideo(file);if(status)status.textContent='Mentett videó automatikusan betöltve'+(isDriveAuthorized()?'':' (helyi tárhely)');}
+                else if(status)status.textContent=isDriveAuthorized()?'Nincs mentett videó ehhez a mérkőzéshez.':'Nincs helyi videó. A Drive-hoz csatlakozz, vagy töltsd be a videót.';
+            }catch(e){if(token===roomVideoRestoreToken&&status)status.textContent='Visszatöltési hiba: '+e.message;}
+        }
+        async function roomConnectDriveAndSave(){
+            const status=document.getElementById('room-video-save-status'),id=roomVideoId(currentVideoMatch);
+            if(!id)return;
+            try{
+                if(!isDriveAuthorized())await requestDriveAccessToken();
+                const file=roomVideoFile||await clipGetStoredVideo(id);
+                if(!file){if(status)status.textContent='Előbb töltsd be a mérkőzés videóját.';return;}
+                await clipDriveUpload(id,file,status);
+            }catch(e){if(status)status.textContent='Drive-hiba: '+e.message;}
+        }
+function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const activeScreen = document.querySelector('.screen.active');
             videoRoomReturnScreen = activeScreen ? activeScreen.id : 'view-archive';
             videoRoomReturnToStats = !!returnToStats;
@@ -6222,6 +6261,9 @@ function renderCareerTeamStats(teamName) {
             if(halfSelect) halfSelect.value=currentVideoFilter&&currentVideoFilter.kind==='timeline'&&Number(currentVideoFilter.value)>=6?'2':'1';
             updateOfficialClockStatus('room');
             const videoNode = document.getElementById('match-video');
+            ++roomVideoRestoreToken;roomVideoFile=null;
+            videoNode.removeAttribute('src');videoNode.load();
+            if(!carryLiveSrc)roomRestoreVideo(currentVideoMatch);
             if(carryLiveSrc) { videoNode.src = carryLiveSrc; videoNode.onloadedmetadata = () => { initializeVideoSliders(videoNode); seekTimelineFilterStart(videoNode, true); }; }
             initializeVideoRoomFilters();
             initializeVideoRoomEventToolbar();
@@ -6229,7 +6271,9 @@ function renderCareerTeamStats(teamName) {
         }
 
         function closeVideoRoom() {
+            ++roomVideoRestoreToken;
             const videoNode = document.getElementById('match-video'); videoNode.pause(); videoNode.removeAttribute('src'); videoNode.load();
+            if(roomVideoObjectUrl){URL.revokeObjectURL(roomVideoObjectUrl);roomVideoObjectUrl=null;}roomVideoFile=null;
             if(videoRoomIsLive) saveLiveState();
             else if(currentVideoMatch && !currentVideoMatch.locked) {updateArchivedMatchScore(currentVideoMatch);saveDB();}
             const returnScreen = videoRoomReturnScreen || 'view-archive', returnStats = videoRoomReturnToStats;
@@ -6243,10 +6287,17 @@ function renderCareerTeamStats(teamName) {
             const dur = Math.floor(videoNode.duration || 0);
             ['s1','e1','s2','e2'].forEach(id => { const slider=document.getElementById('slide-'+id); if(!slider) return; slider.max=dur; const saved=id==='s1'?sync1_start:(id==='s2'?sync2_start:0); slider.value=Math.min(dur,Math.max(0,saved)); const val=document.getElementById('val-'+id); if(val) val.innerText=formatTime(slider.value); });
         }
-        function loadVideoFile(event) {
-            const file = event.target.files[0]; if(!file) return;
-            const videoNode = document.getElementById('match-video'); videoNode.src = URL.createObjectURL(file);
-            videoNode.onloadedmetadata = function() { initializeVideoSliders(videoNode); seekTimelineFilterStart(videoNode, true); };
+        async function loadVideoFile(event) {
+            const file=event.target.files?.[0];if(!file)return;
+            ++roomVideoRestoreToken;roomAttachVideo(file);
+            const id=roomVideoId(currentVideoMatch),status=document.getElementById('room-video-save-status');
+            if(!id){if(status)status.textContent='Nincs azonosítható mérkőzés; videó nem menthető.';return;}
+            if(status)status.textContent='Videó mentése…';
+            const local=clipStoreVideo(id,file).then(()=>true).catch(e=>{console.warn(e);return false;});
+            const remote=isDriveAuthorized()?clipDriveUpload(id,file,status).then(()=>true).catch(e=>{console.warn(e);return false;}):Promise.resolve(false);
+            const [localOk,remoteOk]=await Promise.all([local,remote]);
+            if(currentVideoMatch?.id!==id.slice(5)&&roomVideoId(currentVideoMatch)!==id)return;
+            if(status)status.textContent=localOk&&remoteOk?'Videó mentve helyben és Google Drive-ra':remoteOk?'Videó Google Drive-ra mentve':localOk?'Videó helyben mentve'+(isDriveAuthorized()?' (Drive-mentés sikertelen)':' – Drive-mentéshez csatlakozz'):'A videó mentése sikertelen – próbáld a Drive videómentést.';
         }
 
         function seekVideo(val, id) {
