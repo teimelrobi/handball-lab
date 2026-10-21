@@ -1596,6 +1596,10 @@ KOVÁCS DÁVID MÁTÉ
                     <input type="color" id="room-draw-color" value="#ff3434" title="Rajz színe" style="width:32px;height:30px;">
                     <button class="btn-arch-action" onclick="roomUndoDraw()">↶ Visszavonás</button><button class="btn-arch-action" onclick="roomClearDraw()">Törlés</button>
                     <button class="btn-arch-action" onclick="roomSaveFrame()">📷 Állókép PNG</button>
+                    <button class="btn-arch-action" onclick="roomSetDrawMode('highlight')">◎ Játékos kiemelése</button>
+                    <button class="btn-arch-action" onclick="roomSaveTacticalMoment()">💾 Taktikai pillanat mentése</button>
+                    <button class="btn-arch-action" onclick="roomCompareTacticalFrames()">▣ Két kép összehasonlítása</button>
+                    <div id="room-tactical-moments" style="width:100%;display:flex;flex-wrap:wrap;gap:7px;align-items:center;"></div>
                     <span id="room-tool-status" style="font-size:11px;color:var(--text-muted)">Rajzoláshoz állítsd meg a videót.</span>
                 </div>
                 <div class="official-clock-strip" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:9px;padding:9px 12px;">
@@ -6266,10 +6270,11 @@ function renderCareerTeamStats(teamName) {
                 ctx.strokeStyle=shape.color||'#ff3434';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=Math.max(3,w/260);ctx.lineJoin='round';ctx.lineCap='round';
                 const xy=p=>({x:p.x*w,y:p.y*h});const first=xy(pts[0]),last=xy(pts[pts.length-1]);
                 ctx.beginPath();ctx.moveTo(first.x,first.y);
-                if(shape.mode==='circle'){
+                if(shape.mode==='circle'||shape.mode==='highlight'){
                     ctx.ellipse((first.x+last.x)/2,(first.y+last.y)/2,Math.max(1,Math.abs(last.x-first.x)/2),Math.max(1,Math.abs(last.y-first.y)/2),0,0,Math.PI*2);
                 }else{pts.slice(1).forEach(p=>{const q=xy(p);ctx.lineTo(q.x,q.y);});}
                 ctx.stroke();
+                if(shape.mode==='highlight'){ctx.save();ctx.globalAlpha=.2;ctx.fill();ctx.restore();}
                 if(shape.mode==='arrow'&&pts.length>1){
                     const angle=Math.atan2(last.y-first.y,last.x-first.x),size=Math.max(12,w/35);
                     ctx.beginPath();ctx.moveTo(last.x,last.y);
@@ -6321,6 +6326,77 @@ function renderCareerTeamStats(teamName) {
             try{ctx.drawImage(v,0,0,out.width,out.height);}catch(e){alert('Nem sikerült menteni a videóképet: '+e.message);return;}
             const c=roomDrawCanvas();if(c)ctx.drawImage(c,0,0,out.width,out.height);
             try{out.toBlob(blob=>{if(!blob){alert('Nem sikerült elkészíteni az állóképet.');return;}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='handball-lab-'+Math.round(v.currentTime*10)/10+'s.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);},'image/png');}catch(e){alert('Állóképmentési hiba: '+e.message);}
+        }
+        function roomTacticalKey(){return currentVideoMatch?.id==null?'':'handball-tactics-'+String(currentVideoMatch.id);}
+        function roomTacticalRead(){
+            const key=roomTacticalKey();if(!key)return [];
+            try{const rows=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(rows)?rows:[];}catch(e){return [];}
+        }
+        function roomTacticalWrite(rows){
+            const key=roomTacticalKey();if(!key)return false;
+            try{localStorage.setItem(key,JSON.stringify(rows));return true;}catch(e){alert('Nem sikerült menteni a taktikai jelölést a böngészőbe: '+e.message);return false;}
+        }
+        function roomSaveTacticalMoment(){
+            const v=document.getElementById('match-video');if(!v?.videoWidth||!roomTacticalKey())return alert('Előbb nyiss meg egy mérkőzést és tölts be videót.');
+            v.pause();
+            const note=prompt('Edzői megjegyzés a jelenethez (opcionális):','');
+            if(note===null)return;
+            const rows=roomTacticalRead();
+            rows.push({time:v.currentTime,shapes:JSON.parse(JSON.stringify(roomDrawShapes)),note:note.trim().slice(0,500),createdAt:new Date().toISOString()});
+            rows.sort((a,b)=>a.time-b.time);
+            if(roomTacticalWrite(rows))roomRenderTacticalMoments();
+        }
+        function roomOpenTacticalMoment(index){
+            const row=roomTacticalRead()[index],v=document.getElementById('match-video');if(!row||!v)return;
+            v.pause();v.currentTime=row.time;
+            roomDrawShapes=Array.isArray(row.shapes)?JSON.parse(JSON.stringify(row.shapes)):[];
+            roomRenderDraw();
+            document.getElementById('room-tool-status').textContent=row.note||'Taktikai pillanat visszatöltve';
+        }
+        function roomDeleteTacticalMoment(index){
+            if(!confirm('Törlöd ezt a taktikai pillanatot?'))return;
+            const rows=roomTacticalRead();rows.splice(index,1);
+            if(roomTacticalWrite(rows))roomRenderTacticalMoments();
+        }
+        function roomRenderTacticalMoments(){
+            const el=document.getElementById('room-tactical-moments');if(!el)return;
+            el.replaceChildren();
+            const rows=roomTacticalRead();
+            if(!rows.length){const hint=document.createElement('span');hint.textContent='Nincs mentett taktikai pillanat.';hint.style.cssText='font-size:11px;color:var(--text-muted)';el.appendChild(hint);return;}
+            const title=document.createElement('strong');title.textContent='Mentett taktikai pillanatok:';title.style.fontSize='12px';el.appendChild(title);
+            rows.forEach((row,i)=>{
+                const btn=document.createElement('button');btn.className='btn-arch-action';btn.textContent=Number(row.time).toFixed(1)+' mp · '+(row.note||'Jelölés').slice(0,35);btn.title=row.note||'';
+                btn.onclick=()=>roomOpenTacticalMoment(i);el.appendChild(btn);
+                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='×';del.title='Taktikai pillanat törlése';del.onclick=()=>roomDeleteTacticalMoment(i);el.appendChild(del);
+            });
+        }
+        function roomCompareTacticalFrames(){
+            const rows=roomTacticalRead();if(rows.length<2)return alert('Az összehasonlításhoz ments el legalább két taktikai pillanatot.');
+            const select=(label)=>{const choice=prompt(label+' – add meg a sorszámot (1–'+rows.length+'):',label==='Első kép'?'1':String(rows.length));if(choice===null)return null;const n=Number(choice);return Number.isInteger(n)&&n>=1&&n<=rows.length?n-1:-1;};
+            const a=select('Első kép');if(a===null)return;const b=select('Második kép');if(b===null)return;
+            if(a<0||b<0||a===b)return alert('Két különböző, érvényes sorszámot válassz.');
+            const v=document.getElementById('match-video');if(!v?.videoWidth)return alert('Előbb töltsd be a videót.');
+            const previous=v.currentTime,wasPaused=v.paused;v.pause();
+            const snapshot=(row)=>new Promise((resolve,reject)=>{
+                const onSeek=()=>{v.removeEventListener('seeked',onSeek);try{
+                    const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;
+                    const ctx=c.getContext('2d');ctx.drawImage(v,0,0,c.width,c.height);
+                    const current=roomDrawShapes;roomDrawShapes=row.shapes||[];roomRenderDraw();ctx.drawImage(roomDrawCanvas(),0,0,c.width,c.height);roomDrawShapes=current;roomRenderDraw();
+                    resolve(c);
+                }catch(e){reject(e);}};
+                v.addEventListener('seeked',onSeek,{once:true});v.currentTime=row.time;
+                if(Math.abs(v.currentTime-row.time)<.001&& !v.seeking)onSeek();
+            });
+            (async()=>{try{
+                const left=await snapshot(rows[a]),right=await snapshot(rows[b]);
+                const canvas=document.createElement('canvas');canvas.width=left.width+right.width;canvas.height=Math.max(left.height,right.height)+80;
+                const ctx=canvas.getContext('2d');ctx.fillStyle='#101820';ctx.fillRect(0,0,canvas.width,canvas.height);
+                ctx.drawImage(left,0,80);ctx.drawImage(right,left.width,80);
+                ctx.fillStyle='#fff';ctx.font='bold 28px sans-serif';
+                ctx.fillText('1. '+rows[a].time.toFixed(1)+' mp · '+(rows[a].note||''),20,48);
+                ctx.fillText('2. '+rows[b].time.toFixed(1)+' mp · '+(rows[b].note||''),left.width+20,48);
+                canvas.toBlob(blob=>{if(!blob)return;const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='handball-taktikai-osszehasonlitas.png';link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);},'image/png');
+            }catch(e){alert('Összehasonlítási hiba: '+e.message);}finally{v.currentTime=previous;if(!wasPaused)v.play().catch(()=>{});}})();
         }
         function roomInitDraw(){
             const c=roomDrawCanvas();if(!c||c.dataset.ready)return;c.dataset.ready='1';
@@ -6385,7 +6461,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             document.getElementById('vr-match-title').innerText = `${currentVideoMatch.date || ''} | ${currentVideoMatch.homeName} - ${currentVideoMatch.awayName}`;
             const backBtn=document.getElementById('vr-back-btn'); if(backBtn) backBtn.innerHTML = returnToStats ? '<i class="fas fa-arrow-left"></i> Vissza a statisztikához' : '<i class="fas fa-arrow-left"></i> Archívum';
             showScreen('view-video-room');
-            roomInitDraw();roomClearDraw();roomSetDrawMode('');roomDrawMode='';roomDrawCanvas().style.pointerEvents='none';roomSetZoom();
+            roomInitDraw();roomRenderTacticalMoments();roomClearDraw();roomSetDrawMode('');roomDrawMode='';roomDrawCanvas().style.pointerEvents='none';roomSetZoom();
             const halfSelect=document.getElementById('room-official-half');
             if(halfSelect) halfSelect.value=currentVideoFilter&&currentVideoFilter.kind==='timeline'&&Number(currentVideoFilter.value)>=6?'2':'1';
             updateOfficialClockStatus('room');
