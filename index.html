@@ -2988,11 +2988,12 @@ KOVÁCS DÁVID MÁTÉ
                 function careerInsightsHTML(rows,mode) {
             const ordered=(rows||[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
             if(ordered.length<4)return '<div class="career-empty">A tendenciaelemzéshez legalább 4 mérkőzés szükséges. Jelenleg '+ordered.length+' áll rendelkezésre.</div>';
-            const recent=ordered.slice(-Math.min(5,Math.floor(ordered.length/2))), previous=ordered.slice(-(recent.length*2),-recent.length);
+            const comparisons=[{title:'Összes mérkőzés tendenciája',recent:ordered.slice(Math.floor(ordered.length/2)),previous:ordered.slice(0,Math.floor(ordered.length/2))},{title:'Utolsó 5 mérkőzés tendenciája',recent:ordered.slice(-5),previous:ordered.slice(-10,-5)}];
             const sum=(arr,key)=>arr.reduce((n,r)=>n+(Number(r[key])||0),0);
             const pct=(arr,a,b)=>sum(arr,b)?100*sum(arr,a)/sum(arr,b):null;
             const avg=(arr,k)=>sum(arr,k)/arr.length;
-            const metrics=mode==='team'?[
+            const renderComparison=(previous,recent,full)=>{
+                const metrics=mode==='team'?[
                 ['Lövőhatékonyság',pct(previous,'goals','shots'),pct(recent,'goals','shots'),'százalékpont',true],
                 ['Technikai hiba / meccs',avg(previous,'errors'),avg(recent,'errors'),' / meccs',false],
                 ['Labdaszerzés / meccs',avg(previous,'steals'),avg(recent,'steals'),' / meccs',true],
@@ -3003,8 +3004,8 @@ KOVÁCS DÁVID MÁTÉ
                 ['Technikai hiba / 60 perc',sum(previous,'time')?3600*sum(previous,'errors')/sum(previous,'time'):null,sum(recent,'time')?3600*sum(recent,'errors')/sum(recent,'time'):null,' / 60 perc',false],
                 ['Labdaszerzés / 60 perc',sum(previous,'time')?3600*sum(previous,'steals')/sum(previous,'time'):null,sum(recent,'time')?3600*sum(recent,'steals')/sum(recent,'time'):null,' / 60 perc',true]
             ];
-            const fmt=n=>n===null?'—':n.toFixed(1).replace('.',',');
-            return '<p class="lineup-note">Utolsó '+recent.length+' mérkőzés összehasonlítása az előző '+previous.length+' mérkőzéssel. A különbségek leíró jellegűek, nem bizonyítanak ok-okozati kapcsolatot.</p>'+
+                const fmt=n=>n===null?'—':n.toFixed(1).replace('.',',');
+                return '<p class="lineup-note">'+(full?'A teljes mérkőzéssorozat első és második felének összehasonlítása. ':'Az utolsó 5 mérkőzés összehasonlítása az azt megelőző 5 mérkőzéssel. ' )+'A különbségek leíró jellegűek, nem bizonyítanak ok-okozati kapcsolatot.</p>'+
                 '<div class="career-mini-grid">'+metrics.map(([name,before,after,unit,higherBetter])=>{
                     const delta=before===null||after===null?null:after-before;
                     const color=delta===null?'var(--text-muted)':Math.abs(delta)<0.05?'var(--text-muted)':(delta>0)===higherBetter?'#4ade80':'#fb7185';
@@ -3014,6 +3015,8 @@ KOVÁCS DÁVID MÁTÉ
                 previous.map(r=>'<tr><td>Korábbi</td><td>'+String(r.date||'').replace(/</g,'&lt;')+'</td><td>'+String(r.opponent||'').replace(/</g,'&lt;')+'</td></tr>').join('')+
                 recent.map(r=>'<tr><td>Friss</td><td>'+String(r.date||'').replace(/</g,'&lt;')+'</td><td>'+String(r.opponent||'').replace(/</g,'&lt;')+'</td></tr>').join('')+
                 '</tbody></table></div></details>';
+            };
+            return comparisons.map((c,i)=>'<section style="margin:12px 0 22px"><h4 style="margin-bottom:8px">'+c.title+'</h4>'+(i===1&&ordered.length<10?'<p class="lineup-note">A teljes 5 + 5 mérkőzéses összehasonlításhoz 10 mérkőzés szükséges. Jelenleg '+ordered.length+' áll rendelkezésre.</p>':renderComparison(c.previous,c.recent,i===0))+'</section>').join('');
         }
 function renderCareerTeamStats(teamName) {
             const root=document.getElementById('career-stat-content'); if(!root)return;
