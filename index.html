@@ -1573,8 +1573,23 @@ KOVÁCS DÁVID MÁTÉ
                     <span id="room-video-save-status" style="font-size:11px;color:var(--text-muted)"></span>
                     <button class="btn-stat-main" onclick="startPlayTimeCorrection()" style="font-size:11px;padding:9px 13px;"><i class="fas fa-stopwatch"></i> Játékidő újraszámolás</button>
                 </div>
-                <div style="width:100%; background:#000; border-radius:12px; flex:1; display:flex; align-items:center; justify-content:center; min-height:300px; overflow:hidden;">
-                    <video id="match-video" controls style="width:100%; max-height:100%; outline:none;" ontimeupdate="updateOfficialClockStatus('room')"></video>
+                <div id="room-video-stage" style="width:100%;background:#000;border-radius:12px;flex:1;display:flex;align-items:center;justify-content:center;min-height:300px;overflow:hidden;position:relative;">
+                    <div id="room-video-transform" style="position:relative;display:inline-block;max-width:100%;max-height:100%;transform-origin:center center;">
+                        <video id="match-video" controls style="display:block;max-width:100%;max-height:56vh;outline:none;" ontimeupdate="updateOfficialClockStatus('room')"></video>
+                        <canvas id="room-draw-layer" style="position:absolute;inset:0;width:100%;height:100%;touch-action:none;pointer-events:none;"></canvas>
+                    </div>
+                </div>
+                <div class="official-clock-strip" style="display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:9px 12px;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:9px;">
+                    <strong style="font-size:12px;">Elemző eszközök</strong>
+                    <select id="room-step-size" title="Léptetés mérete" style="padding:6px;"><option value="0.1">0,1 mp</option><option value="0.5" selected>0,5 mp</option><option value="1">1 mp</option><option value="2">2 mp</option></select>
+                    <button class="btn-arch-action" onclick="roomStep(-1)">◀ Vissza</button><button class="btn-arch-action" onclick="roomStep(1)">Előre ▶</button>
+                    <select id="room-speed" onchange="roomSetSpeed(this.value)" title="Lejátszási sebesség" style="padding:6px;"><option value="0.25">0,25×</option><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="1.5">1,5×</option><option value="2">2×</option></select>
+                    <select id="room-zoom" onchange="roomSetZoom(this.value)" title="Nagyítás" style="padding:6px;"><option value="1" selected>1×</option><option value="1.5">1,5×</option><option value="2">2×</option><option value="3">3×</option></select>
+                    <button class="btn-arch-action" onclick="roomSetDrawMode('pen')">✎ Rajz</button><button class="btn-arch-action" onclick="roomSetDrawMode('arrow')">↗ Nyíl</button><button class="btn-arch-action" onclick="roomSetDrawMode('circle')">◯ Kör</button><button class="btn-arch-action" onclick="roomSetDrawMode('pan')">✋ Mozgatás</button>
+                    <input type="color" id="room-draw-color" value="#ff3434" title="Rajz színe" style="width:32px;height:30px;">
+                    <button class="btn-arch-action" onclick="roomUndoDraw()">↶ Visszavonás</button><button class="btn-arch-action" onclick="roomClearDraw()">Törlés</button>
+                    <button class="btn-arch-action" onclick="roomSaveFrame()">📷 Állókép PNG</button>
+                    <span id="room-tool-status" style="font-size:11px;color:var(--text-muted)">Rajzoláshoz állítsd meg a videót.</span>
                 </div>
                 <div class="official-clock-strip" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:9px;padding:9px 12px;">
                     <label for="room-official-clock" style="font-size:12px;font-weight:bold;"><i class="far fa-clock"></i> Játékóra-szinkron</label>
@@ -6224,7 +6239,85 @@ function renderCareerTeamStats(teamName) {
             const context=document.getElementById('u-context-text');
             if(context)context.innerText=(side==='home'?currentVideoMatch.homeName:currentVideoMatch.awayName)+' · '+(video?.src&&Number.isFinite(video.currentTime)?formatTime(video.currentTime):'Videó-idő nincs');
         }
-                let roomVideoRestoreToken=0,roomVideoObjectUrl=null,roomVideoFile=null;
+                let roomDrawMode='',roomDrawShapes=[],roomDrawCurrent=null,roomDrawPan={x:0,y:0},roomDrawDrag=null;
+        function roomDrawCanvas(){return document.getElementById('room-draw-layer');}
+        function roomDrawPoint(e){
+            const r=roomDrawCanvas().getBoundingClientRect();
+            return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))};
+        }
+        function roomRenderDraw(){
+            const c=roomDrawCanvas(),v=document.getElementById('match-video');if(!c||!v)return;
+            const w=Math.max(1,Math.round(v.clientWidth*devicePixelRatio)),h=Math.max(1,Math.round(v.clientHeight*devicePixelRatio));
+            if(c.width!==w||c.height!==h){c.width=w;c.height=h;}
+            const ctx=c.getContext('2d');ctx.clearRect(0,0,w,h);
+            const draw=shape=>{
+                const pts=shape.points||[];if(!pts.length)return;
+                ctx.strokeStyle=shape.color||'#ff3434';ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=Math.max(3,w/260);ctx.lineJoin='round';ctx.lineCap='round';
+                const xy=p=>({x:p.x*w,y:p.y*h});const first=xy(pts[0]),last=xy(pts[pts.length-1]);
+                ctx.beginPath();ctx.moveTo(first.x,first.y);
+                if(shape.mode==='circle'){
+                    ctx.ellipse((first.x+last.x)/2,(first.y+last.y)/2,Math.max(1,Math.abs(last.x-first.x)/2),Math.max(1,Math.abs(last.y-first.y)/2),0,0,Math.PI*2);
+                }else{pts.slice(1).forEach(p=>{const q=xy(p);ctx.lineTo(q.x,q.y);});}
+                ctx.stroke();
+                if(shape.mode==='arrow'&&pts.length>1){
+                    const angle=Math.atan2(last.y-first.y,last.x-first.x),size=Math.max(12,w/35);
+                    ctx.beginPath();ctx.moveTo(last.x,last.y);
+                    ctx.lineTo(last.x-size*Math.cos(angle-0.5),last.y-size*Math.sin(angle-0.5));
+                    ctx.moveTo(last.x,last.y);ctx.lineTo(last.x-size*Math.cos(angle+0.5),last.y-size*Math.sin(angle+0.5));ctx.stroke();
+                }
+            };
+            roomDrawShapes.forEach(draw);if(roomDrawCurrent)draw(roomDrawCurrent);
+        }
+        function roomSetDrawMode(mode){
+            roomDrawMode=roomDrawMode===mode?'':mode;
+            const c=roomDrawCanvas();if(c)c.style.pointerEvents=roomDrawMode?'auto':'none';
+            const status=document.getElementById('room-tool-status');if(status)status.textContent=roomDrawMode==='pan'?'Húzd a kinagyított képet az egérrel.':roomDrawMode?'Rajzolás: '+roomDrawMode+' (a videó megállítva)':'Rajzolás kikapcsolva';
+            if(roomDrawMode&&roomDrawMode!=='pan')document.getElementById('match-video')?.pause();
+        }
+        function roomDrawDown(e){
+            if(!roomDrawMode)return;
+            const c=roomDrawCanvas();c.setPointerCapture(e.pointerId);
+            if(roomDrawMode==='pan'){roomDrawDrag={x:e.clientX,y:e.clientY,startX:roomDrawPan.x,startY:roomDrawPan.y};return;}
+            document.getElementById('match-video')?.pause();
+            const p=roomDrawPoint(e);roomDrawCurrent={mode:roomDrawMode,color:document.getElementById('room-draw-color').value,points:[p,p]};roomRenderDraw();
+        }
+        function roomDrawMove(e){
+            if(roomDrawDrag){roomDrawPan.x=roomDrawDrag.startX+e.clientX-roomDrawDrag.x;roomDrawPan.y=roomDrawDrag.startY+e.clientY-roomDrawDrag.y;roomApplyTransform();return;}
+            if(!roomDrawCurrent)return;
+            const p=roomDrawPoint(e);
+            if(roomDrawCurrent.mode==='pen')roomDrawCurrent.points.push(p);
+            else roomDrawCurrent.points[1]=p;
+            roomRenderDraw();
+        }
+        function roomDrawUp(){if(roomDrawCurrent){roomDrawShapes.push(roomDrawCurrent);roomDrawCurrent=null;roomRenderDraw();}roomDrawDrag=null;}
+        function roomUndoDraw(){roomDrawShapes.pop();roomRenderDraw();}
+        function roomClearDraw(){roomDrawShapes=[];roomDrawCurrent=null;roomRenderDraw();}
+        function roomApplyTransform(){
+            const el=document.getElementById('room-video-transform'),z=Number(document.getElementById('room-zoom')?.value)||1;
+            if(el)el.style.transform='translate('+roomDrawPan.x+'px,'+roomDrawPan.y+'px) scale('+z+')';
+        }
+        function roomSetZoom(){roomDrawPan={x:0,y:0};roomApplyTransform();}
+        function roomSetSpeed(value){const v=document.getElementById('match-video');if(v)v.playbackRate=Number(value)||1;}
+        function roomStep(dir){
+            const v=document.getElementById('match-video');if(!v||!v.src)return;
+            v.pause();const delta=Number(document.getElementById('room-step-size')?.value)||0.5;
+            v.currentTime=Math.max(0,Math.min(Number.isFinite(v.duration)?v.duration:Infinity,v.currentTime+dir*delta));
+        }
+        function roomSaveFrame(){
+            const v=document.getElementById('match-video');if(!v||!v.videoWidth){alert('Előbb tölts be egy videót.');return;}
+            const out=document.createElement('canvas');out.width=v.videoWidth;out.height=v.videoHeight;
+            const ctx=out.getContext('2d');
+            try{ctx.drawImage(v,0,0,out.width,out.height);}catch(e){alert('Nem sikerült menteni a videóképet: '+e.message);return;}
+            const c=roomDrawCanvas();if(c)ctx.drawImage(c,0,0,out.width,out.height);
+            try{out.toBlob(blob=>{if(!blob){alert('Nem sikerült elkészíteni az állóképet.');return;}const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='handball-lab-'+Math.round(v.currentTime*10)/10+'s.png';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);},'image/png');}catch(e){alert('Állóképmentési hiba: '+e.message);}
+        }
+        function roomInitDraw(){
+            const c=roomDrawCanvas();if(!c||c.dataset.ready)return;c.dataset.ready='1';
+            c.addEventListener('pointerdown',roomDrawDown);c.addEventListener('pointermove',roomDrawMove);
+            c.addEventListener('pointerup',roomDrawUp);c.addEventListener('pointercancel',roomDrawUp);
+            new ResizeObserver(roomRenderDraw).observe(document.getElementById('match-video'));
+        }
+        let roomVideoRestoreToken=0,roomVideoObjectUrl=null,roomVideoFile=null;
         function roomVideoId(match){return match?.id==null?null:'room-'+String(match.id);}
         function roomAttachVideo(file){
             const video=document.getElementById('match-video');
@@ -6281,6 +6374,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             document.getElementById('vr-match-title').innerText = `${currentVideoMatch.date || ''} | ${currentVideoMatch.homeName} - ${currentVideoMatch.awayName}`;
             const backBtn=document.getElementById('vr-back-btn'); if(backBtn) backBtn.innerHTML = returnToStats ? '<i class="fas fa-arrow-left"></i> Vissza a statisztikához' : '<i class="fas fa-arrow-left"></i> Archívum';
             showScreen('view-video-room');
+            roomInitDraw();roomClearDraw();roomSetDrawMode('');roomDrawMode='';roomDrawCanvas().style.pointerEvents='none';roomSetZoom();
             const halfSelect=document.getElementById('room-official-half');
             if(halfSelect) halfSelect.value=currentVideoFilter&&currentVideoFilter.kind==='timeline'&&Number(currentVideoFilter.value)>=6?'2':'1';
             updateOfficialClockStatus('room');
