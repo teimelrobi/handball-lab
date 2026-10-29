@@ -1112,20 +1112,16 @@
     <button class="btn-arch-action" onclick="document.getElementById('clip-report-builder').style.display='none'">Bezárás</button>
   </div>
   <p style="font-size:12px;color:var(--text-muted);margin:10px 0 16px">A nyomtatott PDF-ben is beolvasható QR-kód készül minden megosztott jelenethez. A QR-kódhoz külön Drive-videómegosztás szükséges.</p>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:12px">
-    <label style="display:grid;gap:5px;font-size:12px">Saját csapat<input id="clip-report-own-team" placeholder="Pl. Budai Farkasok FU18" oninput="clipReportSaveMeta()" style="min-width:0;padding:10px"></label>
-    <label style="display:grid;gap:5px;font-size:12px">Ellenfél<input id="clip-report-opponent" placeholder="Ellenfél neve" oninput="clipReportSaveMeta()" style="min-width:0;padding:10px"></label>
-    <label style="display:grid;gap:5px;font-size:12px">Felkészülési mérkőzés dátuma<input id="clip-report-date" type="date" oninput="clipReportSaveMeta()" style="min-width:0;padding:10px"></label>
-    <label style="display:grid;gap:5px;font-size:12px">Helyszín<input id="clip-report-venue" placeholder="Opcionális" oninput="clipReportSaveMeta()" style="min-width:0;padding:10px"></label>
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:13px 0">
-    <label style="display:grid;gap:5px;font-size:12px">Ellenfél erősségei<textarea id="clip-report-strengths" rows="3" oninput="clipReportSaveMeta()" placeholder="Edzői riportba kerül" style="width:100%;padding:9px;user-select:text"></textarea></label>
-    <label style="display:grid;gap:5px;font-size:12px">Ellenfél gyengeségei<textarea id="clip-report-weaknesses" rows="3" oninput="clipReportSaveMeta()" placeholder="Edzői riportba kerül" style="width:100%;padding:9px;user-select:text"></textarea></label>
-    <label style="display:grid;gap:5px;font-size:12px">Mit védekezzünk?<textarea id="clip-report-defense" rows="3" oninput="clipReportSaveMeta()" placeholder="Védekezési terv" style="width:100%;padding:9px;user-select:text"></textarea></label>
-    <label style="display:grid;gap:5px;font-size:12px">Mire figyeljünk támadásban?<textarea id="clip-report-attack" rows="3" oninput="clipReportSaveMeta()" placeholder="Támadási terv" style="width:100%;padding:9px;user-select:text"></textarea></label>
-    <label style="display:grid;gap:5px;font-size:12px">Speciális játékok – általános terv<textarea id="clip-report-special" rows="3" oninput="clipReportSaveMeta()" placeholder="7:6, emberelőny, végjáték" style="width:100%;padding:9px;user-select:text"></textarea></label>
-    <label style="display:grid;gap:5px;font-size:12px">Három legfontosabb üzenet (soronként egy)<textarea id="clip-report-key" rows="3" oninput="clipReportSaveMeta()" placeholder="1. ...&#10;2. ...&#10;3. ..." style="width:100%;padding:9px;user-select:text"></textarea></label>
-  </div>
+  <label style="display:grid;gap:5px;max-width:650px;font-size:13px;margin-bottom:13px">Ellenfél<input id="clip-report-opponent" placeholder="Ellenfél neve" oninput="clipReportSaveMeta()" style="padding:11px"></label>
+  <section style="border:1px solid var(--border-color);border-radius:10px;padding:12px;margin:12px 0">
+    <h4>Vizsgált mérkőzések</h4>
+    <p style="font-size:12px;color:var(--text-muted);margin:7px 0">MKSZ PDF-jegyzőkönyv feltöltése: csapatok, végeredmény, góllövők. A feldolgozott adatokat ellenőrizd a jegyzőkönyvvel.</p>
+    <input type="file" accept=".pdf,application/pdf" id="clip-report-mksz-file" onchange="clipReportImportMksz(event)" multiple style="max-width:100%">
+    <div id="clip-report-mksz-status" style="font-size:12px;color:var(--text-muted);margin:8px 0"></div>
+    <div id="clip-report-matches" style="display:grid;gap:7px"></div>
+    <button class="btn-arch-action" onclick="clipReportAddManualMatch()" type="button">+ Mérkőzés kézi hozzáadása</button>
+  </section>
+  <div role="tablist" style="display:flex;gap:7px;flex-wrap:wrap;margin:15px 0"><button type="button" class="btn-arch-action" data-report-tab="offense" onclick="clipReportSetTab('offense')" style="font-size:12px">TÁMADÁS</button><button type="button" class="btn-arch-action" data-report-tab="defense-system" onclick="clipReportSetTab('defense-system')" style="font-size:12px">VÉDEKEZÉS</button><button type="button" class="btn-arch-action" data-report-tab="our-attack" onclick="clipReportSetTab('our-attack')" style="font-size:12px">MIT JÁTSZUNK TÁMADÁSBAN</button><button type="button" class="btn-arch-action" data-report-tab="our-defense" onclick="clipReportSetTab('our-defense')" style="font-size:12px">MIT VÉDEKEZZÜNK</button><button type="button" class="btn-arch-action" data-report-tab="special" onclick="clipReportSetTab('special')" style="font-size:12px">SPECIÁLIS</button><button type="button" class="btn-arch-action" data-report-tab="strengths" onclick="clipReportSetTab('strengths')" style="font-size:12px">ERŐSSÉG</button><button type="button" class="btn-arch-action" data-report-tab="weaknesses" onclick="clipReportSetTab('weaknesses')" style="font-size:12px">GYENGESÉG</button><button type="button" class="btn-arch-action" data-report-tab="players" onclick="clipReportSetTab('players')" style="font-size:12px">KIEMELT JÁTÉKOSOK</button><button type="button" class="btn-arch-action" data-report-tab="key" onclick="clipReportSetTab('key')" style="font-size:12px">3 LEGFONTOSABB ÜZENET</button></div><div style="border:1px solid var(--border-color);padding:14px;border-radius:10px"><div data-report-pane="offense" style="display:none"><h4>TÁMADÁS</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">Az ellenfél támadómozgásai, figurái, kapcsolatai.</p><textarea id="clip-report-offense" rows="6" oninput="clipReportSaveMeta()" placeholder="Az ellenfél támadómozgásai, figurái, kapcsolatai." style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div><div data-report-pane="defense-system" style="display:none"><h4>VÉDEKEZÉS</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">Az ellenfél védekezési rendszere, kilépések, szélsők.</p><textarea id="clip-report-defense-system" rows="6" oninput="clipReportSaveMeta()" placeholder="Az ellenfél védekezési rendszere, kilépések, szélsők." style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div><div data-report-pane="our-attack" style="display:none"><h4>MIT JÁTSZUNK TÁMADÁSBAN</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">Milyen támadójátékot alkalmazzunk ellenük?</p><textarea id="clip-report-attack" rows="6" oninput="clipReportSaveMeta()" placeholder="Milyen támadójátékot alkalmazzunk ellenük?" style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div><div data-report-pane="our-defense" style="display:none"><h4>MIT VÉDEKEZZÜNK</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">Melyik védekezést válasszuk, hogyan alkalmazkodjunk?</p><textarea id="clip-report-defense" rows="6" oninput="clipReportSaveMeta()" placeholder="Melyik védekezést válasszuk, hogyan alkalmazkodjunk?" style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div><div data-report-pane="special" style="display:none"><h4>SPECIÁLIS</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">7:6, emberelőny, emberhátrány, végjáték.</p><textarea id="clip-report-special" rows="6" oninput="clipReportSaveMeta()" placeholder="7:6, emberelőny, emberhátrány, végjáték." style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div><div data-report-pane="strengths" style="display:none"><h4>ERŐSSÉG</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">Miben jó az ellenfél?</p><textarea id="clip-report-strengths" rows="6" oninput="clipReportSaveMeta()" placeholder="Miben jó az ellenfél?" style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div><div data-report-pane="weaknesses" style="display:none"><h4>GYENGESÉG</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">Hol támadható az ellenfél?</p><textarea id="clip-report-weaknesses" rows="6" oninput="clipReportSaveMeta()" placeholder="Hol támadható az ellenfél?" style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div><div data-report-pane="players" style="display:none"><h4>KIEMELT JÁTÉKOSOK</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">Mezszám, név, taktikai megjegyzések.</p><textarea id="clip-report-players" rows="8" oninput="clipReportSaveMeta()" placeholder="Mezszám, név, taktikai megjegyzések." style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div><div data-report-pane="key" style="display:none"><h4>3 LEGFONTOSABB ÜZENET</h4><p style="font-size:12px;color:var(--text-muted);margin:8px 0">Soronként egy üzenet, legfeljebb három.</p><textarea id="clip-report-key" rows="6" oninput="clipReportSaveMeta()" placeholder="Soronként egy üzenet, legfeljebb három." style="width:100%;padding:12px;user-select:text;background:var(--bg-panel);border:1px solid var(--border-color);border-radius:8px;color:white"></textarea></div></div>
   <h4 style="margin:15px 0 8px">Mely jelenetek kerüljenek a PDF-be?</h4>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px">
     <button class="btn-arch-action" onclick="clipReportSelectScenes('all')">Összes kijelölése</button>
@@ -7549,7 +7545,8 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         
         // PDF előkészítő – a megosztott QR-videók külön Drive-fájlok; a PDF nem oszt meg új fájlokat.
         let clipReportSceneSnapshot=[],clipReportPdfPromise=null,clipReportBusy=false,clipReportFontsLoaded=false;
-        const CLIP_REPORT_FIELDS=['own-team','opponent','date','venue','strengths','weaknesses','defense','attack','special','key'];
+        const CLIP_REPORT_FIELDS=['opponent','offense','defense-system','attack','defense','special','strengths','weaknesses','players','key'];
+        let clipReportMatches=[];
         function clipReportStoreKey(){return 'handball_lab_tactical_report_v1_'+clipActiveTeam;}
         function clipReportGetMeta(){
             const out={};
@@ -7558,7 +7555,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         }
         function clipReportSaveMeta(){
             if(!clipActiveTeam)return;
-            try{localStorage.setItem(clipReportStoreKey(),JSON.stringify(clipReportGetMeta()));}catch(e){console.warn('Taktikai riport helyi mentése:',e);}
+            try{localStorage.setItem(clipReportStoreKey(),JSON.stringify({...clipReportGetMeta(),examinedMatches:clipReportMatches}));}catch(e){console.warn('Taktikai riport helyi mentése:',e);}
         }
         function clipReportSceneName(entry){
             const c=entry.clip;
@@ -7587,6 +7584,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const input=document.getElementById('clip-report-'+field);
                 if(input)input.value=String(saved[field]??(field==='opponent'?opponent:''));
             }
+            clipReportMatches=Array.isArray(saved.examinedMatches)?saved.examinedMatches:[];clipReportRenderMatches();clipReportSetTab('offense');
             clipReportSceneSnapshot=clipTeamScenes().filter(({clip})=>clip.note||clip.tacticalCategory||clip.shareUrl);
             list.replaceChildren();
             if(!clipReportSceneSnapshot.length){
@@ -7634,7 +7632,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             ],margin:[0,0,0,13]};
         }
         function clipReportTacticalDefinition(type,entries,meta){
-            const coach=type==='coach',opp=meta.opponent||'Ellenfél',own=meta['own-team']||'Saját csapat';
+            const coach=type==='coach',opp=meta.opponent||'Ellenfél';
             const order=['Figurális játékok','Fontos játékosok','Mit védekezzünk?','Mire figyeljünk támadásban?','Speciális játékok','Egyéb megjegyzések'];
             const grouped=new Map();
             for(const entry of entries){
@@ -7648,19 +7646,17 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             });
             const content=[
                 {text:'HANDBALL LAB  /  MÉRKŐZÉS ELŐTTI ELLENFÉLELEMZÉS',style:'eyebrow',margin:[0,0,0,12]},
-                {text:own+'  –  '+opp,style:'title',margin:[0,0,0,4]},
+                {text:opp,style:'title',margin:[0,0,0,4]},
                 {text:coach?'RÉSZLETES EDZŐI TAKTIKAI RIPORT':'JÁTÉKOSOKNAK – MÉRKŐZÉS ELŐTTI FELKÉSZÜLÉS',style:'subtitle',margin:[0,0,0,13]},
-                {table:{widths:['*','*'],body:[
-                    [{text:'ELLENFÉL',style:'metaLabel'},{text:'MÉRKŐZÉS',style:'metaLabel'}],
-                    [{text:opp,style:'metaValue'},{text:[meta.date||'Dátum nincs megadva',meta.venue||''].filter(Boolean).join(' · '),style:'metaValue'}]
-                ]},layout:{hLineColor:()=> '#D8E0E5',vLineColor:()=> '#D8E0E5',paddingTop:()=>7,paddingBottom:()=>7,paddingLeft:()=>9,paddingRight:()=>9},margin:[0,0,0,17]}
+                {text:'ELLENFÉL · VIZSGÁLT MÉRKŐZÉSEK',style:'metaLabel',margin:[0,0,0,6]},
+                ...clipReportMatches.map(m=>({text:[m.home,m.away].filter(Boolean).join(' – ')+(m.score?'  |  '+m.score:'')+(m.date?'  |  '+m.date:'')+(m.scorer?'  |  Legtöbb gól: '+m.scorer:''),fontSize:9,margin:[0,0,0,5]}))
             ];
             const messages=String(meta.key||'').split(/\r?\n/).map(x=>x.trim().replace(/^\d+[.)]\s*/,'' )).filter(Boolean).slice(0,3);
             if(messages.length){
                 content.push({text:'A MÉRKŐZÉS 3 KULCSÜZENETE',style:'sectionHead',margin:[0,0,0,8]});
                 content.push({ol:messages.map(x=>({text:x,margin:[0,0,0,5]})),style:'keyList',margin:[0,0,0,14]});
             }
-            if(coach){
+            if(true){
                 const strengths=clipReportTextBlock('Az ellenfél erősségei',meta.strengths);
                 const weaknesses=clipReportTextBlock('Az ellenfél gyengeségei',meta.weaknesses);
                 if(strengths||weaknesses){
@@ -7670,9 +7666,12 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 }
             }
             const plans=[
+                ['AZ ELLENFÉL TÁMADÁSA',meta.offense],
+                ['AZ ELLENFÉL VÉDEKEZÉSE',meta['defense-system']],
+                ['MIT JÁTSZUNK TÁMADÁSBAN?',meta.attack],
                 ['MIT VÉDEKEZZÜNK?',meta.defense],
-                ['MIRE FIGYELJÜNK TÁMADÁSBAN?',meta.attack],
-                ['SPECIÁLIS JÁTÉKHELYZETEK',meta.special]
+                ['SPECIÁLIS JÁTÉKOK',meta.special],
+                ['KIEMELT JÁTÉKOSOK',meta.players]
             ].map(x=>clipReportTextBlock(x[0],x[1])).filter(Boolean);
             if(plans.length){
                 content.push({text:(coach?'02':'01')+'  /  SAJÁT TAKTIKAI TERV',style:'sectionHead',margin:[5,6,0,11]});
@@ -7737,7 +7736,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(!clipActiveTeam)return alert('Válassz ellenfélcsapatot.');
             const meta=clipReportGetMeta(),entries=clipReportSelectedEntries();
             if(!meta.opponent){status.textContent='Add meg az ellenfél nevét!';return;}
-            if(!entries.length&&!Object.values(meta).some((x,i)=>i>3&&x)){status.textContent='Válassz jeleneteket, vagy adj meg taktikai megjegyzéseket a riporthoz.';return;}
+            if(!entries.length&&!clipReportMatches.length&&!Object.values(meta).some(Boolean)){status.textContent='Válassz jeleneteket, vagy adj meg taktikai megjegyzéseket a riporthoz.';return;}
             if(!['coach','player'].includes(type))return;
             clipReportBusy=true;
             status.textContent='PDF előkészítése, QR-kódok és videólinkek beépítése…';
@@ -7751,6 +7750,65 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 status.textContent='PDF letöltés elindítva: '+filename+' · '+entries.length+' jelenet, '+entries.filter(x=>clipValidShareUrl(x.clip.shareUrl)).length+' QR-kód.';
             }catch(e){status.textContent='PDF generálási hiba: '+(e?.message||e);console.error('Taktikai PDF:',e);}
             finally{clipReportBusy=false;}
+        }
+
+
+        function clipReportSetTab(tab){
+            document.querySelectorAll('[data-report-pane]').forEach(x=>x.style.display=x.dataset.reportPane===tab?'block':'none');
+            document.querySelectorAll('[data-report-tab]').forEach(x=>{x.style.borderColor=x.dataset.reportTab===tab?'var(--green-accent)':'var(--border-color)';x.style.color=x.dataset.reportTab===tab?'var(--green-accent)':'';});
+        }
+        function clipReportRenderMatches(){
+            const box=document.getElementById('clip-report-matches');if(!box)return;box.replaceChildren();
+            for(const [i,m] of clipReportMatches.entries()){
+                const row=document.createElement('div');row.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px;border:1px solid var(--border-color);border-radius:7px';
+                const content=document.createElement('span');content.style.flex='1';content.textContent=(m.home||'?')+' – '+(m.away||'?')+' · '+(m.score||'Eredmény ellenőrizendő')+(m.scorer?' · Legtöbb gól: '+m.scorer:'')+(m.date?' · '+m.date:'');
+                const edit=document.createElement('button');edit.className='btn-arch-action';edit.textContent='Javítás';edit.onclick=()=>{
+                    const h=prompt('Hazai csapat',m.home||'');if(h===null)return;
+                    const a=prompt('Vendégcsapat',m.away||'');if(a===null)return;
+                    const score=prompt('Végeredmény (hazai–vendég)',m.score||'');if(score===null)return;
+                    const scorer=prompt('Legtöbb gólt szerző játékos és gólszám (csak ellenőrzött adat)',m.scorer||'');if(scorer===null)return;
+                    Object.assign(m,{home:h,away:a,score,scorer});clipReportSaveMeta();clipReportRenderMatches();
+                };
+                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{clipReportMatches.splice(i,1);clipReportSaveMeta();clipReportRenderMatches();};
+                row.append(content,edit,del);box.appendChild(row);
+            }
+        }
+        function clipReportAddManualMatch(){
+            const home=prompt('Hazai csapat');if(home===null)return;
+            const away=prompt('Vendégcsapat');if(away===null)return;
+            const score=prompt('Eredmény, pl. 31–28')||'';
+            const scorer=prompt('Legtöbb gólt szerző játékos, gólszám')||'';
+            clipReportMatches.push({home,away,score,scorer,date:''});clipReportSaveMeta();clipReportRenderMatches();
+        }
+        async function clipReportImportMksz(event){
+            const files=[...(event.target.files||[])],status=document.getElementById('clip-report-mksz-status');
+            if(!files.length)return;
+            try{
+                if(!window.pdfjsLib)await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';script.onload=resolve;script.onerror=()=>reject(Error('PDF-olvasó nem tölthető be.'));document.head.appendChild(script);});
+                pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                for(const file of files){
+                    status.textContent='Feldolgozás: '+file.name;
+                    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+                    const lines=[];
+                    for(let p=1;p<=pdf.numPages;p++){
+                        const page=await pdf.getPage(p),items=(await page.getTextContent()).items.filter(x=>x.str?.trim()).map(x=>({text:x.str.trim(),x:x.transform[4],y:x.transform[5]}));
+                        const rows=[];for(const it of items){let row=rows.find(r=>Math.abs(r.y-it.y)<2.5);if(!row){row={y:it.y,items:[]};rows.push(row);}row.items.push(it);}
+                        rows.sort((a,b)=>b.y-a.y).forEach(row=>lines.push(row.items.sort((a,b)=>a.x-b.x).map(x=>x.text).join(' ')));
+                    }
+                    let parsed={};try{parsed=parseMkszRosterPdfLines(lines);}catch(e){console.warn('MKSZ fejléc:',e);}
+                    const joined=lines.join('\n');
+                    // Csak a jól azonosítható végeredményt emeljük át; bizonytalan adatnál kézi ellenőrzés szükséges.
+                    const scoreCandidates=[...joined.matchAll(/(?:végeredmény|végeredm[ée]ny|eredmény)\s*[:\-]?\s*(\d{1,2})\s*[:\-–]\s*(\d{1,2})/gi)];
+                    const score=scoreCandidates.length===1?scoreCandidates[0][1]+'–'+scoreCandidates[0][2]:'';
+                    // A különböző MKSZ formátumok miatt a góllövőket csak megbízható, explicit gólszám oszlopból vesszük át.
+                    const goals=lines.map(l=>l.match(/^\s*(\d{1,2})\s+(.+?)\s+(\d{4,7})\s+(\d{1,2})\s*$/)).filter(Boolean).map(m=>({name:m[2],n:Number(m[4])})).filter(m=>m.n<=30);
+                    const max=goals.length?Math.max(...goals.map(x=>x.n)):0;
+                    const scorer=goals.length&&goals.filter(x=>x.n===max).length===1?goals.find(x=>x.n===max).name+' ('+max+' gól)':'';
+                    clipReportMatches.push({home:parsed.homeName||'',away:parsed.awayName||'',date:parsed.date||'',score,scorer,filename:file.name});
+                }
+                clipReportSaveMeta();clipReportRenderMatches();
+                status.textContent=files.length+' jegyzőkönyv hozzáadva. A hiányzó vagy kétséges eredményt és góllövőt a Javítás gombbal ellenőrizd.';
+            }catch(e){status.textContent='Jegyzőkönyv-hiba: '+e.message;}finally{event.target.value='';}
         }
 
     </script>
