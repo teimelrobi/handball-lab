@@ -1169,7 +1169,9 @@
           </div>
           <div id="clip-selected-category" style="margin:10px 0;color:var(--green-accent)"></div>
           <div style="display:grid;gap:10px;margin:12px 0">
-            <label for="clip-tactical-category" style="font-size:13px">Taktikai riport fejezete (opcionális)</label>
+            <label for="clip-analysis-team" style="font-size:13px">Melyik csapat ellenfélelemzésébe kerüljön?</label>
+            <select id="clip-analysis-team" class="team-select"></select>
+            <label for="clip-tactical-category" style="font-size:13px">Taktikai riport fejezete</label>
             <select id="clip-tactical-category" class="team-select"><option value="">Általános jelenet</option><option>Figurális játékok</option><option>Fontos játékosok</option><option>Mit védekezzünk?</option><option>Mire figyeljünk támadásban?</option><option>Speciális játékok</option><option>Egyéb megjegyzések</option></select>
             <label for="clip-scene-note" style="font-size:13px">Edzői megjegyzés a videórészlethez</label>
             <textarea id="clip-scene-note" rows="3" maxlength="3000" placeholder="Pl. Balátlövő–irányító kereszt után beálló megjátszás. A 3-as védő lépjen ki." style="width:100%;background:var(--bg-card);color:#fff;border:1px solid var(--border-color);border-radius:8px;padding:10px;user-select:text"></textarea>
@@ -7095,7 +7097,8 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const sides=clipProjectTeams(p).filter(([,name])=>clipNormalizeTeam(name)===clipActiveTeam).map(([side])=>side);
                 if(!sides.length)continue;
                 for(const c of p.clips||[]){
-                    if(c.player&&!sides.includes(c.player.side))continue;
+                    if(c.analysisTeam){if(clipNormalizeTeam(c.analysisTeam)!==clipActiveTeam)continue;}
+                    else if(c.player&&!sides.includes(c.player.side))continue;
                     out.push({project:p,clip:c});
                 }
             }
@@ -7104,6 +7107,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipRenderTeamLibrary(reset=false){
             const panel=document.getElementById('clip-team-library');if(!clipActiveTeam){panel.style.display='none';return;}
             panel.style.display='block';
+            clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);
             const scenes=clipTeamScenes(),category=document.getElementById('clip-team-category'),player=document.getElementById('clip-team-player'),search=document.getElementById('clip-team-search');
             const catVal=reset?'':category.value,playerVal=reset?'':player.value;
             if(reset){search.value='';clipTeamSelected.clear();}
@@ -7213,7 +7217,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipSetEnd(){
             const v=document.getElementById('clip-video');if(clipStart===null)return alert('Először jelöld ki a jelenet elejét.');
             if(v.currentTime<=clipStart)return alert('A jelenet vége később legyen, mint az eleje.');
-            clipEnd=v.currentTime;clipCategory='';document.getElementById('clip-scene-note').value='';document.getElementById('clip-tactical-category').value='';
+            clipEnd=v.currentTime;clipCategory='';clipRenderAnalysisTeams();document.getElementById('clip-scene-note').value='';document.getElementById('clip-tactical-category').value='';
             document.getElementById('clip-range-label').textContent=formatTime(clipStart)+' – '+formatTime(clipEnd);
             document.getElementById('clip-selected-category').textContent='';
             document.getElementById('clip-player-chooser').style.display='none';
@@ -7241,8 +7245,8 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const value=document.getElementById('clip-player-select').value;if(!value)return alert('Válassz játékost.');
                 const [side,num]=value.split('|');player={side,num:Number(num),name:clipMatch?.[side]?.find(p=>String(p.num)===num)?.name||''};
             }
-            clipClips.push({id:'c_'+Date.now()+'_'+Math.floor(Math.random()*10000),start:clipStart,end:clipEnd,category:clipCategory,player,note:document.getElementById('clip-scene-note').value.trim(),tacticalCategory:document.getElementById('clip-tactical-category').value});
-            clipSave();clipRenderList();clipStart=null;clipEnd=null;document.getElementById('clip-category-dialog').style.display='none';document.getElementById('clip-range-label').textContent='Jelenet mentve. Jelöld ki a következőt.';
+            clipClips.push({id:'c_'+Date.now()+'_'+Math.floor(Math.random()*10000),start:clipStart,end:clipEnd,category:clipCategory,player,analysisTeam:document.getElementById('clip-analysis-team').value,note:document.getElementById('clip-scene-note').value.trim(),tacticalCategory:document.getElementById('clip-tactical-category').value||clipAutoTacticalCategory(clipCategory)});
+            clipSave();clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);clipRenderList();clipStart=null;clipEnd=null;document.getElementById('clip-category-dialog').style.display='none';document.getElementById('clip-range-label').textContent='Jelenet mentve. Jelöld ki a következőt.';
         }
         let clipSelectedIds=new Set(),clipExportBusy=false,clipOriginalFile=null,clipFfmpeg=null;
         function clipVisibleClips(){
@@ -7416,7 +7420,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const sections=['','Figurális játékok','Fontos játékosok','Mit védekezzünk?','Mire figyeljünk támadásban?','Speciális játékok','Egyéb megjegyzések'];
             const selected=prompt('Taktikai fejezet (0–6):\n0 – Általános\n'+sections.slice(1).map((v,i)=>(i+1)+' – '+v).join('\n'),String(Math.max(0,sections.indexOf(c.tacticalCategory||''))));
             if(selected!==null&&/^[0-6]$/.test(selected.trim()))c.tacticalCategory=sections[Number(selected.trim())];
-            clipSave();clipRenderList();
+            clipSave();clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);clipRenderList();
         }
         function clipValidShareUrl(url){return /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/(?:view|preview)(?:\?.*)?$/.test(String(url||''));}
         function clipPlaybackUrl(url){
@@ -7507,7 +7511,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const shortName=(document.getElementById('clip-project-title').value||'Merkozes').replace(/[^\w\u00c0-\u017f-]+/g,'_').slice(0,60);
                 const shared=await clipQrUpload(new File([video],shortName+'_'+c.id+'.mp4',{type:'video/mp4'}),c,status);
                 c.sharedDriveId=shared.id;c.shareUrl=shared.url;c.sharedAt=new Date().toISOString();
-                clipSave();clipRenderList();status.textContent='QR-videó feltöltve. A Google Drive feldolgozása miatt a lejátszás késhet.';
+                clipSave();clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);clipRenderList();status.textContent='QR-videó feltöltve. A Google Drive feldolgozása miatt a lejátszás késhet.';
                 await clipShowQr(c);
             }catch(e){status.textContent='QR megosztási hiba: '+(e?.message||e);alert(status.textContent);}
             finally{
@@ -7583,6 +7587,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 if(input)input.value=String(saved[field]??(field==='opponent'?opponent:''));
             }
             clipReportAllMatches=Array.isArray(saved.examinedMatches)?saved.examinedMatches:[];clipReportUpdateTeams();clipReportSetTab('offense');
+            clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);
             clipReportSceneSnapshot=clipTeamScenes().filter(({clip})=>clip.note||clip.tacticalCategory||clip.shareUrl);
             list.replaceChildren();
             if(!clipReportSceneSnapshot.length){
@@ -7837,6 +7842,32 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(sum)sum.textContent=clipReportMatches.length+' / '+clipReportAllMatches.length+' mérkőzés megjelenítve'+(current?' · Elemzett csapat: '+current:' · Válassz csapatot a szűréshez');
         }
 
+
+        function clipAutoTacticalCategory(category){
+            if(String(category).startsWith('Játékos'))return 'Fontos játékosok';
+            if(category==='Védekezés'||category==='Visszarendeződés')return 'Védekezés';
+            if(['7:6','Létszámelőny','Létszámfölény','Létszámhátrány'].includes(category))return 'Speciális játékok';
+            return 'Támadás';
+        }
+        function clipRenderAnalysisTeams(){
+            const el=document.getElementById('clip-analysis-team');if(!el)return;
+            const previous=el.value,match=clipMatch||{},names=[match.homeName,match.awayName].filter(Boolean);
+            el.replaceChildren();
+            for(const name of names){const o=document.createElement('option');o.value=name;o.textContent=name;el.appendChild(o);}
+            if(!names.length){const o=document.createElement('option');o.value='';o.textContent='Előbb töltsd be az MKSZ jegyzőkönyvet';el.appendChild(o);return;}
+            const suggested=names.find(x=>!clipNormalizeTeam(x).includes('budaifarkas'))||names[0];
+            el.value=names.includes(previous)?previous:suggested;
+        }
+        function clipMergeCurrentLocalProject(projects){
+            const list=Array.isArray(projects)?[...projects]:[];
+            const locals=clipLocalProjects();
+            for(const p of locals){
+                const idx=list.findIndex(x=>x.id===p.id);
+                if(idx<0)list.push(p);
+                else if(new Date(p.updatedAt||0)>=new Date(list[idx].updatedAt||0))list[idx]=p;
+            }
+            return list;
+        }
     </script>
 </body>
 </html>
