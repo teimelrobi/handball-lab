@@ -7418,7 +7418,12 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(selected!==null&&/^[0-6]$/.test(selected.trim()))c.tacticalCategory=sections[Number(selected.trim())];
             clipSave();clipRenderList();
         }
-        function clipValidShareUrl(url){return /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/view(?:\?.*)?$/.test(String(url||''));}
+        function clipValidShareUrl(url){return /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/(?:view|preview)(?:\?.*)?$/.test(String(url||''));}
+        function clipPlaybackUrl(url){
+            if(!clipValidShareUrl(url))return '';
+            const match=String(url).match(/^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)\//);
+            return match?'https://drive.google.com/file/d/'+match[1]+'/preview':'';
+        }
         async function clipLoadQrLibrary(){
             if(clipQrLibraryPromise)return clipQrLibraryPromise;
             clipQrLibraryPromise=new Promise((resolve,reject)=>{
@@ -7474,7 +7479,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 try{await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(result.id),{method:'DELETE'});}catch(_){}
                 throw e;
             }
-            return {id:result.id,url:'https://drive.google.com/file/d/'+result.id+'/view?usp=sharing'};
+            return {id:result.id,url:'https://drive.google.com/file/d/'+result.id+'/preview'};
         }
         async function clipShareQr(id){
             const c=clipClips.find(x=>x.id===id);if(!c)return;
@@ -7514,12 +7519,12 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(!clipValidShareUrl(c.shareUrl))return alert('Ehhez a jelenethez nincs érvényes videólink.');
             clipQrClipId=c.id;
             const panel=document.getElementById('clip-qr-panel'),link=document.getElementById('clip-qr-link');
-            panel.style.display='block';link.href=c.shareUrl;link.textContent='▶ Videó megnyitása – '+c.shareUrl;
+            panel.style.display='block';link.href=clipPlaybackUrl(c.shareUrl);link.textContent='▶ Videó lejátszása – '+clipPlaybackUrl(c.shareUrl);
             panel.scrollIntoView({behavior:'smooth',block:'center'});
         }
         async function clipCopyQrLink(){
             const c=clipClips.find(x=>x.id===clipQrClipId);if(!c?.shareUrl)return;
-            try{await navigator.clipboard.writeText(c.shareUrl);alert('Megosztási link másolva.');}catch(e){prompt('Másold ki ezt a megosztási linket:',c.shareUrl);}
+            try{await navigator.clipboard.writeText(clipPlaybackUrl(c.shareUrl));alert('Lejátszási link másolva.');}catch(e){prompt('Másold ki ezt a lejátszási linket:',clipPlaybackUrl(c.shareUrl));}
         }
         async function clipRevokeQr(){
             const c=clipClips.find(x=>x.id===clipQrClipId);if(!c?.sharedDriveId)return;
@@ -7682,7 +7687,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                         {text,style:'sceneNote',margin:[0,0,0,5]},
                         ...(coach?[{text:'Forrás: '+(project.title||'Mérkőzés'),style:'sourceText'}]:[])
                     ],margin:[0,5,8,3]};
-                    const url=clipValidShareUrl(clip.shareUrl)?clip.shareUrl:null;
+                    const url=clipPlaybackUrl(clip.shareUrl)||null;
                     const right=url?{stack:[
                         {text:'▶ VIDEÓ MEGNYITÁSA',link:url,color:'#08745B',bold:true,fontSize:10,alignment:'center',decoration:'underline',margin:[0,14,0,6]},
                         {text:'Érintsd meg a lejátszáshoz',fontSize:8,color:'#687985',alignment:'center'}
