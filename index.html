@@ -941,7 +941,7 @@
                     <h3>Új mérkőzés (Élő)</h3>
                     <p>Statisztika rögzítése a meccs alatt</p>
                 </div>
-                <div class="menu-card" onclick="openClipEditor()"><i class="fas fa-cut"></i><h3>Videóvágó</h3><p>Jelenetek kijelölése és kategorizálása</p></div>
+                <div class="menu-card" onclick="openClipEditor()"><i class="fas fa-cut"></i><h3>Videóvágó</h3><p>Jelenetek kijelölése és kategorizálása</p></div><div class="menu-card blue" onclick="openOpponentAnalysis()"><i class="fas fa-clipboard-list"></i><h3>Ellenfélelemzés</h3><p>Videóprojektek és taktikai PDF</p></div>
                 <div class="menu-card orange" onclick="startSetup(true)">
                     <i class="fas fa-film"></i>
                     <h3>Utólagos elemzés</h3>
@@ -1139,7 +1139,12 @@
     <button class="btn-arch-action btn-arch-stat" onclick="clipGenerateTacticalPdf('player')"><i class="fas fa-file-pdf"></i> Játékos PDF letöltése</button>
   </div>
   <p id="clip-report-status" style="font-size:12px;color:var(--text-muted);margin-top:9px"></p>
-</div></div><h3>Mérkőzésprojektek</h3><div id="clip-projects-list"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
+</div></div><h3>Mérkőzésprojektek</h3><div id="clip-projects-list"></div></div><div class="screen" id="view-opponent-analysis" style="padding:20px;overflow-y:auto">
+<button class="back-btn" onclick="showScreen('view-home')">← Főmenü</button><h2 class="page-title">Ellenfélelemzés</h2><p style="margin-bottom:15px;color:var(--text-muted)">Válaszd ki az ellenfelet és a mentett videóprojekteket. A megjegyzések és videólinkek bekerülnek a riportba.</p>
+<label>Ellenfél: <select id="opponent-analysis-team" class="team-select" onchange="opponentAnalysisChooseTeam(this.value)"></select></label>
+<div id="opponent-analysis-projects" style="display:grid;gap:8px;margin:15px 0"></div>
+<button class="btn-arch-action btn-arch-stat" onclick="opponentAnalysisBuildReport()">Ellenfélelemzés összeállítása</button>
+<div id="opponent-analysis-report-host"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
       <button class="back-btn" onclick="clipSave();showScreen('view-home')"><i class="fas fa-arrow-left"></i> Főmenü</button>
       <h2 class="page-title"><i class="fas fa-cut"></i> Videóvágó</h2><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input id="clip-project-title" placeholder="Projekt neve" onchange="clipSave()" style="padding:10px"><button class="btn-arch-action" onclick="clipSave()">Mentés</button><button class="btn-arch-action" onclick="clipDriveConnectAndSave()">Google Drive összekapcsolás / videó mentése</button><button class="btn-arch-action" onclick="clipSave();openClipEditor()">Projektek</button><span id="clip-save-status"></span></div>
       <div class="match-setup-form" style="max-width:1250px;">
@@ -7588,7 +7593,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             }
             clipReportAllMatches=Array.isArray(saved.examinedMatches)?saved.examinedMatches:[];clipReportUpdateTeams();clipReportSetTab('offense');
             clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);
-            clipReportSceneSnapshot=clipTeamScenes().filter(({clip})=>clip.note||clip.tacticalCategory||clip.shareUrl);
+            clipReportSceneSnapshot=clipTeamScenes().filter(({project,clip})=>(!opponentAnalysisProjectIds||opponentAnalysisProjectIds.has(project.id))&&(clip.note||clip.tacticalCategory||clip.shareUrl));
             list.replaceChildren();
             if(!clipReportSceneSnapshot.length){
                 const hint=document.createElement('p');hint.textContent='Még nincs taktikai megjegyzés vagy megosztott videó. A szöveges játéktervet ettől függetlenül PDF-be mentheted.';
@@ -7868,6 +7873,41 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             }
             return list;
         }
+
+let opponentAnalysisProjectIds=null;
+async function openOpponentAnalysis(){
+    await openClipEditor();
+    const panel=document.getElementById('clip-report-builder');
+    document.getElementById('opponent-analysis-report-host').appendChild(panel);panel.style.display='none';
+    showScreen('view-opponent-analysis');
+    const sel=document.getElementById('opponent-analysis-team');sel.replaceChildren();
+    const zero=document.createElement('option');zero.value='';zero.textContent='Válassz ellenfelet';sel.appendChild(zero);
+    const teams=new Map();
+    for(const p of clipProjectCache)for(const [,name] of clipProjectTeams(p)){const k=clipNormalizeTeam(name);if(k&&!teams.has(k))teams.set(k,name);}
+    for(const [k,name] of teams){const o=document.createElement('option');o.value=k;o.textContent=name;sel.appendChild(o);}
+    sel.value=teams.has(clipActiveTeam)?clipActiveTeam:'';opponentAnalysisChooseTeam(sel.value);
+}
+function opponentAnalysisChooseTeam(team){
+    clipActiveTeam=team;opponentAnalysisProjectIds=null;
+    const box=document.getElementById('opponent-analysis-projects');box.replaceChildren();
+    document.getElementById('clip-report-builder').style.display='none';
+    if(!team){box.textContent='Válassz egy ellenfelet.';return;}
+    const projects=clipProjectCache.filter(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===team));
+    opponentAnalysisProjectIds=new Set(projects.map(p=>p.id));
+    if(!projects.length){box.textContent='Nincs kapcsolódó videóprojekt.';return;}
+    for(const p of projects){
+        const row=document.createElement('label');row.style.cssText='display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--border-color);border-radius:9px;cursor:pointer';
+        const check=document.createElement('input');check.type='checkbox';check.checked=true;
+        check.onchange=()=>{if(check.checked)opponentAnalysisProjectIds.add(p.id);else opponentAnalysisProjectIds.delete(p.id);document.getElementById('clip-report-builder').style.display='none';};
+        const label=document.createElement('span');label.textContent=p.title+' · '+(p.clips||[]).length+' jelenet · '+(p.clips||[]).filter(c=>c.note||c.shareUrl).length+' megjegyzés/videólink';
+        row.append(check,label);box.appendChild(row);
+    }
+}
+function opponentAnalysisBuildReport(){
+    if(!clipActiveTeam)return alert('Válassz ellenfelet.');
+    if(!opponentAnalysisProjectIds?.size)return alert('Válassz legalább egy projektet.');
+    clipTeamTacticalReport();
+}
     </script>
 </body>
 </html>
