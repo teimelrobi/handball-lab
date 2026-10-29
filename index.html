@@ -1102,9 +1102,44 @@
 <button class="btn-arch-action" onclick="clipTeamSelectVisible(true)">Szűrt jelenetek kijelölése</button>
 <button class="btn-arch-action" onclick="clipTeamSelectVisible(false)">Kijelölés törlése</button>
 <button class="btn-arch-action btn-arch-stat" onclick="clipTeamExportMp4()">Kijelöltek összefűzése egy MP4-be</button>
+<button class="btn-arch-action btn-arch-stat" onclick="clipTeamTacticalReport()">Ellenfélelemzés / QR-riport</button>
 <span id="clip-team-selection-count"></span>
 </div><p style="font-size:12px;color:var(--text-muted)">A videókat helyben és összekapcsolt Google Drive esetén a saját privát Drive-fiókodban is tárolhatod. A Drive-hoz az adott böngészőben be kell jelentkezni.</p>
-<div id="clip-team-results"></div><div id="clip-team-export-status" style="margin:10px 0;color:var(--text-muted)"></div></div><h3>Mérkőzésprojektek</h3><div id="clip-projects-list"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
+<div id="clip-team-results"></div><div id="clip-team-export-status" style="margin:10px 0;color:var(--text-muted)"></div>
+<div id="clip-report-builder" style="display:none;margin:15px 0;padding:18px;border:1px solid var(--green-accent);border-radius:12px;background:var(--bg-card)">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <h3 style="margin:0;color:var(--green-accent)"><i class="fas fa-file-pdf"></i> Ellenfélelemzés – PDF-szerkesztő</h3>
+    <button class="btn-arch-action" onclick="document.getElementById('clip-report-builder').style.display='none'">Bezárás</button>
+  </div>
+  <p style="font-size:12px;color:var(--text-muted);margin:10px 0 16px">A nyomtatott PDF-ben is beolvasható QR-kód készül minden megosztott jelenethez. A QR-kódhoz külön Drive-videómegosztás szükséges.</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(195px,1fr));gap:12px">
+    <label style="display:grid;gap:5px;font-size:12px">Saját csapat<input id="clip-report-own-team" placeholder="Pl. Budai Farkasok FU18" oninput="clipReportSaveMeta()" style="min-width:0;padding:10px"></label>
+    <label style="display:grid;gap:5px;font-size:12px">Ellenfél<input id="clip-report-opponent" placeholder="Ellenfél neve" oninput="clipReportSaveMeta()" style="min-width:0;padding:10px"></label>
+    <label style="display:grid;gap:5px;font-size:12px">Felkészülési mérkőzés dátuma<input id="clip-report-date" type="date" oninput="clipReportSaveMeta()" style="min-width:0;padding:10px"></label>
+    <label style="display:grid;gap:5px;font-size:12px">Helyszín<input id="clip-report-venue" placeholder="Opcionális" oninput="clipReportSaveMeta()" style="min-width:0;padding:10px"></label>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin:13px 0">
+    <label style="display:grid;gap:5px;font-size:12px">Ellenfél erősségei<textarea id="clip-report-strengths" rows="3" oninput="clipReportSaveMeta()" placeholder="Edzői riportba kerül" style="width:100%;padding:9px;user-select:text"></textarea></label>
+    <label style="display:grid;gap:5px;font-size:12px">Ellenfél gyengeségei<textarea id="clip-report-weaknesses" rows="3" oninput="clipReportSaveMeta()" placeholder="Edzői riportba kerül" style="width:100%;padding:9px;user-select:text"></textarea></label>
+    <label style="display:grid;gap:5px;font-size:12px">Mit védekezzünk?<textarea id="clip-report-defense" rows="3" oninput="clipReportSaveMeta()" placeholder="Védekezési terv" style="width:100%;padding:9px;user-select:text"></textarea></label>
+    <label style="display:grid;gap:5px;font-size:12px">Mire figyeljünk támadásban?<textarea id="clip-report-attack" rows="3" oninput="clipReportSaveMeta()" placeholder="Támadási terv" style="width:100%;padding:9px;user-select:text"></textarea></label>
+    <label style="display:grid;gap:5px;font-size:12px">Speciális játékok – általános terv<textarea id="clip-report-special" rows="3" oninput="clipReportSaveMeta()" placeholder="7:6, emberelőny, végjáték" style="width:100%;padding:9px;user-select:text"></textarea></label>
+    <label style="display:grid;gap:5px;font-size:12px">Három legfontosabb üzenet (soronként egy)<textarea id="clip-report-key" rows="3" oninput="clipReportSaveMeta()" placeholder="1. ...&#10;2. ...&#10;3. ..." style="width:100%;padding:9px;user-select:text"></textarea></label>
+  </div>
+  <h4 style="margin:15px 0 8px">Mely jelenetek kerüljenek a PDF-be?</h4>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px">
+    <button class="btn-arch-action" onclick="clipReportSelectScenes('all')">Összes kijelölése</button>
+    <button class="btn-arch-action" onclick="clipReportSelectScenes('qr')">Csak QR-es jelenetek</button>
+    <button class="btn-arch-action" onclick="clipReportSelectScenes('none')">Kijelölés törlése</button>
+    <span id="clip-report-selected-count" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
+  </div>
+  <div id="clip-report-scenes" style="max-height:340px;overflow:auto;border:1px solid var(--border-color);border-radius:8px"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+    <button class="btn-arch-action btn-arch-stat" onclick="clipGenerateTacticalPdf('coach')"><i class="fas fa-file-pdf"></i> Részletes edzői PDF letöltése</button>
+    <button class="btn-arch-action btn-arch-stat" onclick="clipGenerateTacticalPdf('player')"><i class="fas fa-file-pdf"></i> Játékos PDF letöltése</button>
+  </div>
+  <p id="clip-report-status" style="font-size:12px;color:var(--text-muted);margin-top:9px"></p>
+</div></div><h3>Mérkőzésprojektek</h3><div id="clip-projects-list"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
       <button class="back-btn" onclick="clipSave();showScreen('view-home')"><i class="fas fa-arrow-left"></i> Főmenü</button>
       <h2 class="page-title"><i class="fas fa-cut"></i> Videóvágó</h2><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input id="clip-project-title" placeholder="Projekt neve" onchange="clipSave()" style="padding:10px"><button class="btn-arch-action" onclick="clipSave()">Mentés</button><button class="btn-arch-action" onclick="clipDriveConnectAndSave()">Google Drive összekapcsolás / videó mentése</button><button class="btn-arch-action" onclick="clipSave();openClipEditor()">Projektek</button><span id="clip-save-status"></span></div>
       <div class="match-setup-form" style="max-width:1250px;">
@@ -1133,6 +1168,12 @@
             <div id="clip-player-categories" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
           </div>
           <div id="clip-selected-category" style="margin:10px 0;color:var(--green-accent)"></div>
+          <div style="display:grid;gap:10px;margin:12px 0">
+            <label for="clip-tactical-category" style="font-size:13px">Taktikai riport fejezete (opcionális)</label>
+            <select id="clip-tactical-category" class="team-select"><option value="">Általános jelenet</option><option>Figurális játékok</option><option>Fontos játékosok</option><option>Mit védekezzünk?</option><option>Mire figyeljünk támadásban?</option><option>Speciális játékok</option><option>Egyéb megjegyzések</option></select>
+            <label for="clip-scene-note" style="font-size:13px">Edzői megjegyzés a videórészlethez</label>
+            <textarea id="clip-scene-note" rows="3" maxlength="3000" placeholder="Pl. Balátlövő–irányító kereszt után beálló megjátszás. A 3-as védő lépjen ki." style="width:100%;background:var(--bg-card);color:#fff;border:1px solid var(--border-color);border-radius:8px;padding:10px;user-select:text"></textarea>
+          </div>
           <button class="btn-arch-action btn-arch-stat" onclick="clipConfirm()">Jelenet mentése</button>
           <button class="btn-arch-action" onclick="document.getElementById('clip-category-dialog').style.display='none'">Mégse</button>
         </div>
@@ -1152,6 +1193,18 @@
           <button class="btn-arch-action" onclick="clipExportVideos()">WebM-export (korábbi mód)</button>
         </div>
         <div id="clip-export-status" style="margin-top:8px;color:var(--text-muted);font-size:13px"></div>
+        <section id="clip-qr-panel" style="display:none;margin-top:15px;padding:16px;border:1px solid var(--green-accent);border-radius:12px;background:var(--bg-panel)">
+          <h3>Jelenet QR-kódja</h3>
+          <p style="font-size:12px;color:var(--text-muted);margin:9px 0">A QR-kód külön, kivágott MP4-et nyit meg. A link bárkinek továbbítható, ezért csak jóváhagyott felvételeket ossz meg.</p>
+          <div id="clip-qr-image" style="margin:12px 0"></div>
+          <a id="clip-qr-link" target="_blank" rel="noopener noreferrer" style="display:block;word-break:break-all;color:var(--green-accent);margin-bottom:12px"></a>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <button class="btn-arch-action" onclick="clipCopyQrLink()">Link másolása</button>
+            <button class="btn-arch-action btn-arch-stat" onclick="clipDownloadQr()">QR letöltése (PNG)</button>
+            <button class="btn-arch-action" onclick="clipRevokeQr()">Megosztás visszavonása</button>
+            <button class="btn-arch-action" onclick="document.getElementById('clip-qr-panel').style.display='none'">Bezárás</button>
+          </div>
+        </section>
         <p style="font-size:12px;color:var(--text-muted)">A szűrés nem törli a jeleneteket. Az MP4-export a betöltött eredeti videóból készül, a jelenetek kijelölési sorrendjében (a listában látható időrendi sorrend szerint). Az első használatkor a videófeldolgozó betöltése időt vehet igénybe; nagy videókhoz jelentős memória szükséges. Az exportot Chrome-ban javasolt használni.</p>
       </div>
     </div>
@@ -6933,7 +6986,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border-bottom:1px solid var(--border-color)';
                 const title=document.createElement('span');title.style.flex='1';title.textContent=p.title+' · '+(p.clips?.length||0)+' jelenet · '+new Date(p.updatedAt).toLocaleString('hu-HU');
                 const open=document.createElement('button');open.className='btn-arch-action btn-arch-stat';open.textContent='Folytatás';open.onclick=()=>clipOpenProject(p);
-                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=async()=>{if(!confirm('Törlöd a projektet?'))return;localStorage.setItem(CLIP_PROJECTS_KEY,JSON.stringify(clipLocalProjects().filter(x=>x.id!==p.id)));try{await clipVideoRecord(p.id,'readwrite',null);}catch(e){console.warn('Videótár törlése',e);}if(cloudClient&&cloudUser)await cloudClient.from('video_clip_projects').delete().eq('id',p.id);openClipEditor();};
+                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=async()=>{if((p.clips||[]).some(c=>c.sharedDriveId))return alert('A projektben megosztott QR-jelenetek vannak. Vond vissza a megosztásukat a jelenetlistában, és csak utána töröld a projektet.');if(!confirm('Törlöd a projektet?'))return;localStorage.setItem(CLIP_PROJECTS_KEY,JSON.stringify(clipLocalProjects().filter(x=>x.id!==p.id)));try{await clipVideoRecord(p.id,'readwrite',null);}catch(e){console.warn('Videótár törlése',e);}if(cloudClient&&cloudUser)await cloudClient.from('video_clip_projects').delete().eq('id',p.id);openClipEditor();};
                 row.append(title,open,del);box.appendChild(row);
             }
         }
@@ -7066,13 +7119,13 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const query=search.value.toLocaleLowerCase('hu-HU');
             const filtered=scenes.filter(({project,clip})=>{
                 const team=project.match?.[clip.player?.side+'Name']||'';
-                return (!category.value||clip.category===category.value)&&(!player.value||(clipNormalizeTeam(team)+'|'+clip.player?.num)===player.value)&&(!query||(project.title+' '+clip.category+' '+(clip.player?.name||'')+' '+(clip.player?.num||'')).toLocaleLowerCase('hu-HU').includes(query));
+                return (!category.value||clip.category===category.value)&&(!player.value||(clipNormalizeTeam(team)+'|'+clip.player?.num)===player.value)&&(!query||(project.title+' '+clip.category+' '+(clip.tacticalCategory||'')+' '+(clip.note||'')+' '+(clip.player?.name||'')+' '+(clip.player?.num||'')).toLocaleLowerCase('hu-HU').includes(query));
             });
             clipTeamVisible=filtered;clipTeamUpdateCount();
             if(!filtered.length)box.textContent='Nincs a szűrésnek megfelelő jelenet.';
             for(const {project,clip} of filtered){
                 const row=document.createElement('div');row.style.cssText='display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding:9px';
-                const info=document.createElement('span');info.style.flex='1';info.textContent=project.title+' · '+formatTime(clip.start)+'–'+formatTime(clip.end)+' · '+clip.category+(clip.player?' · #'+clip.player.num+' '+clip.player.name:'');
+                const info=document.createElement('span');info.style.flex='1';info.textContent=project.title+' · '+formatTime(clip.start)+'–'+formatTime(clip.end)+' · '+(clip.tacticalCategory||clip.category)+(clip.player?' · #'+clip.player.num+' '+clip.player.name:'')+(clip.note?' · '+clip.note.slice(0,160):'')+(clip.shareUrl?' · QR ✓':'');
                 const open=document.createElement('button');open.className='btn-arch-action';open.textContent='Projekt megnyitása';open.onclick=()=>{clipOpenProject(project);document.getElementById('clip-filter-category').value='';document.getElementById('clip-filter-search').value='';clipRenderList();};
                 const tick=document.createElement('input');tick.type='checkbox';tick.checked=clipTeamSelected.has(clipTeamSceneKey(project,clip));tick.onchange=()=>{const key=clipTeamSceneKey(project,clip);if(tick.checked)clipTeamSelected.add(key);else clipTeamSelected.delete(key);clipTeamUpdateCount();};
                 row.append(tick,info,open);box.appendChild(row);
@@ -7160,7 +7213,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipSetEnd(){
             const v=document.getElementById('clip-video');if(clipStart===null)return alert('Először jelöld ki a jelenet elejét.');
             if(v.currentTime<=clipStart)return alert('A jelenet vége később legyen, mint az eleje.');
-            clipEnd=v.currentTime;clipCategory='';
+            clipEnd=v.currentTime;clipCategory='';document.getElementById('clip-scene-note').value='';document.getElementById('clip-tactical-category').value='';
             document.getElementById('clip-range-label').textContent=formatTime(clipStart)+' – '+formatTime(clipEnd);
             document.getElementById('clip-selected-category').textContent='';
             document.getElementById('clip-player-chooser').style.display='none';
@@ -7179,7 +7232,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             document.getElementById('clip-player-chooser').style.display=category==='Játékos'?'block':'none';
             document.getElementById('clip-selected-category').textContent=clipCategory||'Válassz játékost és alkategóriát.';
             // A csapat-/játékosfüggetlen kategóriák egyetlen kattintással mentődnek.
-            if(category!=='Játékos')clipConfirm();
+            // A mentést mindig külön gomb erősíti meg, hogy a megjegyzés kitölthető legyen.
         }
         function clipConfirm(){
             if(clipStart===null||clipEnd===null||!clipCategory)return alert('Válassz kategóriát.');
@@ -7188,7 +7241,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const value=document.getElementById('clip-player-select').value;if(!value)return alert('Válassz játékost.');
                 const [side,num]=value.split('|');player={side,num:Number(num),name:clipMatch?.[side]?.find(p=>String(p.num)===num)?.name||''};
             }
-            clipClips.push({id:'c_'+Date.now()+'_'+Math.floor(Math.random()*10000),start:clipStart,end:clipEnd,category:clipCategory,player});
+            clipClips.push({id:'c_'+Date.now()+'_'+Math.floor(Math.random()*10000),start:clipStart,end:clipEnd,category:clipCategory,player,note:document.getElementById('clip-scene-note').value.trim(),tacticalCategory:document.getElementById('clip-tactical-category').value});
             clipSave();clipRenderList();clipStart=null;clipEnd=null;document.getElementById('clip-category-dialog').style.display='none';document.getElementById('clip-range-label').textContent='Jelenet mentve. Jelöld ki a következőt.';
         }
         let clipSelectedIds=new Set(),clipExportBusy=false,clipOriginalFile=null,clipFfmpeg=null;
@@ -7196,7 +7249,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const category=document.getElementById('clip-filter-category')?.value||'';
             const player=document.getElementById('clip-filter-player')?.value||'';
             const search=(document.getElementById('clip-filter-search')?.value||'').trim().toLocaleLowerCase('hu-HU');
-            return clipClips.filter(c=>(!category||c.category===category)&&(!player||(c.player?.side+'|'+c.player?.num)===player)&&(!search||(c.category+' '+(c.player?.name||'')+' '+(c.player?.num||'')).toLocaleLowerCase('hu-HU').includes(search)));
+            return clipClips.filter(c=>(!category||c.category===category)&&(!player||(c.player?.side+'|'+c.player?.num)===player)&&(!search||(c.category+' '+(c.tacticalCategory||'')+' '+(c.note||'')+' '+(c.player?.name||'')+' '+(c.player?.num||'')).toLocaleLowerCase('hu-HU').includes(search)));
         }
         function clipRefreshFilterOptions(){
             const cat=document.getElementById('clip-filter-category'),player=document.getElementById('clip-filter-player');
@@ -7227,10 +7280,12 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             for(const c of visible){
                 const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px;border-bottom:1px solid var(--border-color)';
                 const select=document.createElement('input');select.type='checkbox';select.checked=clipSelectedIds.has(c.id);select.title='Exportálásra kijelölés';select.onchange=()=>{if(select.checked)clipSelectedIds.add(c.id);else clipSelectedIds.delete(c.id);document.getElementById('clip-count').textContent='('+visible.length+' / '+clipClips.length+' db, kijelölve: '+clipSelectedIds.size+')';};
-                const name=document.createElement('span');name.style.flex='1';name.textContent=formatTime(c.start)+' – '+formatTime(c.end)+' · '+c.category+(c.player?' · #'+c.player.num+' '+c.player.name:'');
+                const name=document.createElement('span');name.style.flex='1';name.textContent=formatTime(c.start)+' – '+formatTime(c.end)+' · '+(c.tacticalCategory||c.category)+(c.player?' · #'+c.player.num+' '+c.player.name:'')+(c.note?' · '+c.note.slice(0,170):'')+(c.shareUrl?' · QR ✓':'');
                 const play=document.createElement('button');play.className='btn-arch-action';play.textContent='Lejátszás';play.onclick=()=>{const v=document.getElementById('clip-video');if(!v.src)return alert('Töltsd be újra a mérkőzés videóját.');v.currentTime=c.start;v.play();const stop=()=>{if(v.currentTime>=c.end){v.pause();v.removeEventListener('timeupdate',stop);}};v.addEventListener('timeupdate',stop);};
-                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{if(confirm('Törlöd ezt a jelenetet?')){clipClips=clipClips.filter(x=>x.id!==c.id);clipSelectedIds.delete(c.id);clipSave();clipRenderList();}};
-                row.append(select,name,play,del);box.appendChild(row);
+                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{if(c.sharedDriveId)return alert('A jelenet QR-videója még meg van osztva. Előbb a QR megnyitása gombbal vond vissza a megosztást!');if(confirm('Törlöd ezt a jelenetet?')){clipClips=clipClips.filter(x=>x.id!==c.id);clipSelectedIds.delete(c.id);clipSave();clipRenderList();}};
+                const edit=document.createElement('button');edit.className='btn-arch-action';edit.textContent='Megjegyzés';edit.onclick=()=>clipEditScene(c.id);
+                const qr=document.createElement('button');qr.className='btn-arch-action btn-arch-stat';qr.textContent=c.shareUrl?'QR megnyitása':'QR készítése';qr.onclick=()=>clipShareQr(c.id);
+                row.append(select,name,play,edit,qr,del);box.appendChild(row);
             }
         }
         function clipSelectedForExport(){
@@ -7351,6 +7406,353 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             }catch(e){status.textContent='Videóexport hiba: '+e.message;}
             finally{v.pause();v.currentTime=savedTime;if(!savedPaused)v.play().catch(()=>{});clipExportBusy=false;}
         }
+
+        // Taktikai jelenetmegjegyzések, egyedi videómegosztások és QR-riport.
+        let clipQrClipId=null,clipQrImageUrl='',clipQrLibraryPromise=null,clipQrFolderId='';
+        function clipEditScene(id){
+            const c=clipClips.find(x=>x.id===id);if(!c)return;
+            const edited=prompt('Edzői megjegyzés:',c.note||'');if(edited===null)return;
+            c.note=edited.trim().slice(0,3000);
+            const sections=['','Figurális játékok','Fontos játékosok','Mit védekezzünk?','Mire figyeljünk támadásban?','Speciális játékok','Egyéb megjegyzések'];
+            const selected=prompt('Taktikai fejezet (0–6):\n0 – Általános\n'+sections.slice(1).map((v,i)=>(i+1)+' – '+v).join('\n'),String(Math.max(0,sections.indexOf(c.tacticalCategory||''))));
+            if(selected!==null&&/^[0-6]$/.test(selected.trim()))c.tacticalCategory=sections[Number(selected.trim())];
+            clipSave();clipRenderList();
+        }
+        function clipValidShareUrl(url){return /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/view(?:\?.*)?$/.test(String(url||''));}
+        async function clipLoadQrLibrary(){
+            if(clipQrLibraryPromise)return clipQrLibraryPromise;
+            clipQrLibraryPromise=new Promise((resolve,reject)=>{
+                const adapter={
+                    toDataURL:async(value,options={})=>{
+                        const host=document.createElement('div');
+                        host.style.cssText='position:fixed;left:-10000px;top:-10000px;pointer-events:none';
+                        document.body.appendChild(host);
+                        try{
+                            new window.QRCode(host,{text:value,width:options.width||270,height:options.width||270,correctLevel:window.QRCode.CorrectLevel.M});
+                            const canvas=host.querySelector('canvas');
+                            if(!canvas)throw Error('A QR-kód képe nem készült el.');
+                            return canvas.toDataURL('image/png');
+                        }finally{host.remove();}
+                    }
+                };
+                if(window.QRCode&&typeof window.QRCode==='function')return resolve(adapter);
+                const script=document.createElement('script');
+                script.src='https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+                script.onload=()=>typeof window.QRCode==='function'?resolve(adapter):reject(Error('A QR-kód modul nem indult el.'));
+                script.onerror=()=>reject(Error('Nem lehet betölteni a QR-kód modult. Ellenőrizd az internetkapcsolatot.'));
+                document.head.appendChild(script);
+            }).catch(e=>{clipQrLibraryPromise=null;throw e;});
+            return clipQrLibraryPromise;
+        }
+        async function clipQrFolder(){
+            if(clipQrFolderId)return clipQrFolderId;
+            const name='Handball Lab QR Scenes';
+            const q="name='"+driveEscapeQueryValue(name)+"' and mimeType='application/vnd.google-apps.folder' and trashed=false";
+            const found=await driveFetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&fields=files(id,name)');
+            const existing=found?.files?.[0]?.id;
+            clipQrFolderId=existing||(await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,mimeType:'application/vnd.google-apps.folder'})})).id;
+            return clipQrFolderId;
+        }
+        async function clipQrUpload(file,c,status){
+            const parent=await clipQrFolder();
+            const init=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name',{method:'POST',headers:{Authorization:'Bearer '+driveAccessToken,'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':'video/mp4','X-Upload-Content-Length':String(file.size)},body:JSON.stringify({name:file.name,mimeType:'video/mp4',parents:[parent],appProperties:{handballProjectId:clipProjectId,handballClipId:c.id}})});
+            if(!init.ok)throw Error('Google Drive feltöltés indítása sikertelen ('+init.status+').');
+            const session=init.headers.get('Location');if(!session)throw Error('Nem érkezett feltöltési munkamenet.');
+            let uploaded=0,result=null;
+            while(uploaded<file.size){
+                const end=Math.min(uploaded+8*1024*1024,file.size);
+                const response=await fetch(session,{method:'PUT',headers:{Authorization:'Bearer '+driveAccessToken,'Content-Range':'bytes '+uploaded+'-'+(end-1)+'/'+file.size,'Content-Type':'video/mp4'},body:file.slice(uploaded,end)});
+                if(response.status!==308&&!response.ok)throw Error('Google Drive feltöltési hiba ('+response.status+').');
+                if(response.ok)result=await response.json();
+                uploaded=end;
+                status.textContent='Megosztható jelenet feltöltése: '+Math.round(uploaded/file.size*100)+'%';
+            }
+            if(!result?.id)throw Error('Nem érkezett Google Drive fájlazonosító.');
+            try{
+                await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(result.id)+'/permissions?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'anyone',role:'reader'})});
+            }catch(e){
+                try{await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(result.id),{method:'DELETE'});}catch(_){}
+                throw e;
+            }
+            return {id:result.id,url:'https://drive.google.com/file/d/'+result.id+'/view?usp=sharing'};
+        }
+        async function clipShareQr(id){
+            const c=clipClips.find(x=>x.id===id);if(!c)return;
+            if(c.shareUrl&&clipValidShareUrl(c.shareUrl))return clipShowQr(c);
+            if(clipExportBusy)return alert('Másik videófeldolgozás folyamatban van.');
+            if(!confirm('A jelenetet külön MP4-fájlként feltöltjük a Google Drive-ba, és a link birtokában bárki megnézheti. Kizárólag megosztható felvétellel folytasd. Létrehozod a QR-kódot?'))return;
+            const status=document.getElementById('clip-export-status');
+            let source='',output='',ff=null;clipExportBusy=true;
+            try{
+                if(!isDriveAuthorized())await requestDriveAccessToken();
+                let file=clipOriginalFile;
+                if(!file)file=await clipGetStoredVideo(clipProjectId);
+                if(!file)file=await clipDriveDownload(clipProjectId,status);
+                if(!file)throw Error('A projekt eredeti videója nem található. Töltsd be újra!');
+                ff=await clipLoadFfmpeg(status);
+                const stamp=Date.now()+'_'+Math.floor(Math.random()*100000);
+                source='qr_source_'+stamp+'.'+(file.name.split('.').pop()||'mp4').replace(/[^a-z0-9]/gi,'');
+                output='qr_scene_'+stamp+'.mp4';
+                status.textContent='QR-jelenet vágása: '+formatTime(c.start)+'–'+formatTime(c.end);
+                await ff.writeFile(source,new Uint8Array(await file.arrayBuffer()));
+                const code=await ff.exec(['-ss',String(c.start),'-i',source,'-t',String(c.end-c.start),'-map','0:v:0','-map','0:a?','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-ar','44100','-movflags','+faststart',output]);
+                if(code!==0)throw Error('Nem sikerült MP4-et készíteni (FFmpeg '+code+').');
+                const bytes=await ff.readFile(output),video=new Blob([bytes],{type:'video/mp4'});
+                if(!video.size)throw Error('A vágott videó üres.');
+                const shortName=(document.getElementById('clip-project-title').value||'Merkozes').replace(/[^\w\u00c0-\u017f-]+/g,'_').slice(0,60);
+                const shared=await clipQrUpload(new File([video],shortName+'_'+c.id+'.mp4',{type:'video/mp4'}),c,status);
+                c.sharedDriveId=shared.id;c.shareUrl=shared.url;c.sharedAt=new Date().toISOString();
+                clipSave();clipRenderList();status.textContent='QR-videó feltöltve. A Google Drive feldolgozása miatt a lejátszás késhet.';
+                await clipShowQr(c);
+            }catch(e){status.textContent='QR megosztási hiba: '+(e?.message||e);alert(status.textContent);}
+            finally{
+                for(const path of [source,output])if(path&&ff)try{await ff.deleteFile(path);}catch(e){}
+                clipExportBusy=false;
+            }
+        }
+        async function clipShowQr(c){
+            if(!clipValidShareUrl(c.shareUrl))return alert('Ehhez a jelenethez nincs érvényes megosztási link.');
+            clipQrClipId=c.id;clipQrImageUrl='';
+            const panel=document.getElementById('clip-qr-panel'),wrap=document.getElementById('clip-qr-image'),link=document.getElementById('clip-qr-link');
+            panel.style.display='block';wrap.textContent='QR-kód készítése…';
+            link.href=c.shareUrl;link.textContent=c.shareUrl;
+            panel.scrollIntoView({behavior:'smooth',block:'center'});
+            try{
+                const qr=await clipLoadQrLibrary();
+                if(clipQrClipId!==c.id)return;
+                const url=await qr.toDataURL(c.shareUrl,{width:270,margin:2,errorCorrectionLevel:'M'});
+                clipQrImageUrl=url;const img=new Image();img.src=url;img.alt='Jelenet QR-kódja';img.style.cssText='width:210px;max-width:100%;background:white;padding:8px;border-radius:8px';wrap.replaceChildren(img);
+            }catch(e){wrap.textContent='QR-kód nem tölthető be: '+e.message+' – a link ettől még használható.';}
+        }
+        async function clipCopyQrLink(){
+            const c=clipClips.find(x=>x.id===clipQrClipId);if(!c?.shareUrl)return;
+            try{await navigator.clipboard.writeText(c.shareUrl);alert('Megosztási link másolva.');}catch(e){prompt('Másold ki ezt a megosztási linket:',c.shareUrl);}
+        }
+        function clipDownloadQr(){
+            if(!clipQrImageUrl)return alert('A QR-kód még nem készült el.');
+            const a=document.createElement('a');a.href=clipQrImageUrl;a.download='handball-lab-jelenet-qr.png';document.body.appendChild(a);a.click();a.remove();
+        }
+        async function clipRevokeQr(){
+            const c=clipClips.find(x=>x.id===clipQrClipId);if(!c?.sharedDriveId)return;
+            if(!confirm('Megszünteted a jelenet nyilvános linkmegosztását? A korábbi QR-kód ezután nem lesz használható.'))return;
+            const status=document.getElementById('clip-export-status');
+            try{
+                if(!isDriveAuthorized())await requestDriveAccessToken();
+                const api='https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(c.sharedDriveId)+'/permissions';
+                const rows=await driveFetch(api+'?fields=permissions(id,type,role)');
+                for(const p of rows?.permissions||[])if(p.type==='anyone')await driveFetch(api+'/'+encodeURIComponent(p.id),{method:'DELETE'});
+                delete c.shareUrl;delete c.sharedAt;delete c.sharedDriveId;
+                clipSave();clipRenderList();document.getElementById('clip-qr-panel').style.display='none';status.textContent='A jelenet nyilvános QR-megosztása visszavonva.';
+            }catch(e){alert('Visszavonási hiba: '+(e?.message||e));}
+        }
+        function clipReportEscape(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+        
+        // PDF előkészítő – a megosztott QR-videók külön Drive-fájlok; a PDF nem oszt meg új fájlokat.
+        let clipReportSceneSnapshot=[],clipReportPdfPromise=null,clipReportBusy=false,clipReportFontsLoaded=false;
+        const CLIP_REPORT_FIELDS=['own-team','opponent','date','venue','strengths','weaknesses','defense','attack','special','key'];
+        function clipReportStoreKey(){return 'handball_lab_tactical_report_v1_'+clipActiveTeam;}
+        function clipReportGetMeta(){
+            const out={};
+            for(const field of CLIP_REPORT_FIELDS)out[field]=document.getElementById('clip-report-'+field)?.value?.trim()||'';
+            return out;
+        }
+        function clipReportSaveMeta(){
+            if(!clipActiveTeam)return;
+            try{localStorage.setItem(clipReportStoreKey(),JSON.stringify(clipReportGetMeta()));}catch(e){console.warn('Taktikai riport helyi mentése:',e);}
+        }
+        function clipReportSceneName(entry){
+            const c=entry.clip;
+            return (c.tacticalCategory||c.category||'Jelenet')+(c.player?' · #'+c.player.num+' '+(c.player.name||''):'')+
+                ' · '+(entry.project.title||'Mérkőzés')+' ['+formatTime(c.start)+'–'+formatTime(c.end)+']'+
+                (c.note?' · '+c.note.slice(0,150):'');
+        }
+        function clipReportUpdateCount(){
+            const el=document.getElementById('clip-report-selected-count');
+            const checks=[...document.querySelectorAll('#clip-report-scenes input[type="checkbox"]')];
+            if(el)el.textContent=checks.filter(x=>x.checked).length+' / '+checks.length+' jelenet';
+        }
+        function clipReportSelectScenes(kind){
+            document.querySelectorAll('#clip-report-scenes input[type="checkbox"]').forEach(el=>{
+                el.checked=kind==='all'||(kind==='qr'&&clipValidShareUrl(clipReportSceneSnapshot[Number(el.dataset.index)]?.clip?.shareUrl));
+            });
+            clipReportUpdateCount();
+        }
+        function clipTeamTacticalReport(){
+            if(!clipActiveTeam)return alert('Először válassz ellenfélcsapatot!');
+            const panel=document.getElementById('clip-report-builder'),list=document.getElementById('clip-report-scenes');
+            const first=clipProjectCache.find(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===clipActiveTeam));
+            const opponent=first?clipProjectTeams(first).find(([,n])=>clipNormalizeTeam(n)===clipActiveTeam)?.[1]||'':'';
+            let saved={};try{saved=JSON.parse(localStorage.getItem(clipReportStoreKey())||'{}')||{};}catch(e){}
+            for(const field of CLIP_REPORT_FIELDS){
+                const input=document.getElementById('clip-report-'+field);
+                if(input)input.value=String(saved[field]??(field==='opponent'?opponent:''));
+            }
+            clipReportSceneSnapshot=clipTeamScenes().filter(({clip})=>clip.note||clip.tacticalCategory||clip.shareUrl);
+            list.replaceChildren();
+            if(!clipReportSceneSnapshot.length){
+                const hint=document.createElement('p');hint.textContent='Még nincs taktikai megjegyzés vagy megosztott videó. A szöveges játéktervet ettől függetlenül PDF-be mentheted.';
+                hint.style.cssText='color:var(--text-muted);padding:12px';list.appendChild(hint);
+            }
+            clipReportSceneSnapshot.forEach((entry,i)=>{
+                const row=document.createElement('label');row.style.cssText='display:flex;gap:10px;align-items:flex-start;padding:10px;border-bottom:1px solid var(--border-color);font-size:12px;cursor:pointer;';
+                const check=document.createElement('input');check.type='checkbox';check.checked=true;check.dataset.index=String(i);check.style.marginTop='3px';check.onchange=clipReportUpdateCount;
+                const name=document.createElement('span');name.style.flex='1';name.textContent=clipReportSceneName(entry);
+                const qr=document.createElement('span');qr.textContent=clipValidShareUrl(entry.clip.shareUrl)?'QR ✓':'Nincs QR';qr.style.cssText='white-space:nowrap;color:var(--text-muted);font-size:11px';
+                row.append(check,name,qr);list.appendChild(row);
+            });
+            clipReportUpdateCount();
+            document.getElementById('clip-report-status').textContent='A PDF közvetlenül letöltődik. Nyomtatott lapról is beolvasható QR-kódokkal.';
+            panel.style.display='block';panel.scrollIntoView({behavior:'smooth',block:'start'});
+        }
+        function clipReportLoadScript(url){
+            return new Promise((resolve,reject)=>{
+                const script=document.createElement('script');script.src=url;script.async=true;
+                script.onload=resolve;script.onerror=()=>reject(Error('A PDF-generáló modul nem tölthető be.'));
+                document.head.appendChild(script);
+            });
+        }
+        async function clipReportPdfMake(){
+            if(window.pdfMake?.createPdf&&clipReportFontsLoaded)return window.pdfMake;
+            if(!clipReportPdfPromise)clipReportPdfPromise=(async()=>{
+                const root='https://cdn.jsdelivr.net/npm/pdfmake@0.2.12/build/';
+                if(!window.pdfMake?.createPdf)await clipReportLoadScript(root+'pdfmake.min.js');
+                if(!clipReportFontsLoaded){await clipReportLoadScript(root+'vfs_fonts.js');clipReportFontsLoaded=true;}
+                if(!window.pdfMake?.createPdf||!clipReportFontsLoaded)throw Error('A PDF modul vagy a magyar ékezeteket támogató betűkészlet nem indult el.');
+                return window.pdfMake;
+            })().catch(e=>{clipReportPdfPromise=null;throw e;});
+            return clipReportPdfPromise;
+        }
+        function clipReportSelectedEntries(){
+            return [...document.querySelectorAll('#clip-report-scenes input[type="checkbox"]:checked')]
+                .map(input=>clipReportSceneSnapshot[Number(input.dataset.index)]).filter(Boolean);
+        }
+        function clipReportTextBlock(heading,value,options={}){
+            if(!value?.trim())return null;
+            return {stack:[
+                {text:heading.toLocaleUpperCase('hu-HU'),style:'smallLabel',margin:[0,0,0,5]},
+                {text:value.trim(),style:options.style||'paragraph'}
+            ],margin:[0,0,0,13]};
+        }
+        function clipReportTacticalDefinition(type,entries,meta){
+            const coach=type==='coach',opp=meta.opponent||'Ellenfél',own=meta['own-team']||'Saját csapat';
+            const order=['Figurális játékok','Fontos játékosok','Mit védekezzünk?','Mire figyeljünk támadásban?','Speciális játékok','Egyéb megjegyzések'];
+            const grouped=new Map();
+            for(const entry of entries){
+                const chapter=entry.clip.tacticalCategory||entry.clip.category||'Egyéb megjegyzések';
+                if(!grouped.has(chapter))grouped.set(chapter,[]);
+                grouped.get(chapter).push(entry);
+            }
+            const sections=[...grouped.entries()].sort((a,b)=>{
+                const aa=order.indexOf(a[0]),bb=order.indexOf(b[0]);
+                return (aa<0?99:aa)-(bb<0?99:bb);
+            });
+            const content=[
+                {text:'HANDBALL LAB  /  MÉRKŐZÉS ELŐTTI ELLENFÉLELEMZÉS',style:'eyebrow',margin:[0,0,0,12]},
+                {text:own+'  –  '+opp,style:'title',margin:[0,0,0,4]},
+                {text:coach?'RÉSZLETES EDZŐI TAKTIKAI RIPORT':'JÁTÉKOSOKNAK – MÉRKŐZÉS ELŐTTI FELKÉSZÜLÉS',style:'subtitle',margin:[0,0,0,13]},
+                {table:{widths:['*','*'],body:[
+                    [{text:'ELLENFÉL',style:'metaLabel'},{text:'MÉRKŐZÉS',style:'metaLabel'}],
+                    [{text:opp,style:'metaValue'},{text:[meta.date||'Dátum nincs megadva',meta.venue||''].filter(Boolean).join(' · '),style:'metaValue'}]
+                ]},layout:{hLineColor:()=> '#D8E0E5',vLineColor:()=> '#D8E0E5',paddingTop:()=>7,paddingBottom:()=>7,paddingLeft:()=>9,paddingRight:()=>9},margin:[0,0,0,17]}
+            ];
+            const messages=String(meta.key||'').split(/\r?\n/).map(x=>x.trim().replace(/^\d+[.)]\s*/,'' )).filter(Boolean).slice(0,3);
+            if(messages.length){
+                content.push({text:'A MÉRKŐZÉS 3 KULCSÜZENETE',style:'sectionHead',margin:[0,0,0,8]});
+                content.push({ol:messages.map(x=>({text:x,margin:[0,0,0,5]})),style:'keyList',margin:[0,0,0,14]});
+            }
+            if(coach){
+                const strengths=clipReportTextBlock('Az ellenfél erősségei',meta.strengths);
+                const weaknesses=clipReportTextBlock('Az ellenfél gyengeségei',meta.weaknesses);
+                if(strengths||weaknesses){
+                    content.push({text:'01  /  ELLENFÉLPROFIL',style:'sectionHead',margin:[0,0,0,10]});
+                    if(strengths)content.push(strengths);
+                    if(weaknesses)content.push(weaknesses);
+                }
+            }
+            const plans=[
+                ['MIT VÉDEKEZZÜNK?',meta.defense],
+                ['MIRE FIGYELJÜNK TÁMADÁSBAN?',meta.attack],
+                ['SPECIÁLIS JÁTÉKHELYZETEK',meta.special]
+            ].map(x=>clipReportTextBlock(x[0],x[1])).filter(Boolean);
+            if(plans.length){
+                content.push({text:(coach?'02':'01')+'  /  SAJÁT TAKTIKAI TERV',style:'sectionHead',margin:[5,6,0,11]});
+                content.push(...plans);
+            }
+            if(sections.length)content.push({text:(coach?'03':'02')+'  /  VIDEÓS TAKTIKAI MEGFIGYELÉSEK',style:'sectionHead',margin:[0,8,0,7]});
+            sections.forEach(([chapter,items],sectionIndex)=>{
+                content.push({text:String(sectionIndex+1).padStart(2,'0')+'  '+chapter.toLocaleUpperCase('hu-HU'),style:'chapter',margin:[0,12,0,7]});
+                for(const {project,clip} of items){
+                    const start=formatTime(clip.start),end=formatTime(clip.end);
+                    const heading=(clip.player?'#'+clip.player.num+' '+(clip.player.name||''):'JELENET')+'  ·  '+start+'–'+end;
+                    const text=String(clip.note||'').trim()||(clip.player?clip.player.name+' · '+clip.category:clip.category||'Videójelenet');
+                    const left={stack:[
+                        {text:heading,style:'sceneTitle',margin:[0,0,0,6]},
+                        {text,style:'sceneNote',margin:[0,0,0,5]},
+                        ...(coach?[{text:'Forrás: '+(project.title||'Mérkőzés'),style:'sourceText'}]:[])
+                    ],margin:[0,5,8,3]};
+                    const url=clipValidShareUrl(clip.shareUrl)?clip.shareUrl:null;
+                    const right=url?{stack:[
+                        {qr:url,fit:96,eccLevel:'M',alignment:'center',margin:[0,0,0,5]},
+                        {text:'VIDEÓ MEGNYITÁSA',link:url,color:'#08745B',bold:true,fontSize:8,alignment:'center',decoration:'underline'}
+                    ],alignment:'center'}:{text:'VIDEÓ NINCS MEGOSZTVA',fontSize:8,color:'#9AA8B3',alignment:'center',margin:[0,15,0,0]};
+                    content.push({table:{headerRows:0,dontBreakRows:true,widths:['*',122],body:[[left,right]]},
+                        layout:{hLineColor:()=> '#DCE5EA',vLineColor:()=> '#DCE5EA',fillColor:()=> '#FCFDFE',paddingTop:()=>9,paddingBottom:()=>9,paddingLeft:()=>9,paddingRight:()=>9},
+                        margin:[0,0,0,9]});
+                }
+            });
+            if(!entries.length&&!messages.length&&!plans.length&&!meta.strengths&&!meta.weaknesses){
+                content.push({text:'A riporthoz még nem adtál meg taktikai megfigyelést.',italics:true,color:'#677888',margin:[0,16,0,10]});
+            }
+            content.push({text:'A QR-kód csak aktív, külön jóváhagyott videómegosztás esetén használható. A link továbbítható; az edző a hozzáférést bármikor visszavonhatja.',fontSize:8,color:'#718091',margin:[0,20,0,0]});
+            return {
+                pageSize:'A4',pageMargins:[38,45,38,44],
+                info:{title:'Ellenfélelemzés – '+opp+(coach?' – edzői':' – játékos'),author:'Handball Lab',subject:'Mérkőzés előtti taktikai felkészülés'},
+                header:()=>({text:'HANDBALL LAB  |  TAKTIKAI FELKÉSZÜLÉS',fontSize:7,color:'#718091',alignment:'right',margin:[0,19,38,0]}),
+                footer:(current,total)=>({columns:[
+                    {text:'BIZALMAS CSAPATANYAG',alignment:'left'},
+                    {text:current+' / '+total,alignment:'right'}
+                ],fontSize:7,color:'#718091',margin:[38,14,38,0]}),
+                content,
+                defaultStyle:{font:'Roboto',fontSize:10,color:'#182B37',lineHeight:1.2},
+                styles:{
+                    eyebrow:{fontSize:8,bold:true,color:'#147C60',characterSpacing:1.1},
+                    title:{fontSize:21,bold:true,color:'#102733'},
+                    subtitle:{fontSize:9,bold:true,color:'#147C60',characterSpacing:0.8},
+                    sectionHead:{fontSize:13,bold:true,color:'#0B5745',margin:[0,4,0,9]},
+                    chapter:{fontSize:11,bold:true,color:'#132D3D'},
+                    smallLabel:{fontSize:9,bold:true,color:'#147C60'},
+                    paragraph:{fontSize:10,color:'#243846'},
+                    keyList:{fontSize:10,bold:true,color:'#203D4C'},
+                    metaLabel:{fontSize:7,bold:true,color:'#69808C'},
+                    metaValue:{fontSize:10,bold:true,color:'#122D38'},
+                    sceneTitle:{fontSize:9,bold:true,color:'#0D6651'},
+                    sceneNote:{fontSize:10,color:'#213C49'},
+                    sourceText:{fontSize:8,color:'#778995'}
+                }
+            };
+        }
+        async function clipGenerateTacticalPdf(type){
+            if(clipReportBusy)return;
+            const status=document.getElementById('clip-report-status');
+            if(!clipActiveTeam)return alert('Válassz ellenfélcsapatot.');
+            const meta=clipReportGetMeta(),entries=clipReportSelectedEntries();
+            if(!meta.opponent){status.textContent='Add meg az ellenfél nevét!';return;}
+            if(!entries.length&&!Object.values(meta).some((x,i)=>i>3&&x)){status.textContent='Válassz jeleneteket, vagy adj meg taktikai megjegyzéseket a riporthoz.';return;}
+            if(!['coach','player'].includes(type))return;
+            clipReportBusy=true;
+            status.textContent='PDF előkészítése, QR-kódok és videólinkek beépítése…';
+            try{
+                clipReportSaveMeta();
+                const pdfMake=await clipReportPdfMake();
+                const definition=clipReportTacticalDefinition(type,entries,meta);
+                const simpleName=meta.opponent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,50)||'ellenfel';
+                const filename='handball-lab_'+simpleName+'_'+(type==='coach'?'edzoi':'jatekos')+'_ellenfelelemzes.pdf';
+                pdfMake.createPdf(definition).download(filename);
+                status.textContent='PDF letöltés elindítva: '+filename+' · '+entries.length+' jelenet, '+entries.filter(x=>clipValidShareUrl(x.clip.shareUrl)).length+' QR-kód.';
+            }catch(e){status.textContent='PDF generálási hiba: '+(e?.message||e);console.error('Taktikai PDF:',e);}
+            finally{clipReportBusy=false;}
+        }
+
     </script>
 </body>
 </html>
