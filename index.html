@@ -7548,7 +7548,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipReportEscape(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
         
         // PDF előkészítő – a megosztott QR-videók külön Drive-fájlok; a PDF nem oszt meg új fájlokat.
-        let clipReportSceneSnapshot=[],clipReportPdfPromise=null,clipReportBusy=false;
+        let clipReportSceneSnapshot=[],clipReportPdfPromise=null,clipReportBusy=false,clipReportFontsLoaded=false;
         const CLIP_REPORT_FIELDS=['own-team','opponent','date','venue','strengths','weaknesses','defense','attack','special','key'];
         function clipReportStoreKey(){return 'handball_lab_tactical_report_v1_'+clipActiveTeam;}
         function clipReportGetMeta(){
@@ -7612,12 +7612,12 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             });
         }
         async function clipReportPdfMake(){
-            if(window.pdfMake?.createPdf&&window.pdfMake?.vfs)return window.pdfMake;
+            if(window.pdfMake?.createPdf&&clipReportFontsLoaded)return window.pdfMake;
             if(!clipReportPdfPromise)clipReportPdfPromise=(async()=>{
                 const root='https://cdn.jsdelivr.net/npm/pdfmake@0.2.12/build/';
                 if(!window.pdfMake?.createPdf)await clipReportLoadScript(root+'pdfmake.min.js');
-                if(!window.pdfMake?.vfs)await clipReportLoadScript(root+'vfs_fonts.js');
-                if(!window.pdfMake?.createPdf||!window.pdfMake?.vfs)throw Error('A PDF modul vagy a magyar ékezeteket támogató betűkészlet nem indult el.');
+                if(!clipReportFontsLoaded){await clipReportLoadScript(root+'vfs_fonts.js');clipReportFontsLoaded=true;}
+                if(!window.pdfMake?.createPdf||!clipReportFontsLoaded)throw Error('A PDF modul vagy a magyar ékezeteket támogató betűkészlet nem indult el.');
                 return window.pdfMake;
             })().catch(e=>{clipReportPdfPromise=null;throw e;});
             return clipReportPdfPromise;
