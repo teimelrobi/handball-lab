@@ -7657,7 +7657,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 {text:opp,style:'title',margin:[0,0,0,4]},
                 {text:coach?'RÉSZLETES EDZŐI TAKTIKAI RIPORT':'JÁTÉKOSOKNAK – MÉRKŐZÉS ELŐTTI FELKÉSZÜLÉS',style:'subtitle',margin:[0,0,0,13]},
                 {text:'ELLENFÉL · VIZSGÁLT MÉRKŐZÉSEK',style:'metaLabel',margin:[0,0,0,6]},
-                ...clipReportMatches.map(m=>({text:[m.home,m.away].filter(Boolean).join(' – ')+(m.score?'  |  '+m.score:'')+(m.date?'  |  '+m.date:'')+(m.scorer?'  |  Legtöbb gól: '+m.scorer:''),fontSize:9,margin:[0,0,0,5]}))
+                ...clipReportMatches.map(m=>({text:[m.home,m.away].filter(Boolean).join(' – ')+(m.score?'  |  '+m.score:'')+(m.date?'  |  '+m.date:'')+(clipReportScorerForSelected(m)?'  |  Legtöbb gól: '+clipReportScorerForSelected(m):''),fontSize:9,margin:[0,0,0,5]}))
             ];
             const messages=String(meta.key||'').split(/\r?\n/).map(x=>x.trim().replace(/^\d+[.)]\s*/,'' )).filter(Boolean).slice(0,3);
             if(messages.length){
@@ -7770,13 +7770,13 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const box=document.getElementById('clip-report-matches');if(!box)return;box.replaceChildren();
             for(const [i,m] of clipReportMatches.entries()){
                 const row=document.createElement('div');row.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px;border:1px solid var(--border-color);border-radius:7px';
-                const content=document.createElement('span');content.style.flex='1';content.textContent=(m.home||'?')+' – '+(m.away||'?')+' · '+(m.score||'Eredmény ellenőrizendő')+(m.scorer?' · Legtöbb gól: '+m.scorer:'')+(m.date?' · '+m.date:'');
+                const content=document.createElement('span');content.style.flex='1';content.textContent=(m.home||'?')+' – '+(m.away||'?')+' · '+(m.score||'Eredmény ellenőrizendő')+(clipReportScorerForSelected(m)?' · Legtöbb gól: '+clipReportScorerForSelected(m):' · Góllövő: ellenőrizendő')+(m.date?' · '+m.date:'');
                 const edit=document.createElement('button');edit.className='btn-arch-action';edit.textContent='Javítás';edit.onclick=()=>{
                     const h=prompt('Hazai csapat',m.home||'');if(h===null)return;
                     const a=prompt('Vendégcsapat',m.away||'');if(a===null)return;
                     const score=prompt('Végeredmény (hazai–vendég)',m.score||'');if(score===null)return;
-                    const scorer=prompt('Legtöbb gólt szerző játékos és gólszám (csak ellenőrzött adat)',m.scorer||'');if(scorer===null)return;
-                    Object.assign(m,{home:h,away:a,score,scorer});clipReportSaveMeta();clipReportUpdateTeams();
+                    const scorer=prompt('A kiválasztott csapat legeredményesebb játékosa (ellenőrzött adat)',clipReportScorerForSelected(m)||'');if(scorer===null)return;
+                    Object.assign(m,{home:h,away:a,score});const side=clipReportSelectedSide(m);if(side){m.scorerSides=m.scorerSides||{};m.scorerSides[side]=scorer;}else m.scorer=scorer;clipReportSaveMeta();clipReportUpdateTeams();
                 };
                 const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{clipReportAllMatches.splice(clipReportAllMatches.indexOf(m),1);clipReportSaveMeta();clipReportUpdateTeams();};
                 row.append(content,edit,del);box.appendChild(row);
@@ -7787,7 +7787,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const away=prompt('Vendégcsapat');if(away===null)return;
             const score=prompt('Eredmény, pl. 31–28')||'';
             const scorer=prompt('Legtöbb gólt szerző játékos, gólszám')||'';
-            clipReportAllMatches.push({home,away,score,scorer,date:''});clipReportSaveMeta();clipReportUpdateTeams();
+            clipReportAllMatches.push({home,away,score,scorer,manualScorerSide:clipNormalizeTeam(home)===clipNormalizeTeam(clipReportGetMeta().opponent)?'home':'away',date:''});clipReportSaveMeta();clipReportUpdateTeams();
         }
         async function clipReportImportMksz(event){
             const files=[...(event.target.files||[])],status=document.getElementById('clip-report-mksz-status');
@@ -7809,17 +7809,65 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                     // Csak a jól azonosítható végeredményt emeljük át; bizonytalan adatnál kézi ellenőrzés szükséges.
                     const scoreCandidates=[...joined.matchAll(/(?:végeredmény|végeredm[ée]ny|eredmény)\s*[:\-]?\s*(\d{1,2})\s*[:\-–]\s*(\d{1,2})/gi)];
                     const score=scoreCandidates.length===1?scoreCandidates[0][1]+'–'+scoreCandidates[0][2]:'';
-                    // A különböző MKSZ formátumok miatt a góllövőket csak megbízható, explicit gólszám oszlopból vesszük át.
-                    const goals=lines.map(l=>l.match(/^\s*(\d{1,2})\s+(.+?)\s+(\d{4,7})\s+(\d{1,2})\s*$/)).filter(Boolean).map(m=>({name:m[2],n:Number(m[4])})).filter(m=>m.n<=30);
-                    const max=goals.length?Math.max(...goals.map(x=>x.n)):0;
-                    const scorer=goals.length&&goals.filter(x=>x.n===max).length===1?goals.find(x=>x.n===max).name+' ('+max+' gól)':'';
-                    clipReportAllMatches.push({home:parsed.homeName||'',away:parsed.awayName||'',date:parsed.date||'',score,scorer,filename:file.name});
+                    const scorerSides=clipReportParseScorersBySide(lines,parsed);
+                    clipReportAllMatches.push({home:parsed.homeName||'',away:parsed.awayName||'',date:parsed.date||'',score,scorer:'',scorerSides,filename:file.name});
+
                 }
                 clipReportSaveMeta();clipReportUpdateTeams();
                 status.textContent=files.length+' jegyzőkönyv hozzáadva. A hiányzó vagy kétséges eredményt és góllövőt a Javítás gombbal ellenőrizd.';
             }catch(e){status.textContent='Jegyzőkönyv-hiba: '+e.message;}finally{event.target.value='';}
         }
 
+
+
+        function clipReportSelectedSide(m){
+            const selected=clipNormalizeTeam(document.getElementById('clip-report-opponent')?.value||'');
+            if(!selected)return '';
+            if(clipNormalizeTeam(m.home)===selected)return 'home';
+            if(clipNormalizeTeam(m.away)===selected)return 'away';
+            return '';
+        }
+        function clipReportScorerForSelected(m){
+            const side=clipReportSelectedSide(m);
+            if(!side)return '';
+            // Legacy unscoped goal totals are deliberately not shown as the selected team's leader.
+            if(m.scorerSides&&Object.prototype.hasOwnProperty.call(m.scorerSides,side))return m.scorerSides[side]||'';
+            return m.manualScorerSide===side?(m.scorer||''):'';
+        }
+        function clipReportParseScorersBySide(lines,parsed){
+            const result={home:'',away:''};
+            if(!parsed.home?.length||!parsed.away?.length)return result;
+            const headings=lines.map((line,i)=>({line:String(line).trim(),i})).filter(x=>/^mez\s+/i.test(x.line)&&/\bkód\b/i.test(x.line));
+            if(headings.length<2)return result;
+            for(const [side,hi,next] of [['home',headings[0].i,headings[1].i],['away',headings[1].i,lines.length]]){
+                const header=headings.find(h=>h.i===hi)?.line||'';
+                // Never infer the goal count from the last number: it may be a licence ID, shots or penalties.
+                // Require an explicit, unambiguous single numeric goal column after the licence code.
+                const suffix=header.split(/\bkód\b/i)[1]||'';
+                const columns=suffix.trim().split(/\s{2,}|\s+\|\s+/).filter(Boolean);
+                const goalIndices=columns.map((name,i)=>({name,i})).filter(x=>/^gól(?:ok)?$/i.test(x.name));
+                if(goalIndices.length!==1)continue;
+                const index=goalIndices[0].i,all=[];
+                const rosterIds=new Map((parsed[side]||[]).map(p=>[String(p.mkszId),p]));
+                for(const line of lines.slice(hi+1,next)){
+                    if(/^összesen\b/i.test(String(line).trim()))break;
+                    const m=String(line).trim().match(/^(\d{1,2})\s+(.+?)\s+(?:\(K\)\s+)?(\d{4,7})(?:\s+(.+))?$/);
+                    if(!m)continue;
+                    const player=rosterIds.get(m[3]);if(!player||String(player.num)!==m[1])continue;
+                    const numeric=(m[4]||'').trim().split(/\s+/);
+                    if(index>=numeric.length||!numeric.every(x=>/^\d+$|^[-–]$/.test(x)))continue;
+                    const count=Number(numeric[index]);if(!Number.isInteger(count)||count<0||count>40)continue;
+                    all.push({name:player.name,count});
+                }
+                // Only trust a result if each registered outfield player had an identifiable goal cell.
+                const outfield=(parsed[side]||[]).filter(p=>!p.isGk);
+                if(!all.length||all.length<outfield.length)continue;
+                const best=Math.max(...all.map(p=>p.count));
+                if(best<=0)continue;
+                result[side]=all.filter(p=>p.count===best).map(p=>p.name).join(', ')+' ('+best+' gól)';
+            }
+            return result;
+        }
 
         function clipReportSelectOpponent(name){
             const input=document.getElementById('clip-report-opponent');if(input)input.value=name;
