@@ -6952,7 +6952,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border-bottom:1px solid var(--border-color)';
                 const title=document.createElement('span');title.style.flex='1';title.textContent=p.title+' · '+(p.clips?.length||0)+' jelenet · '+new Date(p.updatedAt).toLocaleString('hu-HU');
                 const open=document.createElement('button');open.className='btn-arch-action btn-arch-stat';open.textContent='Folytatás';open.onclick=()=>clipOpenProject(p);
-                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=async()=>{if(!confirm('Törlöd a projektet?'))return;localStorage.setItem(CLIP_PROJECTS_KEY,JSON.stringify(clipLocalProjects().filter(x=>x.id!==p.id)));try{await clipVideoRecord(p.id,'readwrite',null);}catch(e){console.warn('Videótár törlése',e);}if(cloudClient&&cloudUser)await cloudClient.from('video_clip_projects').delete().eq('id',p.id);openClipEditor();};
+                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=async()=>{if((p.clips||[]).some(c=>c.sharedDriveId))return alert('A projektben megosztott QR-jelenetek vannak. Vond vissza a megosztásukat a jelenetlistában, és csak utána töröld a projektet.');if(!confirm('Törlöd a projektet?'))return;localStorage.setItem(CLIP_PROJECTS_KEY,JSON.stringify(clipLocalProjects().filter(x=>x.id!==p.id)));try{await clipVideoRecord(p.id,'readwrite',null);}catch(e){console.warn('Videótár törlése',e);}if(cloudClient&&cloudUser)await cloudClient.from('video_clip_projects').delete().eq('id',p.id);openClipEditor();};
                 row.append(title,open,del);box.appendChild(row);
             }
         }
@@ -7248,7 +7248,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const select=document.createElement('input');select.type='checkbox';select.checked=clipSelectedIds.has(c.id);select.title='Exportálásra kijelölés';select.onchange=()=>{if(select.checked)clipSelectedIds.add(c.id);else clipSelectedIds.delete(c.id);document.getElementById('clip-count').textContent='('+visible.length+' / '+clipClips.length+' db, kijelölve: '+clipSelectedIds.size+')';};
                 const name=document.createElement('span');name.style.flex='1';name.textContent=formatTime(c.start)+' – '+formatTime(c.end)+' · '+(c.tacticalCategory||c.category)+(c.player?' · #'+c.player.num+' '+c.player.name:'')+(c.note?' · '+c.note.slice(0,170):'')+(c.shareUrl?' · QR ✓':'');
                 const play=document.createElement('button');play.className='btn-arch-action';play.textContent='Lejátszás';play.onclick=()=>{const v=document.getElementById('clip-video');if(!v.src)return alert('Töltsd be újra a mérkőzés videóját.');v.currentTime=c.start;v.play();const stop=()=>{if(v.currentTime>=c.end){v.pause();v.removeEventListener('timeupdate',stop);}};v.addEventListener('timeupdate',stop);};
-                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{if(confirm('Törlöd ezt a jelenetet?')){clipClips=clipClips.filter(x=>x.id!==c.id);clipSelectedIds.delete(c.id);clipSave();clipRenderList();}};
+                const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{if(c.sharedDriveId)return alert('A jelenet QR-videója még meg van osztva. Előbb a QR megnyitása gombbal vond vissza a megosztást!');if(confirm('Törlöd ezt a jelenetet?')){clipClips=clipClips.filter(x=>x.id!==c.id);clipSelectedIds.delete(c.id);clipSave();clipRenderList();}};
                 const edit=document.createElement('button');edit.className='btn-arch-action';edit.textContent='Megjegyzés';edit.onclick=()=>clipEditScene(c.id);
                 const qr=document.createElement('button');qr.className='btn-arch-action btn-arch-stat';qr.textContent=c.shareUrl?'QR megnyitása':'QR készítése';qr.onclick=()=>clipShareQr(c.id);
                 row.append(select,name,play,edit,qr,del);box.appendChild(row);
@@ -7386,10 +7386,25 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         }
         function clipValidShareUrl(url){return /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/view(?:\?.*)?$/.test(String(url||''));}
         async function clipLoadQrLibrary(){
-            if(window.QRCode&&typeof window.QRCode.toDataURL==='function')return window.QRCode;
-            if(!clipQrLibraryPromise)clipQrLibraryPromise=new Promise((resolve,reject)=>{
-                const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js';
-                script.onload=()=>window.QRCode?.toDataURL?resolve(window.QRCode):reject(Error('A QR-kód modul nem indult el.'));
+            if(clipQrLibraryPromise)return clipQrLibraryPromise;
+            clipQrLibraryPromise=new Promise((resolve,reject)=>{
+                const adapter={
+                    toDataURL:async(value,options={})=>{
+                        const host=document.createElement('div');
+                        host.style.cssText='position:fixed;left:-10000px;top:-10000px;pointer-events:none';
+                        document.body.appendChild(host);
+                        try{
+                            new window.QRCode(host,{text:value,width:options.width||270,height:options.width||270,correctLevel:window.QRCode.CorrectLevel.M});
+                            const canvas=host.querySelector('canvas');
+                            if(!canvas)throw Error('A QR-kód képe nem készült el.');
+                            return canvas.toDataURL('image/png');
+                        }finally{host.remove();}
+                    }
+                };
+                if(window.QRCode&&typeof window.QRCode==='function')return resolve(adapter);
+                const script=document.createElement('script');
+                script.src='https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+                script.onload=()=>typeof window.QRCode==='function'?resolve(adapter):reject(Error('A QR-kód modul nem indult el.'));
                 script.onerror=()=>reject(Error('Nem lehet betölteni a QR-kód modult. Ellenőrizd az internetkapcsolatot.'));
                 document.head.appendChild(script);
             }).catch(e=>{clipQrLibraryPromise=null;throw e;});
