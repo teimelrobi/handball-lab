@@ -7431,7 +7431,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipPlaybackUrl(url){
             if(!clipValidShareUrl(url))return '';
             const match=String(url).match(/^https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)\//);
-            return match?'https://drive.google.com/file/d/'+match[1]+'/preview':'';
+            return match?'https://kezistat.app/player.html?v='+encodeURIComponent(match[1]):'';
         }
         async function clipLoadQrLibrary(){
             if(clipQrLibraryPromise)return clipQrLibraryPromise;
