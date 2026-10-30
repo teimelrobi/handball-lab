@@ -1142,7 +1142,7 @@
 </div></div><h3>Mérkőzésprojektek</h3><div id="clip-projects-list"></div></div><div class="screen" id="view-opponent-analysis" style="padding:20px;overflow-y:auto">
 <button class="back-btn" onclick="showScreen('view-home')">← Főmenü</button><h2 class="page-title">Ellenfélelemzés</h2><p style="margin-bottom:15px;color:var(--text-muted)">Válaszd ki az ellenfelet és a mentett videóprojekteket. A megjegyzések és videólinkek bekerülnek a riportba.</p>
 <label>Ellenfél: <select id="opponent-analysis-team" class="team-select" onchange="opponentAnalysisChooseTeam(this.value)"></select></label>
-<div id="opponent-analysis-projects" style="display:grid;gap:8px;margin:15px 0"></div>
+<div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:12px 0"><button class="btn-arch-action btn-arch-stat" onclick="opponentAnalysisSave()">Elemzés mentése</button><span id="opponent-analysis-save-status" style="color:var(--text-muted);font-size:12px"></span></div><div id="opponent-analysis-projects" style="display:grid;gap:8px;margin:15px 0"></div>
 <button class="btn-arch-action btn-arch-stat" onclick="opponentAnalysisBuildReport()">Ellenfélelemzés összeállítása</button>
 <div id="opponent-analysis-report-host"></div></div><div class="screen" id="view-clip-editor" style="padding:20px;overflow-y:auto;">
       <button class="back-btn" onclick="clipSave();showScreen('view-home')"><i class="fas fa-arrow-left"></i> Főmenü</button>
@@ -7562,7 +7562,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         }
         function clipReportSaveMeta(){
             if(!clipActiveTeam)return;
-            try{localStorage.setItem(clipReportStoreKey(),JSON.stringify({...clipReportGetMeta(),examinedMatches:clipReportAllMatches}));}catch(e){console.warn('Taktikai riport helyi mentése:',e);}
+            try{localStorage.setItem(clipReportStoreKey(),JSON.stringify({...clipReportGetMeta(),examinedMatches:clipReportAllMatches,selectedSceneIds:clipReportSelectedKeys(),projectIds:opponentAnalysisProjectIds?[...opponentAnalysisProjectIds]:undefined,updatedAt:new Date().toISOString()}));opponentAnalysisSaveStatus('Automatikusan mentve');}catch(e){console.warn('Taktikai riport helyi mentése:',e);}
         }
         function clipReportSceneName(entry){
             const c=entry.clip;
@@ -7640,7 +7640,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             document.querySelectorAll('#clip-report-scenes input[type="checkbox"]').forEach(el=>{
                 el.checked=kind==='all'||(kind==='qr'&&clipValidShareUrl(clipReportSceneSnapshot[Number(el.dataset.index)]?.clip?.shareUrl));
             });
-            clipReportUpdateCount();
+            clipReportUpdateCount();clipReportSaveMeta();
         }
         function clipTeamTacticalReport(){
             if(!clipActiveTeam)return alert('Először válassz ellenfélcsapatot!');
@@ -7662,7 +7662,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             }
             clipReportSceneSnapshot.forEach((entry,i)=>{
                 const row=document.createElement('label');row.style.cssText='display:flex;gap:10px;align-items:flex-start;padding:10px;border-bottom:1px solid var(--border-color);font-size:12px;cursor:pointer;';
-                const check=document.createElement('input');check.type='checkbox';check.checked=true;check.dataset.index=String(i);check.style.marginTop='3px';check.onchange=clipReportUpdateCount;
+                const check=document.createElement('input');check.type='checkbox';check.checked=!Array.isArray(saved.selectedSceneIds)||saved.selectedSceneIds.includes(String(entry.project.id)+'|'+String(entry.clip.id));check.dataset.index=String(i);check.style.marginTop='3px';check.onchange=()=>{clipReportUpdateCount();clipReportSaveMeta();};
                 const name=document.createElement('span');name.style.flex='1';name.textContent=clipReportSceneName(entry);
                 const qr=document.createElement('span');qr.textContent=clipValidShareUrl(entry.clip.shareUrl)?'Link ✓':'Nincs link';qr.style.cssText='white-space:nowrap;color:var(--text-muted);font-size:11px';
                 row.append(check,name,qr);list.appendChild(row);
@@ -8002,15 +8002,31 @@ function opponentAnalysisChooseTeam(team){
     document.getElementById('clip-report-builder').style.display='none';
     if(!team){box.textContent='Válassz egy ellenfelet.';return;}
     const projects=clipProjectCache.filter(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===team));
-    opponentAnalysisProjectIds=new Set(projects.map(p=>p.id));
+    let saved={};try{saved=JSON.parse(localStorage.getItem(clipReportStoreKey())||'{}')||{};}catch(e){}
+    opponentAnalysisProjectIds=new Set(Array.isArray(saved.projectIds)?saved.projectIds.filter(id=>projects.some(p=>p.id===id)):projects.map(p=>p.id));
     if(!projects.length){box.textContent='Nincs kapcsolódó videóprojekt.';return;}
     for(const p of projects){
         const row=document.createElement('label');row.style.cssText='display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--border-color);border-radius:9px;cursor:pointer';
-        const check=document.createElement('input');check.type='checkbox';check.checked=true;
-        check.onchange=()=>{if(check.checked)opponentAnalysisProjectIds.add(p.id);else opponentAnalysisProjectIds.delete(p.id);document.getElementById('clip-report-builder').style.display='none';};
+        const check=document.createElement('input');check.type='checkbox';check.checked=opponentAnalysisProjectIds.has(p.id);
+        check.onchange=()=>{if(check.checked)opponentAnalysisProjectIds.add(p.id);else opponentAnalysisProjectIds.delete(p.id);document.getElementById('clip-report-builder').style.display='none';opponentAnalysisSave();};
         const label=document.createElement('span');label.textContent=p.title+' · '+(p.clips||[]).length+' jelenet · '+(p.clips||[]).filter(c=>c.note||c.shareUrl).length+' megjegyzés/videólink';
         row.append(check,label);box.appendChild(row);
     }
+}
+
+function clipReportSelectedKeys(){
+    return [...document.querySelectorAll('#clip-report-scenes input[type="checkbox"]:checked')].map(el=>{
+        const item=clipReportSceneSnapshot[Number(el.dataset.index)];
+        return item?String(item.project.id)+'|'+String(item.clip.id):'';
+    }).filter(Boolean);
+}
+function opponentAnalysisSaveStatus(message){
+    const el=document.getElementById('opponent-analysis-save-status');if(el)el.textContent=message;
+}
+function opponentAnalysisSave(){
+    if(!clipActiveTeam)return alert('Válassz ellenfelet a mentéshez.');
+    clipReportSaveMeta();
+    opponentAnalysisSaveStatus('Elemzés mentve ezen a böngészőn · '+new Date().toLocaleString('hu-HU'));
 }
 function opponentAnalysisBuildReport(){
     if(!clipActiveTeam)return alert('Válassz ellenfelet.');
