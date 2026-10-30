@@ -1133,7 +1133,7 @@
     <button class="btn-arch-action" onclick="clipReportSelectScenes('none')">Kijelölés törlése</button>
     <span id="clip-report-selected-count" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
   </div>
-  <div id="clip-report-scenes" style="max-height:340px;overflow:auto;border:1px solid var(--border-color);border-radius:8px"></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0"><button id="clip-report-batch-btn" class="btn-arch-action btn-arch-stat" type="button" onclick="clipReportBatchShare()">Hiányzó videólinkek elkészítése</button><span id="clip-report-batch-status" style="font-size:12px;color:var(--text-muted)"></span></div><div id="clip-report-scenes" style="max-height:340px;overflow:auto;border:1px solid var(--border-color);border-radius:8px"></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
     <button class="btn-arch-action btn-arch-stat" onclick="clipGenerateTacticalPdf('coach')"><i class="fas fa-file-pdf"></i> Részletes edzői PDF letöltése</button>
     <button class="btn-arch-action btn-arch-stat" onclick="clipGenerateTacticalPdf('player')"><i class="fas fa-file-pdf"></i> Játékos PDF letöltése</button>
@@ -7569,6 +7569,67 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             return (c.tacticalCategory||c.category||'Jelenet')+(c.player?' · #'+c.player.num+' '+(c.player.name||''):'')+
                 ' · '+(entry.project.title||'Mérkőzés')+' ['+formatTime(c.start)+'–'+formatTime(c.end)+']'+
                 (c.note?' · '+c.note.slice(0,150):'');
+        }
+
+        let clipReportBatchBusy=false;
+        async function clipReportBatchShare(){
+            if(clipReportBatchBusy||clipExportBusy)return alert('Már folyamatban van egy videófeldolgozás.');
+            const selected=new Set([...document.querySelectorAll('#clip-report-scenes input[type="checkbox"]:checked')].map(x=>Number(x.dataset.index)));
+            const entries=clipReportSceneSnapshot.filter((entry,i)=>selected.has(i)&&!clipValidShareUrl(entry.clip.shareUrl));
+            if(!entries.length)return alert('A kijelölt jelenetekhez már tartozik link, vagy nincs kijelölve jelenet.');
+            if(!confirm(entries.length+' jelenet külön kivágott MP4-videóként feltöltődik a Google Drive-ba. A link birtokában bárki megnézheti. Csak megosztható felvételekkel folytasd. Elkészülhetnek a linkek?'))return;
+            clipReportBatchBusy=true;clipExportBusy=true;
+            const btn=document.getElementById('clip-report-batch-btn'),status=document.getElementById('clip-report-batch-status');
+            btn.disabled=true;const failures=[];let completed=0,ff=null;
+            try{
+                if(!isDriveAuthorized())await requestDriveAccessToken();
+                ff=await clipLoadFfmpeg(status);
+                const groups=new Map();
+                for(const entry of entries){
+                    const id=entry.project.id;
+                    if(!groups.has(id))groups.set(id,[]);
+                    groups.get(id).push(entry);
+                }
+                for(const [id,group] of groups){
+                    const project=group[0].project;
+                    let file=await clipGetStoredVideo(id);
+                    if(!file)file=await clipDriveDownload(id,status);
+                    if(!file){for(const e of group)failures.push((project.title||id)+' · '+e.clip.id+': eredeti videó hiányzik');continue;}
+                    const stamp=Date.now()+'_'+Math.floor(Math.random()*100000);
+                    const source='batch_source_'+stamp+'.'+(file.name.split('.').pop()||'mp4').replace(/[^a-z0-9]/gi,'');
+                    try{
+                        await ff.writeFile(source,new Uint8Array(await file.arrayBuffer()));
+                        for(const entry of group){
+                            const c=entry.clip,output='batch_cut_'+Date.now()+'_'+Math.floor(Math.random()*100000)+'.mp4';
+                            status.textContent='Videólink készítése: '+(completed+failures.length+1)+' / '+entries.length+' · '+project.title;
+                            try{
+                                if(!(c.end>c.start))throw Error('Érvénytelen jelenethatár');
+                                const code=await ff.exec(['-ss',String(c.start),'-i',source,'-t',String(c.end-c.start),'-map','0:v:0','-map','0:a?','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-ar','44100','-movflags','+faststart',output]);
+                                if(code!==0)throw Error('MP4-vágási hiba: '+code);
+                                const bytes=await ff.readFile(output);
+                                const shared=await clipQrUpload(new File([bytes],(project.title||'merkozes').replace(/[^\w\u00c0-\u017f-]+/g,'_').slice(0,60)+'_'+c.id+'.mp4',{type:'video/mp4'}),c,status);
+                                c.sharedDriveId=shared.id;c.shareUrl=shared.url;c.sharedAt=new Date().toISOString();
+                                project.updatedAt=new Date().toISOString();completed++;
+                                const locals=clipLocalProjects().filter(x=>x.id!==project.id);locals.push(project);localStorage.setItem(CLIP_PROJECTS_KEY,JSON.stringify(locals));
+                                if(cloudClient&&cloudUser){
+                                    const {error}=await cloudClient.from('video_clip_projects').upsert({id:project.id,user_id:cloudUser.id,title:project.title,match_data:{...(project.match||{}),_clipSelectedSides:project.selectedSides},clips:project.clips,video_name:project.videoName||'',updated_at:project.updatedAt},{onConflict:'id'});
+                                    if(error)failures.push(project.title+': felhőmentés sikertelen ('+error.message+')');
+                                }
+                            }catch(e){failures.push(project.title+' · '+c.id+': '+(e.message||e));}
+                            finally{try{await ff.deleteFile(output);}catch(e){}}
+                        }
+                    }finally{try{await ff.deleteFile(source);}catch(e){}}
+                }
+                clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);
+                // Do not reset the report editor, notes or current checkbox selection.
+                document.querySelectorAll('#clip-report-scenes input[type="checkbox"]').forEach(el=>{
+                    const entry=clipReportSceneSnapshot[Number(el.dataset.index)];
+                    const label=el.parentElement?.lastElementChild;
+                    if(entry&&label&&label.tagName==='SPAN')label.textContent=clipValidShareUrl(entry.clip.shareUrl)?'Link ✓':'Nincs link';
+                });
+                status.textContent=completed+' videólink elkészült'+(failures.length?'; '+failures.length+' hiba: '+failures.slice(0,3).join(' | '):'.');
+            }catch(e){status.textContent='Megosztási hiba: '+(e.message||e);}
+            finally{clipReportBatchBusy=false;clipExportBusy=false;btn.disabled=false;}
         }
         function clipReportUpdateCount(){
             const el=document.getElementById('clip-report-selected-count');
