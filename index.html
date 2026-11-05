@@ -7314,8 +7314,8 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             document.getElementById('clip-attack-subtype-box').style.display=category==='Támadás'?'block':'none';
             document.getElementById('clip-attack-subtype').value=category==='Támadás'?'Figurális játék':'';
             document.getElementById('clip-figure-buttons').style.display=category==='Támadás'?'block':'none';
-            if(category==='Támadás'){document.getElementById('clip-tactical-category').value='Figurális játékok';clipRenderFigureFolders();}
-            document.getElementById('clip-attack-players-box').style.display='none';
+            if(category==='Támadás'){document.getElementById('clip-tactical-category').value='Figurális játékok';clipUpdateAttackSubtype();}
+            if(category!=='Támadás')document.getElementById('clip-attack-players-box').style.display='none';
             document.getElementById('clip-tactical-category').value=category==='Támadás'?'Figurális játékok':clipAutoTacticalCategory(category);
             document.getElementById('clip-movement-name').value='';
             clipMovementToggle();
@@ -7327,7 +7327,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             box.style.display=['Figurális játék','Egyéni','Páros kapcsolat'].includes(subtype)?'block':'none';
             document.getElementById('clip-figure-buttons').style.display=subtype==='Figurális játék'?'block':'none';
             if(subtype==='Figurális játék')clipRenderFigureFolders();
-            document.getElementById('clip-attack-players-label').textContent=subtype==='Páros kapcsolat'?'Jelölj legalább két játékost':'Válassz egy játékost';
+            document.getElementById('clip-attack-players-label').textContent=subtype==='Páros kapcsolat'?'Jelölj legalább két játékost':'Játékos kiválasztása (opcionális)';
             host.replaceChildren();
             for(const opt of document.getElementById('clip-player-select').options){
                 if(!opt.value)continue;
@@ -7380,9 +7380,9 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const attackSubtype=clipCategory==='Támadás'?document.getElementById('clip-attack-subtype').value:'';
             if(clipCategory==='Támadás'&&!attackSubtype)return alert('Válaszd ki a támadás típusát.');
             const attackPlayers=clipCategory==='Támadás'?[...document.querySelectorAll('#clip-attack-players input:checked')].map(x=>{const [side,num]=x.value.split('|');return {side,num:Number(num),name:clipMatch?.[side]?.find(p=>String(p.num)===num)?.name||''};}):[];
-            if(attackSubtype==='Figurális játék'&&attackPlayers.length!==1)return alert('Válassz egy játékost a figurális játékhoz.');
-            if(attackSubtype==='Egyéni'&&attackPlayers.length!==1)return alert('Válassz egy játékost.');
-            if(attackSubtype==='Páros kapcsolat'&&attackPlayers.length<2)return alert('Legalább két játékost jelölj ki.');
+            
+            
+            
             const tacticalCategory=document.getElementById('clip-tactical-category').value||clipAutoTacticalCategory(clipCategory);
             const movementName=tacticalCategory==='Figurális játékok'?document.getElementById('clip-movement-name').value.trim():'';
             if(tacticalCategory==='Figurális játékok'&&!movementName)return alert('Nevezd el a figurális mozgást.');
