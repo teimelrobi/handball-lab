@@ -1172,6 +1172,8 @@
             <label>Játékos</label><select id="clip-player-select" class="team-select" style="max-width:350px;"></select>
             <div id="clip-player-categories" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
           </div>
+          <div id="clip-attack-subtype-box" style="display:none;margin:12px 0"><label>Támadás típusa</label><select id="clip-attack-subtype" class="team-select" onchange="clipUpdateAttackSubtype()"><option value="">Válassz típust</option><option>Figurális játék</option><option>Egyéni</option><option>Páros kapcsolat</option></select></div>
+          <div id="clip-attack-players-box" style="display:none;margin:10px 0"><label id="clip-attack-players-label">Játékosok</label><div id="clip-attack-players" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div></div>
           <div id="clip-selected-category" style="margin:10px 0;color:var(--green-accent)"></div>
           <div style="display:grid;gap:10px;margin:12px 0">
             <label for="clip-analysis-team" style="font-size:13px">Melyik csapat ellenfélelemzésébe kerüljön?</label>
@@ -7263,16 +7265,16 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipSetEnd(){
             const v=document.getElementById('clip-video');if(clipStart===null)return alert('Először jelöld ki a jelenet elejét.');
             if(v.currentTime<=clipStart)return alert('A jelenet vége később legyen, mint az eleje.');
-            clipEnd=v.currentTime;clipCategory='';clipRenderAnalysisTeams();document.getElementById('clip-scene-note').value='';document.getElementById('clip-tactical-category').value='';document.getElementById('clip-movement-name').value='';clipMovementToggle();
+            clipEnd=v.currentTime;clipCategory='';clipRenderAnalysisTeams();document.getElementById('clip-scene-note').value='';document.getElementById('clip-tactical-category').value='';document.getElementById('clip-movement-name').value='';document.getElementById('clip-attack-subtype-box').style.display='none';document.getElementById('clip-attack-players-box').style.display='none';clipMovementToggle();
             document.getElementById('clip-range-label').textContent=formatTime(clipStart)+' – '+formatTime(clipEnd);
             document.getElementById('clip-selected-category').textContent='';
             document.getElementById('clip-player-chooser').style.display='none';
             const container=document.getElementById('clip-categories');container.innerHTML='';
-            for(const category of ['Támadás','Védekezés','Lerohanás','Visszarendeződés','Létszámfölény','Létszámhátrány','7:6','Játékos']){
+            for(const category of ['Támadás','Védekezés','Lerohanás','Visszarendeződés','Létszámfölény','Létszámhátrány','Játékos']){
                 const b=document.createElement('button');b.className='btn-arch-action';b.textContent=category;b.onclick=()=>clipChooseCategory(category);container.appendChild(b);
             }
             const sub=document.getElementById('clip-player-categories');sub.innerHTML='';
-            for(const category of ['Támadás','Védekezés','1:1','Lövés','Speciális','7 m']){
+            for(const category of ['Lövés','Csel']){
                 const b=document.createElement('button');b.className='btn-arch-action';b.textContent=category;b.onclick=()=>{clipCategory='Játékos / '+category;document.getElementById('clip-selected-category').textContent=clipCategory;};sub.appendChild(b);
             }
             document.getElementById('clip-category-dialog').style.display='block';
@@ -7280,9 +7282,29 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipChooseCategory(category){
             clipCategory=category==='Játékos'?'':category;
             document.getElementById('clip-player-chooser').style.display=category==='Játékos'?'block':'none';
+            document.getElementById('clip-attack-subtype-box').style.display=category==='Támadás'?'block':'none';
+            document.getElementById('clip-attack-subtype').value='';
+            document.getElementById('clip-attack-players-box').style.display='none';
+            document.getElementById('clip-tactical-category').value=category==='Támadás'?'':clipAutoTacticalCategory(category);
+            document.getElementById('clip-movement-name').value='';
+            clipMovementToggle();
             document.getElementById('clip-selected-category').textContent=clipCategory||'Válassz játékost és alkategóriát.';
-            // A csapat-/játékosfüggetlen kategóriák egyetlen kattintással mentődnek.
-            // A mentést mindig külön gomb erősíti meg, hogy a megjegyzés kitölthető legyen.
+        }
+        function clipUpdateAttackSubtype(){
+            const subtype=document.getElementById('clip-attack-subtype').value;
+            const box=document.getElementById('clip-attack-players-box'),host=document.getElementById('clip-attack-players');
+            box.style.display=['Egyéni','Páros kapcsolat'].includes(subtype)?'block':'none';
+            document.getElementById('clip-attack-players-label').textContent=subtype==='Páros kapcsolat'?'Jelölj legalább két játékost':'Válassz egy játékost';
+            host.replaceChildren();
+            for(const opt of document.getElementById('clip-player-select').options){
+                if(!opt.value)continue;
+                const label=document.createElement('label');label.style.cssText='display:flex;gap:5px;align-items:center;padding:7px;border:1px solid var(--border-color);border-radius:7px';
+                const check=document.createElement('input');check.type='checkbox';check.value=opt.value;check.name='clip-attack-member';
+                if(subtype==='Egyéni')check.onchange=()=>{if(check.checked)host.querySelectorAll('input').forEach(x=>{if(x!==check)x.checked=false;});};
+                label.append(check,document.createTextNode(opt.textContent));host.appendChild(label);
+            }
+            document.getElementById('clip-tactical-category').value=subtype==='Figurális játék'?'Figurális játékok':'Támadás';
+            clipMovementToggle();
         }
         function clipMovementToggle(){
             const category=document.getElementById('clip-tactical-category').value;
@@ -7299,10 +7321,15 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const value=document.getElementById('clip-player-select').value;if(!value)return alert('Válassz játékost.');
                 const [side,num]=value.split('|');player={side,num:Number(num),name:clipMatch?.[side]?.find(p=>String(p.num)===num)?.name||''};
             }
+            const attackSubtype=clipCategory==='Támadás'?document.getElementById('clip-attack-subtype').value:'';
+            if(clipCategory==='Támadás'&&!attackSubtype)return alert('Válaszd ki a támadás típusát.');
+            const attackPlayers=clipCategory==='Támadás'?[...document.querySelectorAll('#clip-attack-players input:checked')].map(x=>{const [side,num]=x.value.split('|');return {side,num:Number(num),name:clipMatch?.[side]?.find(p=>String(p.num)===num)?.name||''};}):[];
+            if(attackSubtype==='Egyéni'&&attackPlayers.length!==1)return alert('Válassz egy játékost.');
+            if(attackSubtype==='Páros kapcsolat'&&attackPlayers.length<2)return alert('Legalább két játékost jelölj ki.');
             const tacticalCategory=document.getElementById('clip-tactical-category').value||clipAutoTacticalCategory(clipCategory);
             const movementName=tacticalCategory==='Figurális játékok'?document.getElementById('clip-movement-name').value.trim():'';
             if(tacticalCategory==='Figurális játékok'&&!movementName)return alert('Nevezd el a figurális mozgást.');
-            clipClips.push({id:'c_'+Date.now()+'_'+Math.floor(Math.random()*10000),start:clipStart,end:clipEnd,category:clipCategory,player,analysisTeam:document.getElementById('clip-analysis-team').value,note:document.getElementById('clip-scene-note').value.trim(),tacticalCategory,movementName});
+            clipClips.push({id:'c_'+Date.now()+'_'+Math.floor(Math.random()*10000),start:clipStart,end:clipEnd,category:clipCategory,player,analysisTeam:document.getElementById('clip-analysis-team').value,note:document.getElementById('clip-scene-note').value.trim(),tacticalCategory,movementName,attackSubtype,attackPlayers});
             clipSave();clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);clipRenderList();clipStart=null;clipEnd=null;document.getElementById('clip-category-dialog').style.display='none';document.getElementById('clip-range-label').textContent='Jelenet mentve. Jelöld ki a következőt.';
         }
         let clipSelectedIds=new Set(),clipExportBusy=false,clipOriginalFile=null,clipFfmpeg=null;
@@ -7341,7 +7368,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             for(const c of visible){
                 const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px;border-bottom:1px solid var(--border-color)';
                 const select=document.createElement('input');select.type='checkbox';select.checked=clipSelectedIds.has(c.id);select.title='Exportálásra kijelölés';select.onchange=()=>{if(select.checked)clipSelectedIds.add(c.id);else clipSelectedIds.delete(c.id);document.getElementById('clip-count').textContent='('+visible.length+' / '+clipClips.length+' db, kijelölve: '+clipSelectedIds.size+')';};
-                const name=document.createElement('span');name.style.flex='1';name.textContent=formatTime(c.start)+' – '+formatTime(c.end)+' · '+(c.tacticalCategory||c.category)+(c.movementName?' / '+c.movementName:'')+(c.player?' · #'+c.player.num+' '+c.player.name:'')+(c.note?' · '+c.note.slice(0,170):'')+(c.shareUrl?' · QR ✓':'');
+                const name=document.createElement('span');name.style.flex='1';name.textContent=formatTime(c.start)+' – '+formatTime(c.end)+' · '+(c.tacticalCategory||c.category)+(c.movementName?' / '+c.movementName:'')+(c.attackSubtype?' / '+c.attackSubtype:'')+(c.attackPlayers?.length?' / '+c.attackPlayers.map(p=>'#'+p.num+' '+p.name).join(', '):'')+(c.player?' · #'+c.player.num+' '+c.player.name:'')+(c.note?' · '+c.note.slice(0,170):'')+(c.shareUrl?' · QR ✓':'');
                 const play=document.createElement('button');play.className='btn-arch-action';play.textContent='Lejátszás';play.onclick=()=>{const v=document.getElementById('clip-video');if(!v.src)return alert('Töltsd be újra a mérkőzés videóját.');v.currentTime=c.start;v.play();const stop=()=>{if(v.currentTime>=c.end){v.pause();v.removeEventListener('timeupdate',stop);}};v.addEventListener('timeupdate',stop);};
                 const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{if(c.sharedDriveId)return alert('A jelenet videólinkje még meg van osztva. Előbb a Videólink gombbal vond vissza a megosztást!');if(confirm('Törlöd ezt a jelenetet?')){clipClips=clipClips.filter(x=>x.id!==c.id);clipSelectedIds.delete(c.id);clipSave();clipRenderList();}};
                 const edit=document.createElement('button');edit.className='btn-arch-action';edit.textContent='Szerkesztés';edit.onclick=()=>clipEditScene(c.id);
