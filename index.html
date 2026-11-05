@@ -1105,7 +1105,7 @@
 <button class="btn-arch-action btn-arch-stat" onclick="clipTeamTacticalReport()">Ellenfélelemzés / QR-riport</button>
 <span id="clip-team-selection-count"></span>
 </div><p style="font-size:12px;color:var(--text-muted)">A videókat helyben és összekapcsolt Google Drive esetén a saját privát Drive-fiókodban is tárolhatod. A Drive-hoz az adott böngészőben be kell jelentkezni.</p>
-<div id="clip-team-results"></div><div id="clip-team-export-status" style="margin:10px 0;color:var(--text-muted)"></div>
+<label style="display:flex;gap:9px;align-items:center;margin:12px 0;font-size:13px"><input type="checkbox" id="clip-team-burn-captions" checked> Figurális játék és edzői megjegyzés a videóra (első 5 másodperc)</label><div id="clip-team-results"></div><div id="clip-team-export-status" style="margin:10px 0;color:var(--text-muted)"></div>
 <div id="clip-report-builder" style="display:none;margin:15px 0;padding:18px;border:1px solid var(--green-accent);border-radius:12px;background:var(--bg-card)">
   <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <h3 style="margin:0;color:var(--green-accent)"><i class="fas fa-file-pdf"></i> Ellenfélelemzés – PDF-szerkesztő</h3>
@@ -1201,7 +1201,7 @@
           <button class="btn-arch-action btn-arch-stat" onclick="clipExportMp4(true)">Kijelöltek összefűzése egy MP4-be</button>
           <button class="btn-arch-action" onclick="clipExportVideos()">WebM-export (korábbi mód)</button>
         </div>
-        <div id="clip-export-status" style="margin-top:8px;color:var(--text-muted);font-size:13px"></div>
+        <label style="display:flex;gap:9px;align-items:center;margin-top:12px;font-size:13px"><input type="checkbox" id="clip-burn-captions" checked> Figurális játék és edzői megjegyzés a videóra (első 5 másodperc)</label><div id="clip-export-status" style="margin-top:8px;color:var(--text-muted);font-size:13px"></div>
         <section id="clip-qr-panel" style="display:none;margin-top:15px;padding:16px;border:1px solid var(--green-accent);border-radius:12px;background:var(--bg-panel)">
           <h3>Jelenet videólinkje</h3>
           <p style="font-size:12px;color:var(--text-muted);margin:9px 0">A link csak az adott kivágott MP4-jelenetet nyitja meg. A link birtokában bárki megnézheti, ezért csak jóváhagyott videót ossz meg.</p>
@@ -7019,6 +7019,44 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 input.click();
             });
         }
+        function clipCaptionLines(ctx,text,maxWidth,maxLines){
+            const words=String(text||'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean),lines=[];let line='';
+            for(const word of words){
+                const candidate=line?line+' '+word:word;
+                if(ctx.measureText(candidate).width>maxWidth&&line){lines.push(line);line=word;}else line=candidate;
+            }
+            if(line)lines.push(line);
+            if(lines.length>maxLines){const kept=lines.slice(0,maxLines);kept[maxLines-1]=kept[maxLines-1].replace(/\s+$/,'')+'…';return kept;}
+            return lines;
+        }
+        async function clipMakeCaptionPng(ff,clip,prefix){
+            const title=String(clip.movementName||clip.folderName||clip.figurativeFolder||'').trim();
+            const note=String(clip.note||'').trim();
+            if(!title&&!note)return null;
+            const canvas=document.createElement('canvas');canvas.width=960;canvas.height=210;
+            const ctx=canvas.getContext('2d');
+            ctx.fillStyle='rgba(7,17,27,0.83)';ctx.beginPath();ctx.roundRect(0,0,960,210,15);ctx.fill();
+            let y=18;
+            if(title){ctx.font='bold 33px Arial, sans-serif';ctx.fillStyle='#ffffff';for(const line of clipCaptionLines(ctx,title,900,2)){ctx.fillText(line,25,y+32);y+=38;}}
+            if(note){ctx.font='25px Arial, sans-serif';ctx.fillStyle='#f1f5f9';y+=title?8:4;for(const line of clipCaptionLines(ctx,note,900,title?3:5)){ctx.fillText(line,25,y+26);y+=31;}}
+            const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Feliratkép nem készíthető')),'image/png'));
+            const filename=prefix+'_caption.png';await ff.writeFile(filename,new Uint8Array(await blob.arrayBuffer()));return filename;
+        }
+        async function clipExportPart(ff,clip,sourceName,out,prefix,captions){
+            const duration=clip.end-clip.start;
+            let png=null;
+            try{
+                if(captions)png=await clipMakeCaptionPng(ff,clip,prefix);
+                const args=['-ss',String(clip.start),'-i',sourceName];
+                if(png)args.push('-i',png);
+                args.push('-t',String(duration));
+                if(png){
+                    args.push('-filter_complex',"[0:v:0][1:v:0]overlay=x=(W-w)/2:y=H-h-24:enable='between(t,0,"+Math.min(5,duration)+")':format=auto[v]",'-map','[v]');
+                }else args.push('-map','0:v:0');
+                args.push('-map','0:a?','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-ar','44100','-movflags','+faststart',out);
+                return await ff.exec(args);
+            }finally{if(png)try{await ff.deleteFile(png);}catch(e){}}
+        }
         async function clipTeamExportMp4(){
             if(clipExportBusy)return;
             const chosen=clipTeamScenes().filter(({project,clip})=>clipTeamSelected.has(clipTeamSceneKey(project,clip)));
@@ -7063,7 +7101,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                     }
                     const out='team_part_'+i+'.mp4';
                     status.textContent='Jelenetek vágása: '+(i+1)+' / '+ordered.length+' – '+project.title;
-                    const code=await ff.exec(['-ss',String(clip.start),'-i',sourceName,'-t',String(clip.end-clip.start),'-map','0:v:0','-map','0:a?','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-ar','44100','-movflags','+faststart',out]);
+                    const code=await clipExportPart(ff,clip,sourceName,out,'team_'+i,document.getElementById('clip-team-burn-captions').checked);
                     if(code!==0)throw Error('Nem sikerült a(z) '+(i+1)+'. jelenetet feldolgozni (FFmpeg '+code+').');
                     outputs.push(out);temp.add(out);
                 }
@@ -7508,8 +7546,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 for(let i=0;i<clips.length;i++){
                     const c=clips[i],out='clip_part_'+i+'.mp4';
                     status.textContent='MP4 vágása: '+(i+1)+' / '+clips.length+' ('+formatTime(c.start)+'–'+formatTime(c.end)+')';
-                    const args=['-ss',String(c.start),'-i',sourceName,'-t',String(c.end-c.start),'-map','0:v:0','-map','0:a?','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart',out];
-                    const code=await ff.exec(args);
+                    const code=await clipExportPart(ff,c,sourceName,out,'clip_'+i,document.getElementById('clip-burn-captions').checked);
                     if(code!==0)throw Error('A(z) '+(i+1)+'. jelenet feldolgozása sikertelen (FFmpeg '+code+').');
                     outputs.push(out);
                     if(!merge){
