@@ -8068,7 +8068,9 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             return result;
         }
         async function clipReportTranslateDefinition(definition,meta,entries){
-            const translated=structuredClone(definition);
+            // pdfMake definitions include header/footer callbacks; structuredClone cannot copy functions.
+            // Copy only the serializable content; keep styling and callbacks on the original definition.
+            const translated={...definition,content:JSON.parse(JSON.stringify(definition.content)),info:{...definition.info}};
             const fields=['offense','defense-system','attack','defense','special','strengths','weaknesses','players'];
             const values=[...fields.map(k=>String(meta[k]||'').trim()).filter(Boolean),...String(meta.key||'').split(/\r?\n/).map(x=>x.trim().replace(/^\d+[.)]\s*/,'' )).filter(Boolean).slice(0,3),...entries.map(e=>String(e.clip.note||'').trim()).filter(Boolean)];
             const unique=[...new Set(values)],english=await clipReportTranslateTexts(unique);
