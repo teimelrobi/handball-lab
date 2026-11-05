@@ -7115,7 +7115,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             search.oninput=()=>{const q=search.value.toLocaleLowerCase('hu-HU');for(const c of cards)c.btn.style.display=c.name.includes(q)?'flex':'none';};
             if(clipActiveTeam&&teams.has(clipActiveTeam)){tabs.style.display='none';clipRenderTeamLibrary(true);}
             else{clipActiveTeam='';tabs.style.display='grid';document.getElementById('clip-team-library').style.display='none';}
-            const legacy=document.getElementById('clip-projects-list');if(legacy)legacy.style.display='none';
+            const legacy=document.getElementById('clip-projects-list');if(legacy)legacy.style.display='block';
         }
         function clipArchiveBack(){
             if(clipArchiveMatchId){clipArchiveMatchId='';clipRenderTeamLibrary(true);return;}
@@ -7167,7 +7167,9 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                     const name=document.createElement('strong');name.textContent=p.title||'Névtelen mérkőzés';
                     const meta=document.createElement('span');meta.textContent=count+' jelenet  ›';btn.append(name,meta);
                     btn.onclick=()=>{clipArchiveMatchId=String(p.id);clipRenderTeamLibrary(true);};
-                    box.appendChild(btn);
+                    const wrapper=document.createElement('div');wrapper.style.cssText='display:flex;gap:8px;align-items:stretch;margin:8px 0';btn.style.margin='0';btn.style.flex='1';
+                    const resume=document.createElement('button');resume.className='btn-arch-action btn-arch-stat';resume.textContent='▶ Folytatás a vágóban';resume.style.cssText='width:auto!important;flex:0 0 auto!important;padding:10px 16px;border-radius:9px';resume.onclick=()=>clipOpenProject(p);
+                    wrapper.append(btn,resume);box.appendChild(wrapper);
                 }
                 const title=document.createElement('h3');title.textContent=teamName+' kereső – összes mérkőzés';title.style.marginTop='20px';box.appendChild(title);
             }
