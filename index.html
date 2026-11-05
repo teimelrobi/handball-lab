@@ -7303,7 +7303,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const name=document.createElement('span');name.style.flex='1';name.textContent=formatTime(c.start)+' – '+formatTime(c.end)+' · '+(c.tacticalCategory||c.category)+(c.movementName?' / '+c.movementName:'')+(c.player?' · #'+c.player.num+' '+c.player.name:'')+(c.note?' · '+c.note.slice(0,170):'')+(c.shareUrl?' · QR ✓':'');
                 const play=document.createElement('button');play.className='btn-arch-action';play.textContent='Lejátszás';play.onclick=()=>{const v=document.getElementById('clip-video');if(!v.src)return alert('Töltsd be újra a mérkőzés videóját.');v.currentTime=c.start;v.play();const stop=()=>{if(v.currentTime>=c.end){v.pause();v.removeEventListener('timeupdate',stop);}};v.addEventListener('timeupdate',stop);};
                 const del=document.createElement('button');del.className='btn-arch-action';del.textContent='Törlés';del.onclick=()=>{if(c.sharedDriveId)return alert('A jelenet videólinkje még meg van osztva. Előbb a Videólink gombbal vond vissza a megosztást!');if(confirm('Törlöd ezt a jelenetet?')){clipClips=clipClips.filter(x=>x.id!==c.id);clipSelectedIds.delete(c.id);clipSave();clipRenderList();}};
-                const edit=document.createElement('button');edit.className='btn-arch-action';edit.textContent='Megjegyzés';edit.onclick=()=>clipEditScene(c.id);
+                const edit=document.createElement('button');edit.className='btn-arch-action';edit.textContent='Szerkesztés';edit.onclick=()=>clipEditScene(c.id);
                 const qr=document.createElement('button');qr.className='btn-arch-action btn-arch-stat';qr.textContent=c.shareUrl?'Videólink':'Videólink készítése';qr.onclick=()=>clipShareQr(c.id);
                 row.append(select,name,play,edit,qr,del);box.appendChild(row);
             }
@@ -7431,12 +7431,45 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         let clipQrClipId=null,clipQrImageUrl='',clipQrLibraryPromise=null,clipQrFolderId='';
         function clipEditScene(id){
             const c=clipClips.find(x=>x.id===id);if(!c)return;
-            const edited=prompt('Edzői megjegyzés:',c.note||'');if(edited===null)return;
-            c.note=edited.trim().slice(0,3000);
-            const sections=['','Figurális játékok','Fontos játékosok','Mit védekezzünk?','Mire figyeljünk támadásban?','Speciális játékok','Egyéb megjegyzések'];
-            const selected=prompt('Taktikai fejezet (0–6):\n0 – Általános\n'+sections.slice(1).map((v,i)=>(i+1)+' – '+v).join('\n'),String(Math.max(0,sections.indexOf(c.tacticalCategory||''))));
-            if(selected!==null&&/^[0-6]$/.test(selected.trim()))c.tacticalCategory=sections[Number(selected.trim())];
-            clipSave();clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);clipRenderList();
+            document.getElementById('clip-edit-overlay')?.remove();
+            const overlay=document.createElement('div');overlay.id='clip-edit-overlay';
+            overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:#000b;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto';
+            const panel=document.createElement('div');panel.style.cssText='background:var(--bg-panel);border:1px solid var(--border-color);border-radius:12px;padding:22px;width:min(560px,95vw);max-height:90vh;overflow:auto;display:grid;gap:10px';
+            const heading=document.createElement('h3');heading.textContent='Mentett videójelenet szerkesztése';panel.appendChild(heading);
+            const field=(title,value,type='text')=>{
+                const label=document.createElement('label');label.textContent=title;label.style.cssText='display:grid;gap:5px';
+                const input=document.createElement('input');input.type=type;input.value=value??'';input.style.cssText='padding:10px;border-radius:7px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-main);width:100%';
+                label.appendChild(input);panel.appendChild(label);return input;
+            };
+            const begin=field('Kezdés (másodperc)',Number(c.start).toFixed(1),'number');begin.min='0';begin.step='0.1';
+            const finish=field('Befejezés (másodperc)',Number(c.end).toFixed(1),'number');finish.min='0';finish.step='0.1';
+            const category=document.createElement('select');category.className='team-select';
+            const categories=['Támadás','Védekezés','Lerohanás','Visszarendeződés','Létszámfölény','Létszámhátrány','7:6','Játékos / Támadás','Játékos / Védekezés','Játékos / 1:1','Játékos / Lövés','Játékos / Speciális','Játékos / 7 m'];
+            if(c.category&&!categories.includes(c.category))categories.push(c.category);
+            for(const name of categories){const option=document.createElement('option');option.value=name;option.textContent=name;category.appendChild(option);}category.value=c.category;
+            const catLabel=document.createElement('label');catLabel.textContent='Jelenet kategóriája';catLabel.style.cssText='display:grid;gap:5px';catLabel.appendChild(category);panel.appendChild(catLabel);
+            const section=document.createElement('select');section.className='team-select';
+            for(const name of ['','Figurális játékok','Fontos játékosok','Mit védekezzünk?','Mire figyeljünk támadásban?','Speciális játékok','Egyéb megjegyzések','Támadás','Védekezés']){const o=document.createElement('option');o.value=name;o.textContent=name||'Általános';section.appendChild(o);}
+            if(c.tacticalCategory&&!Array.from(section.options).some(x=>x.value===c.tacticalCategory)){const o=document.createElement('option');o.value=c.tacticalCategory;o.textContent=c.tacticalCategory;section.appendChild(o);}
+            section.value=c.tacticalCategory||'';
+            const secLabel=document.createElement('label');secLabel.textContent='Taktikai fejezet';secLabel.style.cssText='display:grid;gap:5px';secLabel.appendChild(section);panel.appendChild(secLabel);
+            const movement=field('Figurális mozgás neve',c.movementName||'');movement.maxLength=100;
+            const movementLabel=movement.parentElement;section.onchange=()=>{movementLabel.style.display=section.value==='Figurális játékok'?'grid':'none';};section.onchange();
+            const noteLabel=document.createElement('label');noteLabel.textContent='Edzői megjegyzés';noteLabel.style.cssText='display:grid;gap:5px';
+            const note=document.createElement('textarea');note.value=c.note||'';note.rows=4;note.maxLength=3000;note.style.cssText='padding:10px;border:1px solid var(--border-color);border-radius:7px;background:var(--bg-card);color:var(--text-main)';noteLabel.appendChild(note);panel.appendChild(noteLabel);
+            const buttons=document.createElement('div');buttons.style.cssText='display:flex;gap:10px;flex-wrap:wrap';
+            const cancel=document.createElement('button');cancel.className='btn-arch-action';cancel.textContent='Mégse';cancel.onclick=()=>overlay.remove();
+            const save=document.createElement('button');save.className='btn-arch-action btn-arch-stat';save.textContent='Módosítások mentése';
+            save.onclick=()=>{
+                const a=Number(begin.value),b=Number(finish.value);
+                if(begin.value===''||finish.value===''||!Number.isFinite(a)||!Number.isFinite(b)||a<0||b<=a)return alert('Ellenőrizd a kezdő és záró időpontot.');
+                const video=document.getElementById('clip-video');if(Number.isFinite(video?.duration)&&b>video.duration)return alert('A záró időpont túllépi a videó hosszát.');
+                if(section.value==='Figurális játékok'&&!movement.value.trim())return alert('Add meg a mozgás nevét.');
+                if(c.sharedDriveId&&(a!==c.start||b!==c.end))return alert('A már megosztott videófájl időhatárát csak a megosztás visszavonása után módosíthatod.');
+                Object.assign(c,{start:a,end:b,category:category.value,tacticalCategory:section.value,movementName:section.value==='Figurális játékok'?movement.value.trim():'',note:note.value.trim()});
+                clipSave();clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);clipRenderList();overlay.remove();
+            };
+            buttons.append(cancel,save);panel.appendChild(buttons);overlay.appendChild(panel);document.body.appendChild(overlay);
         }
         function clipValidShareUrl(url){return /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/(?:view|preview)(?:\?.*)?$/.test(String(url||''));}
         function clipPlaybackUrl(url){
