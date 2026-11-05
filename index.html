@@ -1134,6 +1134,7 @@
     <span id="clip-report-selected-count" style="font-size:12px;color:var(--text-muted);align-self:center"></span>
   </div>
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0"><button id="clip-report-batch-btn" class="btn-arch-action btn-arch-stat" type="button" onclick="clipReportBatchShare()">Hiányzó videólinkek elkészítése</button><span id="clip-report-batch-status" style="font-size:12px;color:var(--text-muted)"></span></div><div id="clip-report-scenes" style="max-height:340px;overflow:auto;border:1px solid var(--border-color);border-radius:8px"></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px"><label for="clip-report-language">PDF nyelve:</label><select id="clip-report-language" style="padding:8px;border-radius:8px;background:var(--card-bg,#18232c);color:inherit;border:1px solid var(--border-color)"><option value="hu">Magyar</option><option value="en">Angol (DeepL)</option><option value="both">Magyar és angol (2 PDF)</option></select></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
     <button class="btn-arch-action btn-arch-stat" onclick="clipGenerateTacticalPdf('coach')"><i class="fas fa-file-pdf"></i> Részletes edzői PDF letöltése</button>
     <button class="btn-arch-action btn-arch-stat" onclick="clipGenerateTacticalPdf('player')"><i class="fas fa-file-pdf"></i> Játékos PDF letöltése</button>
@@ -8031,6 +8032,70 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 }
             };
         }
+        const clipReportEnglishLabels={
+            'HANDBALL LAB  /  MÉRKŐZÉS ELŐTTI ELLENFÉLELEMZÉS':'HANDBALL LAB / PRE-MATCH OPPONENT ANALYSIS',
+            'RÉSZLETES EDZŐI TAKTIKAI RIPORT':'DETAILED COACHING TACTICAL REPORT',
+            'JÁTÉKOSOKNAK – MÉRKŐZÉS ELŐTTI FELKÉSZÜLÉS':'PLAYER PRE-MATCH BRIEFING',
+            'ELLENFÉL · VIZSGÁLT MÉRKŐZÉSEK':'OPPONENT · MATCHES REVIEWED',
+            'A MÉRKŐZÉS 3 KULCSÜZENETE':'THREE KEY MATCH MESSAGES',
+            '01  /  ELLENFÉLPROFIL':'01 / OPPONENT PROFILE',
+            '02  /  SAJÁT TAKTIKAI TERV':'02 / OUR TACTICAL PLAN',
+            '01  /  SAJÁT TAKTIKAI TERV':'01 / OUR TACTICAL PLAN',
+            '03  /  VIDEÓS TAKTIKAI MEGFIGYELÉSEK':'03 / VIDEO TACTICAL OBSERVATIONS',
+            '02  /  VIDEÓS TAKTIKAI MEGFIGYELÉSEK':'02 / VIDEO TACTICAL OBSERVATIONS',
+            'AZ ELLENFÉL ERŐSSÉGEI':'OPPONENT STRENGTHS','AZ ELLENFÉL GYENGESÉGEI':'OPPONENT WEAKNESSES',
+            'AZ ELLENFÉL TÁMADÁSA':'OPPONENT ATTACK','AZ ELLENFÉL VÉDEKEZÉSE':'OPPONENT DEFENCE',
+            'MIT JÁTSZUNK TÁMADÁSBAN?':'OUR ATTACKING PLAN','MIT VÉDEKEZZÜNK?':'OUR DEFENSIVE PLAN',
+            'SPECIÁLIS JÁTÉKOK':'SPECIAL PLAYS','KIEMELT JÁTÉKOSOK':'KEY PLAYERS',
+            'FIGURÁLIS JÁTÉKOK':'SET PLAYS','FONTOS JÁTÉKOSOK':'KEY PLAYERS',
+            'MIRE FIGYELJÜNK TÁMADÁSBAN?':'ATTACKING FOCUS','EGYÉB MEGJEGYZÉSEK':'OTHER NOTES',
+            'JELENET':'CLIP','VIDEÓJELENET':'VIDEO CLIP','FORRÁS:':'SOURCE:',
+            '▶ VIDEÓ MEGNYITÁSA':'▶ OPEN VIDEO','Érintsd meg a lejátszáshoz':'Tap to play',
+            'NINCS MEGOSZTOTT VIDEÓ':'NO SHARED VIDEO','HANDBALL LAB  |  TAKTIKAI FELKÉSZÜLÉS':'HANDBALL LAB | TACTICAL PREPARATION',
+            'BIZALMAS CSAPATANYAG':'CONFIDENTIAL TEAM MATERIAL',
+            'A riporthoz még nem adtál meg taktikai megfigyelést.':'No tactical observations have been added to this report yet.',
+            'A kattintható videólink csak aktív, külön jóváhagyott videómegosztással működik. A hozzáférés bármikor visszavonható.':'Video links require an active, explicitly authorised share. Access can be revoked at any time.'
+        };
+        async function clipReportTranslateTexts(texts){
+            if(!texts.length)return [];
+            const result=[];
+            for(let i=0;i<texts.length;i+=40){
+                const response=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({texts:texts.slice(i,i+40)})});
+                const data=await response.json().catch(()=>({}));
+                if(!response.ok||!Array.isArray(data.translations))throw Error(data.error||'DeepL fordítás sikertelen');
+                result.push(...data.translations);
+            }
+            return result;
+        }
+        async function clipReportTranslateDefinition(definition,meta,entries){
+            const translated=structuredClone(definition);
+            const fields=['offense','defense-system','attack','defense','special','strengths','weaknesses','players'];
+            const values=[...fields.map(k=>String(meta[k]||'').trim()).filter(Boolean),...String(meta.key||'').split(/\r?\n/).map(x=>x.trim().replace(/^\d+[.)]\s*/,'' )).filter(Boolean).slice(0,3),...entries.map(e=>String(e.clip.note||'').trim()).filter(Boolean)];
+            const unique=[...new Set(values)],english=await clipReportTranslateTexts(unique);
+            const lookup=new Map(unique.map((v,i)=>[v,english[i]]));
+            const replace=(value)=>{
+                if(typeof value!=='string')return value;
+                if(clipReportEnglishLabels[value])return clipReportEnglishLabels[value];
+                if(lookup.has(value))return lookup.get(value);
+                if(value.startsWith('Forrás: '))return 'Source: '+value.slice(8);
+                if(value.startsWith('Legtöbb gól: '))return 'Top scorer: '+value.slice(14);
+                if(/^\d{2}  /.test(value)){const prefix=value.slice(0,4),name=value.slice(4);return prefix+(clipReportEnglishLabels[name]||name);}
+                return value;
+            };
+            const visit=(node)=>{
+                if(Array.isArray(node)){node.forEach(visit);return;}
+                if(!node||typeof node!=='object')return;
+                for(const key of Object.keys(node)){
+                    if(key==='text'&&typeof node[key]==='string')node[key]=replace(node[key]);
+                    else if(key!=='link'&&key!=='info'&&key!=='styles')visit(node[key]);
+                }
+            };
+            visit(translated.content);
+            translated.header=()=>({text:'HANDBALL LAB | TACTICAL PREPARATION',fontSize:7,color:'#718091',alignment:'right',margin:[0,19,38,0]});
+            translated.footer=(current,total)=>({columns:[{text:'CONFIDENTIAL TEAM MATERIAL',alignment:'left'},{text:current+' / '+total,alignment:'right'}],fontSize:7,color:'#718091',margin:[38,14,38,0]});
+            translated.info={...definition.info,title:'Opponent analysis – '+meta.opponent,subject:'Pre-match tactical preparation'};
+            return translated;
+        }
         async function clipGenerateTacticalPdf(type){
             if(clipReportBusy)return;
             const status=document.getElementById('clip-report-status');
@@ -8039,17 +8104,23 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(!meta.opponent){status.textContent='Add meg az ellenfél nevét!';return;}
             if(!entries.length&&!clipReportMatches.length&&!Object.values(meta).some(Boolean)){status.textContent='Válassz jeleneteket, vagy adj meg taktikai megjegyzéseket a riporthoz.';return;}
             if(!['coach','player'].includes(type))return;
+            const lang=document.getElementById('clip-report-language')?.value||'hu';
             clipReportBusy=true;
-            status.textContent='PDF előkészítése, kattintható videólinkek beépítése…';
+            status.textContent='PDF előkészítése…';
             try{
                 clipReportSaveMeta();
                 const pdfMake=await clipReportPdfMake();
                 const definition=clipReportTacticalDefinition(type,entries,meta);
                 const simpleName=meta.opponent.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,50)||'ellenfel';
-                const filename='handball-lab_'+simpleName+'_'+(type==='coach'?'edzoi':'jatekos')+'_ellenfelelemzes.pdf';
-                pdfMake.createPdf(definition).download(filename);
-                status.textContent='PDF letöltés elindítva: '+filename+' · '+entries.length+' jelenet, '+entries.filter(x=>clipValidShareUrl(x.clip.shareUrl)).length+' videólink.';
-            }catch(e){status.textContent='PDF generálási hiba: '+(e?.message||e);console.error('Taktikai PDF:',e);}
+                const base='handball-lab_'+simpleName+'_'+(type==='coach'?'edzoi':'jatekos');
+                if(lang==='hu'||lang==='both')pdfMake.createPdf(definition).download(base+'_HU.pdf');
+                if(lang==='en'||lang==='both'){
+                    status.textContent='Edzői megjegyzések és taktikai terv fordítása DeepL-lel…';
+                    const english=await clipReportTranslateDefinition(definition,meta,entries);
+                    pdfMake.createPdf(english).download(base+'_EN.pdf');
+                }
+                status.textContent='PDF letöltés elindítva ('+(lang==='both'?'magyar és angol':lang==='en'?'angol':'magyar')+'). '+entries.length+' jelenet.';
+            }catch(e){status.textContent='PDF / fordítási hiba: '+(e?.message||String(e));console.error('Taktikai PDF:',e);}
             finally{clipReportBusy=false;}
         }
 
