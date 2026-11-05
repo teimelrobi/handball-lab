@@ -1098,7 +1098,7 @@
     </div>
 
     <!-- 3. MKSZ IMPORT KÉPERNYŐ -->
-    <div class="screen" id="view-clip-projects" style="padding:20px;overflow-y:auto"><button class="back-btn" onclick="showScreen('view-home')">← Főmenü</button><h2 class="page-title">Videóvágó – mentett projektek</h2><button class="btn-arch-action btn-arch-stat" onclick="clipNewProject()">+ Új videóelemzés</button><div id="clip-team-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0"></div><div id="clip-team-library" style="display:none;border:1px solid var(--border-color);border-radius:10px;padding:14px;margin:12px 0"><h3 id="clip-team-heading"></h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><select id="clip-team-category" class="team-select" onchange="clipRenderTeamLibrary()"><option value="">Minden kategória</option></select><select id="clip-team-player" class="team-select" onchange="clipRenderTeamLibrary()"><option value="">Minden játékos</option></select><input id="clip-team-search" placeholder="Jelenetek keresése" oninput="clipRenderTeamLibrary()" style="padding:9px"></div><div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:12px 0">
+    <div class="screen" id="view-clip-projects" style="padding:20px;overflow-y:auto"><button class="back-btn" onclick="showScreen('view-home')">← Főmenü</button><h2 class="page-title">Videóvágó – mentett projektek</h2><button class="btn-arch-action btn-arch-stat" onclick="clipNewProject()">+ Új videóelemzés</button><div id="clip-team-tabs" style="display:grid;gap:12px;margin:16px 0"></div><div id="clip-team-library" style="display:none;border:1px solid var(--border-color);border-radius:10px;padding:14px;margin:12px 0"><h3 id="clip-team-heading"></h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><select id="clip-team-category" class="team-select" onchange="clipRenderTeamLibrary()"><option value="">Minden kategória</option></select><select id="clip-team-player" class="team-select" onchange="clipRenderTeamLibrary()"><option value="">Minden játékos</option></select><input id="clip-team-search" placeholder="Játékos, mezszám, mozgás, figura, megjegyzés..." oninput="clipRenderTeamLibrary()" style="padding:9px"></div><div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:12px 0">
 <button class="btn-arch-action" onclick="clipTeamSelectVisible(true)">Szűrt jelenetek kijelölése</button>
 <button class="btn-arch-action" onclick="clipTeamSelectVisible(false)">Kijelölés törlése</button>
 <button class="btn-arch-action btn-arch-stat" onclick="clipTeamExportMp4()">Kijelöltek összefűzése egy MP4-be</button>
@@ -7090,13 +7090,38 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(matched.length===1)return matched;
             return candidates.filter(x=>!sides||sides[x[0]]!==false);
         }
+        let clipArchiveMatchId='';
         function clipRenderTeamTabs(){
+            clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);
             const tabs=document.getElementById('clip-team-tabs');tabs.innerHTML='';
+            tabs.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px;margin:18px 0';
             const teams=new Map();
-            for(const p of clipProjectCache)for(const [,name] of clipProjectTeams(p)){const key=clipNormalizeTeam(name);if(!teams.has(key))teams.set(key,name);}
-            const all=document.createElement('button');all.className='btn-arch-action';all.textContent='Összes projekt';all.onclick=()=>{clipActiveTeam='';document.getElementById('clip-team-library').style.display='none';};tabs.appendChild(all);
-            for(const [key,name] of teams){const btn=document.createElement('button');btn.className='btn-arch-action btn-arch-stat';btn.textContent=name;btn.onclick=()=>{clipActiveTeam=key;clipRenderTeamLibrary(true);};tabs.appendChild(btn);}
-            if(clipActiveTeam&&teams.has(clipActiveTeam))clipRenderTeamLibrary(true);else document.getElementById('clip-team-library').style.display='none';
+            for(const p of clipProjectCache)for(const [,name] of clipProjectTeams(p)){
+                const key=clipNormalizeTeam(name);if(!teams.has(key))teams.set(key,{name,projects:new Map()});
+                teams.get(key).projects.set(p.id,p);
+            }
+            const heading=document.createElement('h3');heading.textContent='Csapatok · '+teams.size;heading.style.gridColumn='1/-1';tabs.appendChild(heading);
+            const search=document.createElement('input');search.placeholder='Csapat keresése...';search.style.cssText='grid-column:1/-1;padding:12px;border-radius:8px';tabs.appendChild(search);
+            const cards=[];
+            for(const [key,entry] of teams){
+                const btn=document.createElement('button');btn.className='btn-arch-action';btn.style.cssText='padding:20px;text-align:left;border-radius:12px;min-height:92px;display:flex;flex-direction:column;gap:8px';
+                const title=document.createElement('strong');title.textContent=entry.name;
+                const meta=document.createElement('span');meta.style.cssText='font-size:13px;opacity:.85';
+                const n=[...entry.projects.values()].reduce((sum,p)=>sum+(p.clips||[]).filter(c=>!c.analysisTeam||clipNormalizeTeam(c.analysisTeam)===key).length,0);
+                meta.textContent=entry.projects.size+' mérkőzés · '+n+' jelenet';btn.append(title,meta);
+                btn.onclick=()=>{clipActiveTeam=key;clipArchiveMatchId='';tabs.style.display='none';clipRenderTeamLibrary(true);};
+                tabs.appendChild(btn);cards.push({btn,name:entry.name.toLocaleLowerCase('hu-HU')});
+            }
+            search.oninput=()=>{const q=search.value.toLocaleLowerCase('hu-HU');for(const c of cards)c.btn.style.display=c.name.includes(q)?'flex':'none';};
+            if(clipActiveTeam&&teams.has(clipActiveTeam)){tabs.style.display='none';clipRenderTeamLibrary(true);}
+            else{clipActiveTeam='';tabs.style.display='grid';document.getElementById('clip-team-library').style.display='none';}
+            const legacy=document.getElementById('clip-projects-list');if(legacy)legacy.style.display='none';
+        }
+        function clipArchiveBack(){
+            if(clipArchiveMatchId){clipArchiveMatchId='';clipRenderTeamLibrary(true);return;}
+            clipActiveTeam='';clipTeamSelected.clear();
+            document.getElementById('clip-team-library').style.display='none';
+            clipRenderTeamTabs();
         }
         function clipTeamScenes(){
             const out=[];
@@ -7116,58 +7141,60 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             panel.style.display='block';
             clipProjectCache=clipMergeCurrentLocalProject(clipProjectCache);
             const scenes=clipTeamScenes(),category=document.getElementById('clip-team-category'),player=document.getElementById('clip-team-player'),search=document.getElementById('clip-team-search');
-            const catVal=reset?'':category.value,playerVal=reset?'':player.value;
-            if(reset){search.value='';clipTeamSelected.clear();}
+            if(reset){search.value='';category.value='';player.value='';clipTeamSelected.clear();}
+            const catVal=category.value,playerVal=player.value;
             category.innerHTML='<option value="">Minden kategória</option>';
-            for(const c of [...new Set(scenes.map(x=>x.clip.category))].sort()){const o=document.createElement('option');o.value=c;o.textContent=c;category.appendChild(o);}category.value=catVal;
+            for(const c of [...new Set(scenes.map(x=>x.clip.category).filter(Boolean))].sort()){const o=document.createElement('option');o.value=c;o.textContent=c;category.appendChild(o);}category.value=catVal;
             player.innerHTML='<option value="">Minden játékos</option>';
             const players=new Map();
             for(const {project,clip} of scenes)if(clip.player){const team=project.match?.[clip.player.side+'Name']||'';players.set(clipNormalizeTeam(team)+'|'+clip.player.num,{name:clip.player.name,num:clip.player.num,team});}
-            for(const [key,p] of players){const o=document.createElement('option');o.value=key;o.textContent='#'+p.num+' '+p.name;player.appendChild(o);}player.value=playerVal;
+            for(const [key,p] of players){const o=document.createElement('option');o.value=key;o.textContent='#'+p.num+' '+(p.name||'');player.appendChild(o);}player.value=playerVal;
             const teamName=clipProjectTeams(clipProjectCache.find(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===clipActiveTeam))||{}).find(([,n])=>clipNormalizeTeam(n)===clipActiveTeam)?.[1]||'Csapat';
-            document.getElementById('clip-team-heading').textContent=teamName+' · '+scenes.length+' mentett jelenet';
+            const allProjects=clipProjectCache.filter(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===clipActiveTeam));
+            const activeProject=allProjects.find(p=>String(p.id)===String(clipArchiveMatchId));
+            if(clipArchiveMatchId&&!activeProject)clipArchiveMatchId='';
+            const heading=document.getElementById('clip-team-heading');heading.textContent=(activeProject?activeProject.title:teamName)+' · '+(activeProject?scenes.filter(x=>x.project.id===activeProject.id).length:scenes.length)+' jelenet';
+            let back=document.getElementById('clip-archive-back');
+            if(!back){back=document.createElement('button');back.id='clip-archive-back';back.className='btn-arch-action';back.style.marginBottom='12px';back.onclick=clipArchiveBack;panel.insertBefore(back,heading);}
+            back.textContent=clipArchiveMatchId?'← Vissza a '+teamName+' mérkőzéseihez':'← Vissza a csapatokhoz';
+            search.placeholder=(clipArchiveMatchId?'Mérkőzés':' '+teamName)+' kereső: játékos, mezszám, mozgás, figura, megjegyzés...';
             const box=document.getElementById('clip-team-results');box.innerHTML='';
-            const query=search.value.toLocaleLowerCase('hu-HU');
+            if(!clipArchiveMatchId){
+                const label=document.createElement('h3');label.textContent='Elemzett mérkőzések ('+allProjects.length+')';box.appendChild(label);
+                for(const p of allProjects){
+                    const count=scenes.filter(x=>x.project.id===p.id).length;
+                    const btn=document.createElement('button');btn.className='btn-arch-action';btn.style.cssText='display:flex;width:100%;justify-content:space-between;align-items:center;text-align:left;padding:16px;margin:8px 0;border-radius:10px';
+                    const name=document.createElement('strong');name.textContent=p.title||'Névtelen mérkőzés';
+                    const meta=document.createElement('span');meta.textContent=count+' jelenet  ›';btn.append(name,meta);
+                    btn.onclick=()=>{clipArchiveMatchId=String(p.id);clipRenderTeamLibrary(true);};
+                    box.appendChild(btn);
+                }
+                const title=document.createElement('h3');title.textContent=teamName+' kereső – összes mérkőzés';title.style.marginTop='20px';box.appendChild(title);
+            }
+            const query=search.value.trim().toLocaleLowerCase('hu-HU');
             const filtered=scenes.filter(({project,clip})=>{
+                if(clipArchiveMatchId&&String(project.id)!==String(clipArchiveMatchId))return false;
                 const team=project.match?.[clip.player?.side+'Name']||'';
-                return (!category.value||clip.category===category.value)&&(!player.value||(clipNormalizeTeam(team)+'|'+clip.player?.num)===player.value)&&(!query||(project.title+' '+clip.category+' '+(clip.tacticalCategory||'')+' '+(clip.note||'')+' '+(clip.player?.name||'')+' '+(clip.player?.num||'')).toLocaleLowerCase('hu-HU').includes(query));
+                const searchable=[project.title,clip.category,clip.tacticalCategory,clip.movementName,clip.note,clip.player?.name,clip.player?.num,clip.attackType,clip.playType,clip.folderName,clip.figurativeFolder,JSON.stringify(clip.players||[]),JSON.stringify(clip.pairPlayers||[])].filter(Boolean).join(' ').toLocaleLowerCase('hu-HU');
+                return (!category.value||clip.category===category.value)&&(!player.value||(clipNormalizeTeam(team)+'|'+clip.player?.num)===player.value)&&(!query||searchable.includes(query));
             });
             clipTeamVisible=filtered;clipTeamUpdateCount();
-            if(!filtered.length)box.textContent='Nincs a szűrésnek megfelelő jelenet.';
+            const summary=document.createElement('p');summary.style.cssText='color:var(--text-muted);margin:12px 0';summary.textContent=filtered.length+' találat · '+(clipArchiveMatchId?'1 mérkőzés':allProjects.length+' mérkőzés')+' · kijelölés után MP4 export';box.appendChild(summary);
+            if(!filtered.length){const empty=document.createElement('p');empty.textContent='Nincs a keresésnek megfelelő jelenet.';box.appendChild(empty);}
             const groups=new Map();
-            for(const item of filtered){
-                const key=item.project.id;
-                if(!groups.has(key))groups.set(key,{project:item.project,items:[]});
-                groups.get(key).items.push(item);
-            }
-            const allMatchProjects=clipProjectCache.filter(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===clipActiveTeam));
-            const navigation=document.createElement('div');navigation.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px';
-            const addFilter=(label,fn,active=false)=>{
-                const b=document.createElement('button');b.className='btn-arch-action'+(active?' btn-arch-stat':'');b.textContent=label;b.onclick=fn;navigation.appendChild(b);
-            };
-            addFilter('Összes jelenet ('+scenes.length+')',()=>{category.value='';player.value='';search.value='';clipRenderTeamLibrary();},!category.value&&!player.value);
-            for(const name of ['Támadás','Védekezés','Lerohanás','Visszarendeződés']){
-                if(scenes.some(x=>x.clip.category===name))addFilter(name,()=>{category.value=name;player.value='';clipRenderTeamLibrary();},category.value===name);
-            }
-            for(const [key,p] of players)addFilter('#'+p.num+' '+p.name,()=>{category.value='';player.value=key;clipRenderTeamLibrary();},player.value===key);
-            box.appendChild(navigation);
-            const summary=document.createElement('p');summary.style.cssText='color:var(--text-muted);margin:6px 0 14px';
-            summary.textContent=allMatchProjects.length+' mérkőzésprojekt · '+filtered.length+' megjelenített jelenet. Kattints egy mérkőzésre a videósorok megnyitásához.';
-            box.appendChild(summary);
+            for(const item of filtered){const key=item.project.id;if(!groups.has(key))groups.set(key,{project:item.project,items:[]});groups.get(key).items.push(item);}
             for(const {project,items} of groups.values()){
-                const details=document.createElement('details');details.style.cssText='border:1px solid var(--border-color);border-radius:10px;margin:10px 0;padding:12px';
-                const title=document.createElement('summary');title.style.cssText='cursor:pointer;font-weight:bold;padding:6px';
-                title.textContent=project.title+' · '+items.length+' jelenet';
-                details.appendChild(title);
+                const section=document.createElement('div');section.style.cssText='border:1px solid var(--border-color);border-radius:10px;margin:10px 0;padding:12px';
+                const title=document.createElement('strong');title.textContent=project.title+' · '+items.length+' találat';section.appendChild(title);
                 for(const {clip} of items){
-                    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding:10px 4px';
+                    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding:12px 4px';
                     const tick=document.createElement('input');tick.type='checkbox';tick.checked=clipTeamSelected.has(clipTeamSceneKey(project,clip));tick.onchange=()=>{const key=clipTeamSceneKey(project,clip);if(tick.checked)clipTeamSelected.add(key);else clipTeamSelected.delete(key);clipTeamUpdateCount();};
-                    const info=document.createElement('span');info.style.flex='1';info.textContent=formatTime(clip.start)+'–'+formatTime(clip.end)+' · '+(clip.movementName||clip.tacticalCategory||clip.category)+(clip.player?' · #'+clip.player.num+' '+clip.player.name:'')+(clip.note?' · '+clip.note.slice(0,120):'');
+                    const info=document.createElement('span');info.style.flex='1';info.textContent=formatTime(clip.start)+'–'+formatTime(clip.end)+' · '+(clip.movementName||clip.tacticalCategory||clip.category)+(clip.player?' · #'+clip.player.num+' '+(clip.player.name||''):'')+(clip.note?' · '+clip.note:'');
                     const play=document.createElement('button');play.className='btn-arch-action btn-arch-stat';play.textContent='▶ Lejátszás';play.onclick=()=>clipTeamPlayScene(project,clip);
                     const open=document.createElement('button');open.className='btn-arch-action';open.textContent='Szerkesztés';open.onclick=()=>clipOpenProject(project);
-                    row.append(tick,info,play,open);details.appendChild(row);
+                    row.append(tick,info,play,open);section.appendChild(row);
                 }
-                box.appendChild(details);
+                box.appendChild(section);
             }
         }
         function clipTeamPlayScene(project,clip){
