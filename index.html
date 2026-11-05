@@ -7132,13 +7132,54 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             });
             clipTeamVisible=filtered;clipTeamUpdateCount();
             if(!filtered.length)box.textContent='Nincs a szűrésnek megfelelő jelenet.';
-            for(const {project,clip} of filtered){
-                const row=document.createElement('div');row.style.cssText='display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding:9px';
-                const info=document.createElement('span');info.style.flex='1';info.textContent=project.title+' · '+formatTime(clip.start)+'–'+formatTime(clip.end)+' · '+(clip.tacticalCategory||clip.category)+(clip.player?' · #'+clip.player.num+' '+clip.player.name:'')+(clip.note?' · '+clip.note.slice(0,160):'')+(clip.shareUrl?' · QR ✓':'');
-                const open=document.createElement('button');open.className='btn-arch-action';open.textContent='Projekt megnyitása';open.onclick=()=>{clipOpenProject(project);document.getElementById('clip-filter-category').value='';document.getElementById('clip-filter-search').value='';clipRenderList();};
-                const tick=document.createElement('input');tick.type='checkbox';tick.checked=clipTeamSelected.has(clipTeamSceneKey(project,clip));tick.onchange=()=>{const key=clipTeamSceneKey(project,clip);if(tick.checked)clipTeamSelected.add(key);else clipTeamSelected.delete(key);clipTeamUpdateCount();};
-                row.append(tick,info,open);box.appendChild(row);
+            const groups=new Map();
+            for(const item of filtered){
+                const key=item.project.id;
+                if(!groups.has(key))groups.set(key,{project:item.project,items:[]});
+                groups.get(key).items.push(item);
             }
+            const allMatchProjects=clipProjectCache.filter(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===clipActiveTeam));
+            const navigation=document.createElement('div');navigation.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px';
+            const addFilter=(label,fn,active=false)=>{
+                const b=document.createElement('button');b.className='btn-arch-action'+(active?' btn-arch-stat':'');b.textContent=label;b.onclick=fn;navigation.appendChild(b);
+            };
+            addFilter('Összes jelenet ('+scenes.length+')',()=>{category.value='';player.value='';search.value='';clipRenderTeamLibrary();},!category.value&&!player.value);
+            for(const name of ['Támadás','Védekezés','Lerohanás','Visszarendeződés']){
+                if(scenes.some(x=>x.clip.category===name))addFilter(name,()=>{category.value=name;player.value='';clipRenderTeamLibrary();},category.value===name);
+            }
+            for(const [key,p] of players)addFilter('#'+p.num+' '+p.name,()=>{category.value='';player.value=key;clipRenderTeamLibrary();},player.value===key);
+            box.appendChild(navigation);
+            const summary=document.createElement('p');summary.style.cssText='color:var(--text-muted);margin:6px 0 14px';
+            summary.textContent=allMatchProjects.length+' mérkőzésprojekt · '+filtered.length+' megjelenített jelenet. Kattints egy mérkőzésre a videósorok megnyitásához.';
+            box.appendChild(summary);
+            for(const {project,items} of groups.values()){
+                const details=document.createElement('details');details.style.cssText='border:1px solid var(--border-color);border-radius:10px;margin:10px 0;padding:12px';
+                const title=document.createElement('summary');title.style.cssText='cursor:pointer;font-weight:bold;padding:6px';
+                title.textContent=project.title+' · '+items.length+' jelenet';
+                details.appendChild(title);
+                for(const {clip} of items){
+                    const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding:10px 4px';
+                    const tick=document.createElement('input');tick.type='checkbox';tick.checked=clipTeamSelected.has(clipTeamSceneKey(project,clip));tick.onchange=()=>{const key=clipTeamSceneKey(project,clip);if(tick.checked)clipTeamSelected.add(key);else clipTeamSelected.delete(key);clipTeamUpdateCount();};
+                    const info=document.createElement('span');info.style.flex='1';info.textContent=formatTime(clip.start)+'–'+formatTime(clip.end)+' · '+(clip.movementName||clip.tacticalCategory||clip.category)+(clip.player?' · #'+clip.player.num+' '+clip.player.name:'')+(clip.note?' · '+clip.note.slice(0,120):'');
+                    const play=document.createElement('button');play.className='btn-arch-action btn-arch-stat';play.textContent='▶ Lejátszás';play.onclick=()=>clipTeamPlayScene(project,clip);
+                    const open=document.createElement('button');open.className='btn-arch-action';open.textContent='Szerkesztés';open.onclick=()=>clipOpenProject(project);
+                    row.append(tick,info,play,open);details.appendChild(row);
+                }
+                box.appendChild(details);
+            }
+        }
+        function clipTeamPlayScene(project,clip){
+            clipOpenProject(project);
+            const video=document.getElementById('clip-video');
+            const seek=()=>{
+                if(clipProjectId!==project.id)return;
+                video.currentTime=clip.start;
+                video.play().catch(()=>{});
+                const stop=()=>{if(clipProjectId!==project.id||video.currentTime>=clip.end){video.pause();video.removeEventListener('timeupdate',stop);}};
+                video.addEventListener('timeupdate',stop);
+            };
+            if(video.readyState>=1)seek();
+            else video.addEventListener('loadedmetadata',seek,{once:true});
         }
         function clipNewProject(){clipOpenProject({id:crypto.randomUUID(),title:'Új videóelemzés',match:null,clips:[],videoName:''});clipSave();}
         function clipOpenProject(p){
