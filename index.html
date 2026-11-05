@@ -1173,7 +1173,7 @@
             <div id="clip-player-categories" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
           </div>
           <div id="clip-attack-subtype-box" style="display:none;margin:12px 0"><label>Támadás típusa</label><select id="clip-attack-subtype" class="team-select" onchange="clipUpdateAttackSubtype()"><option value="">Válassz típust</option><option>Figurális játék</option><option>Egyéni</option><option>Páros kapcsolat</option></select></div>
-          <div id="clip-figure-buttons" style="display:none;margin:12px 0"><label>Figurális játékok – válassz egy mappát</label><div id="clip-figure-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin:10px 0"></div><button type="button" class="btn-arch-action" onclick="clipAddFigureFolder()" style="width:auto;padding:9px 14px">+ Új figurális játék</button></div><div id="clip-attack-players-box" style="display:none;margin:10px 0"><label id="clip-attack-players-label">Játékosok</label><div id="clip-attack-players" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div></div>
+          <div id="clip-figure-buttons" style="display:none;margin:12px 0"><label>Figurális játékok – válassz egy mappát</label><div id="clip-figure-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin:10px 0"></div><button type="button" class="btn-arch-action" onclick="clipAddFigureFolder()" style="width:auto;padding:9px 14px">+ Új figurális játék</button></div><div id="clip-attack-players-box" style="display:none;margin:10px 0"><label id="clip-attack-players-label">Játékosok</label><div id="clip-attack-team-buttons" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"></div><div id="clip-attack-players" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div></div>
           <div id="clip-selected-category" style="margin:10px 0;color:var(--green-accent)"></div>
           <div style="display:grid;gap:10px;margin:12px 0">
             <label for="clip-analysis-team" style="font-size:13px">Melyik csapat ellenfélelemzésébe kerüljön?</label>
@@ -7321,25 +7321,43 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             clipMovementToggle();
             document.getElementById('clip-selected-category').textContent=clipCategory||'Válassz játékost és alkategóriát.';
         }
+        let clipAttackSelectedSide='home';
+        function clipSelectAttackSide(side){
+            clipAttackSelectedSide=side;
+            clipRenderAttackPlayers();
+        }
+        function clipRenderAttackPlayers(){
+            const subtype=document.getElementById('clip-attack-subtype').value;
+            const host=document.getElementById('clip-attack-players'),buttons=document.getElementById('clip-attack-team-buttons');
+            const chosen=[...host.querySelectorAll('input:checked')].map(x=>x.value);
+            host.replaceChildren();buttons.replaceChildren();
+            for(const side of ['home','away']){
+                const name=clipMatch?.[side+'Name']||(side==='home'?'Hazai csapat':'Vendég csapat');
+                const btn=document.createElement('button');btn.type='button';btn.className='btn-arch-action'+(clipAttackSelectedSide===side?' btn-arch-stat':'');
+                btn.style.cssText='width:auto!important;flex:0 0 auto!important;padding:10px 15px;border-radius:9px';
+                btn.textContent=name;btn.onclick=()=>clipSelectAttackSide(side);buttons.appendChild(btn);
+            }
+            const roster=clipMatch?.[clipAttackSelectedSide]||[];
+            if(!roster.length){const msg=document.createElement('span');msg.style.opacity='.75';msg.textContent='Ehhez a csapathoz nincs betöltött játékoskeret. Játékos nélkül is menthetsz.';host.appendChild(msg);}
+            for(const p of roster){
+                const label=document.createElement('label');label.style.cssText='display:flex;gap:5px;align-items:center;padding:7px;border:1px solid var(--border-color);border-radius:7px';
+                const check=document.createElement('input');check.type='checkbox';check.value=clipAttackSelectedSide+'|'+p.num;check.name='clip-attack-member';check.checked=chosen.includes(check.value);
+                if(subtype!=='Páros kapcsolat')check.onchange=()=>{if(check.checked)host.querySelectorAll('input').forEach(x=>{if(x!==check)x.checked=false;});};
+                label.append(check,document.createTextNode('#'+p.num+' '+(p.name||'')));host.appendChild(label);
+            }
+        }
         function clipUpdateAttackSubtype(){
             const subtype=document.getElementById('clip-attack-subtype').value;
-            const box=document.getElementById('clip-attack-players-box'),host=document.getElementById('clip-attack-players');
+            const box=document.getElementById('clip-attack-players-box');
             box.style.display=['Figurális játék','Egyéni','Páros kapcsolat'].includes(subtype)?'block':'none';
             document.getElementById('clip-figure-buttons').style.display=subtype==='Figurális játék'?'block':'none';
             if(subtype==='Figurális játék')clipRenderFigureFolders();
-            document.getElementById('clip-attack-players-label').textContent=subtype==='Páros kapcsolat'?'Jelölj legalább két játékost':'Játékos kiválasztása (opcionális)';
-            host.replaceChildren();
-            for(const opt of document.getElementById('clip-player-select').options){
-                if(!opt.value)continue;
-                const label=document.createElement('label');label.style.cssText='display:flex;gap:5px;align-items:center;padding:7px;border:1px solid var(--border-color);border-radius:7px';
-                const check=document.createElement('input');check.type='checkbox';check.value=opt.value;check.name='clip-attack-member';
-                if(subtype==='Egyéni'||subtype==='Figurális játék')check.onchange=()=>{if(check.checked)host.querySelectorAll('input').forEach(x=>{if(x!==check)x.checked=false;});};
-                label.append(check,document.createTextNode(opt.textContent));host.appendChild(label);
-            }
+            document.getElementById('clip-attack-players-label').textContent=subtype==='Páros kapcsolat'?'Játékosok kiválasztása (opcionális)':'Játékos kiválasztása (opcionális)';
+            clipRenderAttackPlayers();
             document.getElementById('clip-tactical-category').value=subtype==='Figurális játék'?'Figurális játékok':'Támadás';
             clipMovementToggle();
         }
-        const CLIP_FIGURE_FOLDERS_KEY='handball-lab-figure-folders-v1';
+                const CLIP_FIGURE_FOLDERS_KEY='handball-lab-figure-folders-v1';
         function clipFigureFolders(){
             let saved=[];try{saved=JSON.parse(localStorage.getItem(CLIP_FIGURE_FOLDERS_KEY)||'[]');}catch(e){}
             const existing=[...clipClips,...clipLocalProjects().flatMap(p=>p.clips||[])].filter(c=>c.movementName).map(c=>c.movementName);
