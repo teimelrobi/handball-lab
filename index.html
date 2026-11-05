@@ -7033,16 +7033,24 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const title=String(clip.movementName||clip.folderName||clip.figurativeFolder||'').trim();
             const note=String(clip.note||'').trim();
             if(!title&&!note)return null;
-            const canvas=document.createElement('canvas');canvas.width=960;canvas.height=210;
-            const ctx=canvas.getContext('2d');
-            ctx.fillStyle='rgba(7,17,27,0.83)';ctx.beginPath();ctx.roundRect(0,0,960,210,15);ctx.fill();
-            let y=18;
-            if(title){ctx.font='bold 33px Arial, sans-serif';ctx.fillStyle='#ffffff';for(const line of clipCaptionLines(ctx,title,900,2)){ctx.fillText(line,25,y+32);y+=38;}}
-            if(note){ctx.font='25px Arial, sans-serif';ctx.fillStyle='#f1f5f9';y+=title?8:4;for(const line of clipCaptionLines(ctx,note,900,title?3:5)){ctx.fillText(line,25,y+26);y+=31;}}
+            const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+            const maxWidth=900,padX=25,padY=18;
+            ctx.font='bold 33px Arial, sans-serif';
+            const titleLines=title?clipCaptionLines(ctx,title,maxWidth,2):[];
+            ctx.font='25px Arial, sans-serif';
+            const noteLines=note?clipCaptionLines(ctx,note,maxWidth,title?3:5):[];
+            const titleHeight=titleLines.length*38,noteHeight=noteLines.length*31;
+            const gap=titleLines.length&&noteLines.length?8:0;
+            canvas.width=960;canvas.height=Math.max(52,padY*2+titleHeight+gap+noteHeight);
+            const draw=canvas.getContext('2d');
+            draw.fillStyle='rgba(7,17,27,0.83)';draw.beginPath();draw.roundRect(0,0,canvas.width,canvas.height,15);draw.fill();
+            let y=padY;
+            if(titleLines.length){draw.font='bold 33px Arial, sans-serif';draw.fillStyle='#ffffff';for(const line of titleLines){draw.fillText(line,padX,y+32);y+=38;}}
+            if(noteLines.length){y+=gap;draw.font='25px Arial, sans-serif';draw.fillStyle='#f1f5f9';for(const line of noteLines){draw.fillText(line,padX,y+26);y+=31;}}
             const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(Error('Feliratkép nem készíthető')),'image/png'));
             const filename=prefix+'_caption.png';await ff.writeFile(filename,new Uint8Array(await blob.arrayBuffer()));return filename;
         }
-        async function clipExportPart(ff,clip,sourceName,out,prefix,captions){
+                async function clipExportPart(ff,clip,sourceName,out,prefix,captions){
             const duration=clip.end-clip.start;
             let png=null;
             try{
