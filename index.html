@@ -1157,7 +1157,7 @@
           <label><input type="checkbox" id="clip-away" checked onchange="clipRenderPlayers();clipSave()"> Vendégcsapat</label>
         </div>
         <h3>2. Videó és jelenetek</h3>
-        <input type="file" accept="video/*" onchange="clipLoadVideo(event)"> <button type="button" class="btn-arch-action" onclick="clipOpenDriveVideoPicker()">Videó kiválasztása Google Drive-ból</button><div id="clip-drive-picker" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"><input id="clip-drive-search" placeholder="Videó keresése a Drive-ban..." oninput="clipRenderDriveVideos()" style="width:100%;padding:9px;margin-bottom:9px"><div id="clip-drive-picker-list" style="max-height:300px;overflow:auto"></div></div>
+        <input type="file" accept="video/*" onchange="clipLoadVideo(event)"> <button type="button" class="btn-arch-action" onclick="clipOpenDriveVideoPicker()">Videó kiválasztása Google Drive-ból</button> <button type="button" class="btn-arch-action" onclick="clipDriveMigrationPreview()">Drive-mappák rendezése</button><div id="clip-drive-migration" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"></div><div id="clip-drive-picker" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"><input id="clip-drive-search" placeholder="Videó keresése a Drive-ban..." oninput="clipRenderDriveVideos()" style="width:100%;padding:9px;margin-bottom:9px"><div id="clip-drive-picker-list" style="max-height:300px;overflow:auto"></div></div>
         <video id="clip-video" controls playsinline style="display:block;width:100%;max-height:56vh;background:#000;margin:12px 0;border-radius:10px;"></video>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
           <button class="btn-arch-action" onclick="clipStep(-2)">◀ −2 mp</button>
@@ -6868,8 +6868,75 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         // Google Drive videótár: a meglévő Drive-fiók drive.file jogosultságával.
         const CLIP_DRIVE_FOLDER='Handball Lab Videos';
         let clipDriveFolderId='',clipDriveUploading=new Set();
+        const CLIP_DRIVE_ROOT='KéziStat';
+        const CLIP_DRIVE_SECTIONS=['01_Mérkőzésvideók','02_Videóelemzések','03_Ellenfélelemzések','04_Exportált videók','05_Biztonsági mentések'];
+        let clipMigrationItems=[],clipMigrationFolders={};
+        async function clipDriveList(query,fields='nextPageToken,files(id,name,mimeType,parents,appProperties,size)'){
+            const files=[];let token='';
+            do{
+                const u='https://www.googleapis.com/drive/v3/files?fields='+encodeURIComponent(fields)+'&pageSize=100&q='+encodeURIComponent(query)+'&spaces=drive'+(token?'&pageToken='+encodeURIComponent(token):'');
+                const r=await driveFetch(u);files.push(...(r.files||[]));token=r.nextPageToken||'';
+            }while(token&&files.length<3000);
+            return files;
+        }
+        async function clipEnsureNamedFolder(name,parentId){
+            const q="name='"+driveEscapeQueryValue(name)+"' and mimeType='application/vnd.google-apps.folder' and trashed=false"+(parentId?" and '"+driveEscapeQueryValue(parentId)+"' in parents":'');
+            const found=await clipDriveList(q);
+            if(found.length)return found[0].id;
+            const body={name,mimeType:'application/vnd.google-apps.folder'};
+            if(parentId)body.parents=[parentId];
+            const created=await driveFetch('https://www.googleapis.com/drive/v3/files?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            return created.id;
+        }
+        async function clipDriveStructure(){
+            const root=await clipEnsureNamedFolder(CLIP_DRIVE_ROOT);
+            const sections={root};
+            for(const name of CLIP_DRIVE_SECTIONS)sections[name]=await clipEnsureNamedFolder(name,root);
+            return sections;
+        }
+        async function clipDriveMigrationPreview(){
+            const panel=document.getElementById('clip-drive-migration');panel.style.display='block';panel.textContent='Régi Drive-mappák felmérése…';
+            try{
+                if(!isDriveAuthorized()&&!await clipEnsureDriveAccess())await requestDriveAccessToken();
+                const q="mimeType='application/vnd.google-apps.folder' and trashed=false";
+                const folders=await clipDriveList(q);
+                const legacy=folders.filter(f=>/handball[ _-]?lab|handball lab videos|handball lab backups/i.test(f.name)&&f.name!==CLIP_DRIVE_ROOT);
+                const items=[];
+                for(const folder of legacy){
+                    const children=await clipDriveList("'"+driveEscapeQueryValue(folder.id)+"' in parents and trashed=false");
+                    for(const child of children)items.push({...child,source:folder.name,sourceId:folder.id});
+                }
+                clipMigrationItems=items;clipMigrationFolders={};
+                panel.replaceChildren();
+                const h=document.createElement('div');h.textContent='Talált régi mappák: '+legacy.length+' · Közvetlen fájlok/almappák: '+items.length;panel.appendChild(h);
+                const note=document.createElement('p');note.textContent='Előnézet: a fájlok nem törlődnek. A videók a mérkőzésvideók közé, a JSON mentések a biztonsági mentések közé, az egyéb fájlok a videóelemzések közé kerülnek. Az almappák egyben maradnak. A Drive által nem engedélyezett áthelyezéseket kihagyjuk.';panel.appendChild(note);
+                for(const folder of legacy){const p=document.createElement('div');p.textContent='📁 '+folder.name+' — '+items.filter(i=>i.sourceId===folder.id).length+' elem';panel.appendChild(p);}
+                if(items.length){const b=document.createElement('button');b.className='btn-arch-action';b.textContent='Áthelyezés indítása (törlés nélkül)';b.onclick=clipDriveMigrationRun;panel.appendChild(b);}
+                else {const p=document.createElement('p');p.textContent='Nem találtam áthelyezhető elemet. A korábbi mappákhoz további Drive-engedély lehet szükséges.';panel.appendChild(p);}
+            }catch(e){panel.textContent='Felmérési hiba: '+e.message;}
+        }
+        async function clipDriveMigrationRun(){
+            const panel=document.getElementById('clip-drive-migration');
+            if(!confirm('A felsorolt elemeket áthelyezzük a KéziStat főmappába. Nem törlünk fájlokat. Folytatod?'))return;
+            panel.textContent='KéziStat mappastruktúra létrehozása…';
+            try{
+                const folders=await clipDriveStructure();let moved=0;const errors=[];
+                for(const item of clipMigrationItems){
+                    const section=item.mimeType==='application/vnd.google-apps.folder'?'02_Videóelemzések':item.mimeType?.startsWith('video/')||/\.(mp4|mov|mkv|avi|webm)$/i.test(item.name)?'01_Mérkőzésvideók':/\.(json|zip)$/i.test(item.name)?'05_Biztonsági mentések':'02_Videóelemzések';
+                    try{
+                        const target=folders[section];
+                        await driveFetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(item.id)+'?addParents='+encodeURIComponent(target)+'&removeParents='+encodeURIComponent(item.sourceId)+'&fields=id,parents',{method:'PATCH'});
+                        moved++;
+                    }catch(e){errors.push(item.name+': '+e.message);}
+                    panel.textContent='Áthelyezés: '+moved+'/'+clipMigrationItems.length+' · kihagyva: '+errors.length;
+                }
+                clipDriveFolderId=folders['01_Mérkőzésvideók'];
+                panel.textContent='Kész. Áthelyezve: '+moved+'; kihagyva: '+errors.length+'. A régi mappákat nem töröltük.'+(errors.length?' Hibák: '+errors.slice(0,8).join(' | '):'');
+            }catch(e){panel.textContent='Migráció megszakadt: '+e.message+' (a már áthelyezett fájlok megmaradtak).';}
+        }
         async function clipDriveFolder(){
             if(clipDriveFolderId)return clipDriveFolderId;
+            const structured=await clipDriveStructure();clipDriveFolderId=structured['01_Mérkőzésvideók'];return clipDriveFolderId;
             const q="name='"+driveEscapeQueryValue(CLIP_DRIVE_FOLDER)+"' and mimeType='application/vnd.google-apps.folder' and trashed=false";
             const result=await driveFetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&fields=files(id,name)&spaces=drive');
             let id=result?.files?.[0]?.id;
