@@ -6970,30 +6970,43 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 if(status)status.textContent='Google Drive-ra mentve: '+file.name;
             }finally{clipDriveUploading.delete(projectId);}
         }
-        let clipDriveVideoList=[];
+        let clipDriveVideoList=[],clipDriveCurrentFolder='',clipDriveFolderTrail=[];
         async function clipOpenDriveVideoPicker(){
             const panel=document.getElementById('clip-drive-picker'),host=document.getElementById('clip-drive-picker-list');
-            panel.style.display='block';host.textContent='Google Drive-videók betöltése…';
+            panel.style.display='block';host.textContent='KéziStat mappa megnyitása…';
             try{
                 if(!isDriveAuthorized()&&!await clipEnsureDriveAccess())await requestDriveAccessToken();
-                const files=[];let pageToken='';
-                for(let page=0;page<8;page++){
-                    const q="trashed=false and (mimeType contains 'video/' or name contains '.mp4' or name contains '.MP4')";
-                    const url='https://www.googleapis.com/drive/v3/files?fields='+encodeURIComponent('nextPageToken,files(id,name,mimeType,size,modifiedTime)')+'&page_size=100&pageSize=100&q='+encodeURIComponent(q)+'&orderBy=modifiedTime desc'+(pageToken?'&pageToken='+encodeURIComponent(pageToken):'');
-                    const data=await driveFetch(url);files.push(...(data.files||[]));pageToken=data.nextPageToken||'';if(!pageToken)break;
-                }
-                clipDriveVideoList=files;clipRenderDriveVideos();
-            }catch(e){host.textContent='Drive-videók nem érhetők el: '+e.message;}
+                const root=await clipEnsureNamedFolder(CLIP_DRIVE_ROOT);
+                clipDriveFolderTrail=[{id:root,name:CLIP_DRIVE_ROOT}];
+                await clipDriveBrowseFolder(root);
+            }catch(e){host.textContent='Drive-mappa nem érhető el: '+e.message;}
+        }
+        async function clipDriveBrowseFolder(folderId){
+            const host=document.getElementById('clip-drive-picker-list');host.textContent='Mappa betöltése…';
+            try{
+                const q="'"+driveEscapeQueryValue(folderId)+"' in parents and trashed=false";
+                clipDriveVideoList=(await clipDriveList(q,'nextPageToken,files(id,name,mimeType,size,parents)')).filter(f=>f.mimeType==='application/vnd.google-apps.folder'||f.mimeType?.startsWith('video/')||/\.(mp4|mov|mkv|avi|webm|m4v)$/i.test(f.name));
+                clipDriveVideoList.sort((a,b)=>(b.mimeType==='application/vnd.google-apps.folder')-(a.mimeType==='application/vnd.google-apps.folder')||a.name.localeCompare(b.name,'hu'));
+                clipDriveCurrentFolder=folderId;clipRenderDriveVideos();
+            }catch(e){host.textContent='Mappaolvasási hiba: '+e.message;}
         }
         function clipRenderDriveVideos(){
             const host=document.getElementById('clip-drive-picker-list'),term=(document.getElementById('clip-drive-search').value||'').toLocaleLowerCase('hu-HU');
             host.replaceChildren();
+            const nav=document.createElement('div');nav.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px';
+            clipDriveFolderTrail.forEach((folder,i)=>{
+                const b=document.createElement('button');b.type='button';b.className='btn-arch-action';b.textContent=(i?'› ':'')+folder.name;
+                b.onclick=()=>{clipDriveFolderTrail=clipDriveFolderTrail.slice(0,i+1);clipDriveBrowseFolder(folder.id);};nav.appendChild(b);
+            });host.appendChild(nav);
+            if(clipDriveFolderTrail.length>1){const back=document.createElement('button');back.type='button';back.className='btn-arch-action';back.textContent='← Vissza';back.onclick=()=>{clipDriveFolderTrail.pop();clipDriveBrowseFolder(clipDriveFolderTrail.at(-1).id);};host.appendChild(back);}
             const list=clipDriveVideoList.filter(f=>f.name.toLocaleLowerCase('hu-HU').includes(term));
-            if(!list.length){host.textContent='Nincs találat. Ellenőrizd, hogy a megfelelő Google-fiókkal jelentkeztél-e be.';return;}
+            if(!list.length){const p=document.createElement('p');p.textContent=term?'Nincs találat ebben a mappában.':'Ebben a mappában nincs további videó vagy almappa.';host.appendChild(p);return;}
             for(const file of list){
+                const folder=file.mimeType==='application/vnd.google-apps.folder';
                 const btn=document.createElement('button');btn.type='button';btn.className='btn-arch-action';btn.style.cssText='display:block;width:100%;text-align:left;margin:5px 0;white-space:normal';
-                btn.textContent='▶ '+file.name+(file.size?' ('+Math.round(Number(file.size)/1048576)+' MB)':'');
-                btn.onclick=()=>clipImportDriveVideo(file);host.appendChild(btn);
+                btn.textContent=(folder?'📁 ':'▶ ')+file.name+(!folder&&file.size?' ('+Math.round(Number(file.size)/1048576)+' MB)':'');
+                btn.onclick=()=>{if(folder){clipDriveFolderTrail.push({id:file.id,name:file.name});document.getElementById('clip-drive-search').value='';clipDriveBrowseFolder(file.id);}else clipImportDriveVideo(file);};
+                host.appendChild(btn);
             }
         }
         async function clipDownloadDriveFileById(fileId,name,status){
