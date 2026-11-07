@@ -7485,7 +7485,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const btn=document.createElement('button');btn.type='button';btn.className='btn-arch-action'+(select.value===value?' btn-arch-stat':'');
                 btn.style.cssText='min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:7px;white-space:normal';
                 const num=document.createElement('strong');num.style.fontSize='20px';num.textContent='#'+p.num;
-                const name=document.createElement('span');name.style.fontSize='11px';name.textContent=p.name||'';
+                const name=document.createElement('span');name.style.fontSize='11px';name.textContent=(p.name||'').trim().split(/\s+/)[0]||'';
                 btn.append(num,name);
                 btn.onclick=()=>{select.value=value;clipRenderPlayers();document.getElementById('clip-selected-category').textContent=clipCategory||('#'+p.num+' '+(p.name||'')+' – válassz Lövés / Csel / Átadás kategóriát');};
                 grid.appendChild(btn);
