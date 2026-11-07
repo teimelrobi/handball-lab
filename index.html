@@ -1157,7 +1157,7 @@
           <label><input type="checkbox" id="clip-away" checked onchange="clipRenderPlayers();clipSave()"> Vendégcsapat</label>
         </div>
         <h3>2. Videó és jelenetek</h3><label>Korosztály: <select id="clip-age-group" onchange="clipSave()" style="padding:8px"><option>U16</option><option selected>U18</option><option>Felnőtt</option></select></label>
-        <input type="file" accept="video/*" onchange="clipLoadVideo(event)"> <button type="button" class="btn-arch-action" onclick="clipOpenDriveVideoPicker()">Videó kiválasztása Google Drive-ból</button> <button type="button" class="btn-arch-action" onclick="clipDriveMigrationPreview()">Drive-mappák rendezése</button><div id="clip-drive-migration" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"></div><div id="clip-drive-picker" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"><input id="clip-drive-search" placeholder="Videó keresése a Drive-ban..." oninput="clipRenderDriveVideos()" style="width:100%;padding:9px;margin-bottom:9px"><div id="clip-drive-picker-list" style="max-height:300px;overflow:auto"></div></div>
+        <input type="file" accept="video/*" onchange="clipLoadVideo(event)"> <button type="button" class="btn-arch-action" onclick="clipOpenDriveVideoPicker()">Videó kiválasztása Google Drive-ból</button> <button type="button" class="btn-arch-action" onclick="clipDriveMigrationPreview()">Drive-mappák rendezése</button><div id="clip-drive-migration" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"></div><div id="clip-drive-picker" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"><input id="clip-drive-search" placeholder="Videó keresése a Drive-ban..." oninput="clipRenderDriveVideos()" style="width:100%;padding:9px;margin-bottom:9px"><div id="clip-drive-picker-status" role="status" aria-live="polite" style="margin:6px 0;font-weight:600"></div><div id="clip-drive-picker-list" style="max-height:300px;overflow:auto"></div></div>
         <video id="clip-video" controls playsinline style="display:block;width:100%;max-height:56vh;background:#000;margin:12px 0;border-radius:10px;"></video>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
           <button class="btn-arch-action" onclick="clipStep(-2)">◀ −2 mp</button>
@@ -6993,7 +6993,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             try{await clipUploadExportToDrive(blob,filename,document.getElementById('clip-project-title')?.value,clipCurrentAgeGroup(),status);}
             catch(e){if(status)status.textContent='Helyi letöltés kész, Drive-mentési hiba: '+e.message;}
         }
-        let clipDriveVideoList=[],clipDriveCurrentFolder='',clipDriveFolderTrail=[];
+        let clipDriveVideoList=[],clipDriveCurrentFolder='',clipDriveFolderTrail=[],clipDriveImportBusy=false;
         async function clipOpenDriveVideoPicker(){
             const panel=document.getElementById('clip-drive-picker'),host=document.getElementById('clip-drive-picker-list');
             panel.style.display='block';host.textContent='KéziStat mappa megnyitása…';
@@ -7034,14 +7034,29 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         }
         async function clipDownloadDriveFileById(fileId,name,status){
             if(!isDriveAuthorized()&&!await clipEnsureDriveAccess())throw Error('Google Drive engedély szükséges.');
+            const report=message=>{if(status)status.textContent=message;const picker=document.getElementById('clip-drive-picker-status');if(picker)picker.textContent=message;};
+            report('Kapcsolódás a Drive-videóhoz: '+name);
             const res=await fetch('https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(fileId)+'?alt=media',{headers:{Authorization:'Bearer '+driveAccessToken}});
-            if(!res.ok)throw Error('Drive videóletöltés sikertelen ('+res.status+').');
-            const blob=await res.blob();return new File([blob],name||'drive-video.mp4',{type:blob.type||'video/mp4'});
+            if(!res.ok){let detail='';try{detail=(await res.json())?.error?.message||'';}catch(e){}throw Error('Drive videóletöltés sikertelen ('+res.status+'): '+detail);}
+            const total=Number(res.headers.get('content-length'))||0;
+            if(!res.body){report('Videó letöltése…');const blob=await res.blob();return new File([blob],name||'drive-video.mp4',{type:blob.type||'video/mp4'});}
+            const reader=res.body.getReader(),chunks=[];let received=0,lastUpdate=0;
+            while(true){
+                const {done,value}=await reader.read();if(done)break;
+                chunks.push(value);received+=value.byteLength;
+                if(Date.now()-lastUpdate>350){report('Videó letöltése: '+(total?Math.round(received/total*100)+'%':' '+Math.round(received/1048576)+' MB')+' – '+name);lastUpdate=Date.now();}
+            }
+            report('Videó előkészítése a lejátszáshoz…');
+            const blob=new Blob(chunks,{type:res.headers.get('content-type')||'video/mp4'});
+            return new File([blob],name||'drive-video.mp4',{type:blob.type||'video/mp4'});
         }
         async function clipImportDriveVideo(remote){
-            const projectId=clipProjectId,status=document.getElementById('clip-save-status');
-            if(!projectId)return alert('Előbb nyiss meg vagy hozz létre egy videóelemzési projektet.');
-            status.textContent='Drive-videó betöltése: '+remote.name;
+            const projectId=clipProjectId,status=document.getElementById('clip-save-status'),pickerStatus=document.getElementById('clip-drive-picker-status');
+            if(!projectId){if(pickerStatus)pickerStatus.textContent='Előbb nyiss meg vagy hozz létre egy projektet.';return;}
+            if(clipDriveImportBusy)return;
+            clipDriveImportBusy=true;
+            if(pickerStatus)pickerStatus.textContent='Betöltés indítása: '+remote.name;
+            if(status)status.textContent='Drive-videó betöltése: '+remote.name;
             try{
                 const file=await clipDownloadDriveFileById(remote.id,remote.name,status);
                 if(projectId!==clipProjectId)return;
@@ -7050,7 +7065,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 document.getElementById('clip-drive-picker').style.display='none';
                 status.textContent='Drive-videó betöltve: '+remote.name+' · helyi gyorsítótár készítése…';
                 try{await clipStoreVideo(projectId,file);status.textContent='Drive-videó betöltve és helyben gyorsítótárazva.';}catch(e){status.textContent='Drive-videó betöltve (helyi gyorsítótár nem elérhető).';}
-            }catch(e){status.textContent='Drive-importálási hiba: '+e.message;}
+            }catch(e){if(status)status.textContent='Drive-importálási hiba: '+e.message;if(pickerStatus)pickerStatus.textContent='Drive-importálási hiba: '+e.message;console.error('Drive import',e);}finally{clipDriveImportBusy=false;}
         }
         async function clipDriveDownload(projectId,status){
             if(!isDriveAuthorized())return null;
