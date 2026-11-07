@@ -1170,7 +1170,7 @@
           <h3>3. Milyen kategóriába kerüljön a jelenet?</h3>
           <div id="clip-categories" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
           <div id="clip-player-chooser" style="display:none;margin-top:12px;">
-            <label>Játékos</label><select id="clip-player-select" class="team-select" style="max-width:350px;"></select>
+            <label>Játékos – kattints a mezszámra</label><div id="clip-player-team-tabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"></div><div id="clip-player-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin:8px 0"></div><select id="clip-player-select" class="team-select" style="display:none"></select>
             <div id="clip-player-categories" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;"></div>
           </div>
           <div id="clip-attack-subtype-box" style="display:none;margin:12px 0"><label>Támadás típusa</label><select id="clip-attack-subtype" class="team-select" onchange="clipUpdateAttackSubtype()"><option value="">Válassz típust</option><option>Figurális játék</option><option>Egyéni</option><option>Páros kapcsolat</option></select></div>
@@ -7462,15 +7462,35 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 status.textContent=parsed.homeName+' – '+parsed.awayName+' · '+parsed.home.length+' + '+parsed.away.length+' játékos';
             }catch(e){status.textContent='Importálási hiba: '+e.message;}
         }
+        let clipPlayerActiveSide='home';
         function clipRenderPlayers(){
-            const select=document.getElementById('clip-player-select');if(!select)return;
-            const sides=[['home','clip-home'],['away','clip-away']];
-            const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;'}[c]));
-            select.innerHTML='<option value="">Válassz játékost</option>';
-            select.onchange=()=>{if(select.value)document.getElementById('clip-player-categories').style.display='flex';};
-            for(const [side,checkbox] of sides)if(document.getElementById(checkbox)?.checked)for(const p of clipMatch?.[side]||[]){
-                const opt=document.createElement('option');opt.value=side+'|'+p.num;opt.textContent=(side==='home'?clipMatch.homeName:clipMatch.awayName)+' · #'+p.num+' '+p.name;select.appendChild(opt);
+            const select=document.getElementById('clip-player-select'),tabs=document.getElementById('clip-player-team-tabs'),grid=document.getElementById('clip-player-grid');
+            if(!select||!tabs||!grid)return;
+            const previous=select.value;
+            select.replaceChildren();const empty=document.createElement('option');empty.value='';empty.textContent='Válassz játékost';select.appendChild(empty);
+            const sides=['home','away'].filter(side=>document.getElementById('clip-'+side)?.checked);
+            for(const side of sides)for(const p of clipMatch?.[side]||[]){
+                const opt=document.createElement('option');opt.value=side+'|'+p.num;opt.textContent='#'+p.num+' '+(p.name||'');select.appendChild(opt);
             }
+            if([...select.options].some(o=>o.value===previous))select.value=previous;
+            if(!sides.includes(clipPlayerActiveSide))clipPlayerActiveSide=sides[0]||'home';
+            tabs.replaceChildren();grid.replaceChildren();
+            for(const side of sides){
+                const btn=document.createElement('button');btn.type='button';btn.className='btn-arch-action'+(side===clipPlayerActiveSide?' btn-arch-stat':'');
+                btn.textContent=clipMatch?.[side+'Name']||(side==='home'?'Hazai':'Vendég');
+                btn.onclick=()=>{clipPlayerActiveSide=side;clipRenderPlayers();};tabs.appendChild(btn);
+            }
+            for(const p of clipMatch?.[clipPlayerActiveSide]||[]){
+                const value=clipPlayerActiveSide+'|'+p.num;
+                const btn=document.createElement('button');btn.type='button';btn.className='btn-arch-action'+(select.value===value?' btn-arch-stat':'');
+                btn.style.cssText='min-height:62px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:7px;white-space:normal';
+                const num=document.createElement('strong');num.style.fontSize='20px';num.textContent='#'+p.num;
+                const name=document.createElement('span');name.style.fontSize='11px';name.textContent=p.name||'';
+                btn.append(num,name);
+                btn.onclick=()=>{select.value=value;clipRenderPlayers();document.getElementById('clip-selected-category').textContent=clipCategory||('#'+p.num+' '+(p.name||'')+' – válassz Lövés / Csel / Átadás kategóriát');};
+                grid.appendChild(btn);
+            }
+            if(!grid.children.length)grid.textContent='Nincs játékos a kiválasztott csapatnál. Tölts be jegyzőkönyvet.';
         }
         async function clipLoadVideo(event){
             const file=event.target.files?.[0];if(!file)return;
@@ -7531,6 +7551,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipChooseCategory(category){
             clipCategory=category==='Játékos'?'':category;
             document.getElementById('clip-player-chooser').style.display=category==='Játékos'?'block':'none';
+            if(category==='Játékos')clipRenderPlayers();
             document.getElementById('clip-attack-subtype-box').style.display=category==='Támadás'?'block':'none';
             document.getElementById('clip-attack-subtype').value=category==='Támadás'?'Figurális játék':'';
             document.getElementById('clip-figure-buttons').style.display=category==='Támadás'?'block':'none';
