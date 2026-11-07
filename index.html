@@ -7467,6 +7467,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const sides=[['home','clip-home'],['away','clip-away']];
             const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;'}[c]));
             select.innerHTML='<option value="">Válassz játékost</option>';
+            select.onchange=()=>{if(select.value)document.getElementById('clip-player-categories').style.display='flex';};
             for(const [side,checkbox] of sides)if(document.getElementById(checkbox)?.checked)for(const p of clipMatch?.[side]||[]){
                 const opt=document.createElement('option');opt.value=side+'|'+p.num;opt.textContent=(side==='home'?clipMatch.homeName:clipMatch.awayName)+' · #'+p.num+' '+p.name;select.appendChild(opt);
             }
@@ -7522,7 +7523,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const b=document.createElement('button');b.className='btn-arch-action';b.textContent=category;b.onclick=()=>clipChooseCategory(category);container.appendChild(b);
             }
             const sub=document.getElementById('clip-player-categories');sub.innerHTML='';
-            for(const category of ['Lövés','Csel']){
+            for(const category of ['Lövés','Csel','Átadás']){
                 const b=document.createElement('button');b.className='btn-arch-action';b.textContent=category;b.onclick=()=>{clipCategory='Játékos / '+category;document.getElementById('clip-selected-category').textContent=clipCategory;};sub.appendChild(b);
             }
             document.getElementById('clip-category-dialog').style.display='block';
