@@ -1156,7 +1156,7 @@
           <label><input type="checkbox" id="clip-home" checked onchange="clipRenderPlayers();clipSave()"> Hazai csapat</label>
           <label><input type="checkbox" id="clip-away" checked onchange="clipRenderPlayers();clipSave()"> Vendégcsapat</label>
         </div>
-        <h3>2. Videó és jelenetek</h3>
+        <h3>2. Videó és jelenetek</h3><label>Korosztály: <select id="clip-age-group" onchange="clipSave()" style="padding:8px"><option>U16</option><option selected>U18</option><option>Felnőtt</option></select></label>
         <input type="file" accept="video/*" onchange="clipLoadVideo(event)"> <button type="button" class="btn-arch-action" onclick="clipOpenDriveVideoPicker()">Videó kiválasztása Google Drive-ból</button> <button type="button" class="btn-arch-action" onclick="clipDriveMigrationPreview()">Drive-mappák rendezése</button><div id="clip-drive-migration" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"></div><div id="clip-drive-picker" style="display:none;margin:12px 0;padding:12px;border:1px solid var(--border-color);border-radius:10px"><input id="clip-drive-search" placeholder="Videó keresése a Drive-ban..." oninput="clipRenderDriveVideos()" style="width:100%;padding:9px;margin-bottom:9px"><div id="clip-drive-picker-list" style="max-height:300px;overflow:auto"></div></div>
         <video id="clip-video" controls playsinline style="display:block;width:100%;max-height:56vh;background:#000;margin:12px 0;border-radius:10px;"></video>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
@@ -6891,7 +6891,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         async function clipDriveStructure(){
             const root=await clipEnsureNamedFolder(CLIP_DRIVE_ROOT);
             const sections={root};
-            for(const name of CLIP_DRIVE_SECTIONS)sections[name]=await clipEnsureNamedFolder(name,root);
+            for(const name of CLIP_DRIVE_SECTIONS){sections[name]=await clipEnsureNamedFolder(name,root);for(const age of ['U16','U18','Felnőtt'])await clipEnsureNamedFolder(age,sections[name]);}
             return sections;
         }
         async function clipDriveMigrationPreview(){
@@ -6953,7 +6953,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(!isDriveAuthorized())throw Error('Előbb kapcsold össze a Google Drive-fiókodat.');
             clipDriveUploading.add(projectId);
             try{
-                const old=await clipDriveFind(projectId),folder=old?null:await clipDriveFolder();
+                const old=await clipDriveFind(projectId),folder=old?null:await clipEnsureNamedFolder(clipCurrentAgeGroup(),await clipDriveFolder());
                 const meta=old?{name:file.name,appProperties:{handballProjectId:projectId}}:{name:file.name,mimeType:file.type||'video/mp4',parents:[folder],appProperties:{handballProjectId:projectId}};
                 const endpoint='https://www.googleapis.com/upload/drive/v3/files'+(old?'/'+encodeURIComponent(old.id):'')+'?uploadType=resumable&fields=id,name,size';
                 const init=await fetch(endpoint,{method:old?'PATCH':'POST',headers:{Authorization:'Bearer '+driveAccessToken,'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':file.type||'video/mp4','X-Upload-Content-Length':String(file.size)},body:JSON.stringify(meta)});
@@ -6969,6 +6969,29 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 }
                 if(status)status.textContent='Google Drive-ra mentve: '+file.name;
             }finally{clipDriveUploading.delete(projectId);}
+        }
+        async function clipUploadExportToDrive(blob,filename,projectTitle,ageGroup,status){
+            if(!isDriveAuthorized()&&!await clipEnsureDriveAccess()){if(status)status.textContent+=' · Drive-kapcsolat nem elérhető, csak helyi letöltés.';return;}
+            const root=await clipDriveStructure();
+            const age=await clipEnsureNamedFolder(ageGroup||'U18',root['04_Exportált videók']);
+            const safeTitle=(projectTitle||'Új videóelemzés').replace(/[\\/]/g,'-').trim().slice(0,100)||'Új videóelemzés';
+            const folder=await clipEnsureNamedFolder(safeTitle,age);
+            const init=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name',{method:'POST',headers:{Authorization:'Bearer '+driveAccessToken,'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':blob.type||'video/mp4','X-Upload-Content-Length':String(blob.size)},body:JSON.stringify({name:filename,mimeType:blob.type||'video/mp4',parents:[folder]})});
+            if(!init.ok)throw Error('Drive export indítás sikertelen ('+init.status+').');
+            const session=init.headers.get('Location');if(!session)throw Error('Hiányzó Drive feltöltési munkamenet.');
+            const chunk=8*1024*1024;
+            for(let start=0;start<blob.size;start+=chunk){
+                const end=Math.min(start+chunk,blob.size);
+                const res=await fetch(session,{method:'PUT',headers:{Authorization:'Bearer '+driveAccessToken,'Content-Range':'bytes '+start+'-'+(end-1)+'/'+blob.size,'Content-Type':blob.type||'video/mp4'},body:blob.slice(start,end)});
+                if(res.status!==308&&!res.ok)throw Error('Drive feltöltés sikertelen ('+res.status+').');
+                if(status)status.textContent='Export Drive-ra mentése: '+Math.round(end/blob.size*100)+'%';
+            }
+            if(status)status.textContent='Export elkészült, Drive-ra mentve: '+ageGroup+'/'+safeTitle+'/'+filename;
+        }
+        async function clipDownloadAndArchive(blob,filename,status){
+            clipDownload(blob,filename);
+            try{await clipUploadExportToDrive(blob,filename,document.getElementById('clip-project-title')?.value,clipCurrentAgeGroup(),status);}
+            catch(e){if(status)status.textContent='Helyi letöltés kész, Drive-mentési hiba: '+e.message;}
         }
         let clipDriveVideoList=[],clipDriveCurrentFolder='',clipDriveFolderTrail=[];
         async function clipOpenDriveVideoPicker(){
@@ -7050,6 +7073,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         }
         // A nagy videófájlok nem localStorage-ba kerülnek: IndexedDB-ben Blobként tároljuk őket.
         let clipVideoRestoreToken=0;let clipProjectDriveFileId='';
+        function clipCurrentAgeGroup(){return document.getElementById('clip-age-group')?.value||'U18';}
         function clipVideoDb(){
             return new Promise((resolve,reject)=>{
                 if(!window.indexedDB)return reject(Error('A böngésző nem támogatja a videók helyi tárolását.'));
@@ -7099,7 +7123,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         function clipLocalProjects(){try{return JSON.parse(localStorage.getItem(CLIP_PROJECTS_KEY)||'[]')}catch(e){return []}}
         function clipSave(){
             if(!clipProjectId)return;
-            const p={id:clipProjectId,title:document.getElementById('clip-project-title').value.trim()||'Új videóelemzés',match:clipMatch,clips:clipClips,videoName:clipOriginalFile?.name||clipProjectVideoName,driveFileId:clipProjectDriveFileId||undefined,selectedSides:{home:document.getElementById('clip-home').checked,away:document.getElementById('clip-away').checked},updatedAt:new Date().toISOString()};
+            const p={id:clipProjectId,title:document.getElementById('clip-project-title').value.trim()||'Új videóelemzés',match:clipMatch,clips:clipClips,videoName:clipOriginalFile?.name||clipProjectVideoName,driveFileId:clipProjectDriveFileId||undefined,ageGroup:clipCurrentAgeGroup(),selectedSides:{home:document.getElementById('clip-home').checked,away:document.getElementById('clip-away').checked},updatedAt:new Date().toISOString()};
             try{const list=clipLocalProjects().filter(x=>x.id!==p.id);list.push(p);localStorage.setItem(CLIP_PROJECTS_KEY,JSON.stringify(list));localStorage.setItem(CLIP_KEY,JSON.stringify({match:clipMatch,clips:clipClips}));}catch(e){console.warn(e);}
             const status=document.getElementById('clip-save-status');if(status)status.textContent='Helyben mentve';
             clearTimeout(clipSaveTimer);
@@ -7394,7 +7418,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         }
         function clipNewProject(){clipOpenProject({id:crypto.randomUUID(),title:'Új videóelemzés',match:null,clips:[],videoName:''});clipSave();}
         function clipOpenProject(p){
-            clipProjectId=p.id;clipMatch=p.match||null;clipClips=Array.isArray(p.clips)?p.clips:[];clipProjectVideoName=p.videoName||'';clipProjectDriveFileId=p.driveFileId||'';clipOriginalFile=null;clipSelectedIds.clear();document.getElementById('clip-home').checked=p.selectedSides?.home!==false;document.getElementById('clip-away').checked=p.selectedSides?.away!==false;
+            clipProjectId=p.id;clipMatch=p.match||null;clipClips=Array.isArray(p.clips)?p.clips:[];clipProjectVideoName=p.videoName||'';clipProjectDriveFileId=p.driveFileId||'';document.getElementById('clip-age-group').value=p.ageGroup||'U18';clipOriginalFile=null;clipSelectedIds.clear();document.getElementById('clip-home').checked=p.selectedSides?.home!==false;document.getElementById('clip-away').checked=p.selectedSides?.away!==false;
             if(clipVideoUrl){URL.revokeObjectURL(clipVideoUrl);clipVideoUrl=null;}
             const v=document.getElementById('clip-video');v.pause();v.removeAttribute('src');v.load();
             document.getElementById('clip-project-title').value=p.title||'Új videóelemzés';
@@ -7693,7 +7717,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                     outputs.push(out);
                     if(!merge){
                         const bytes=await ff.readFile(out);
-                        clipDownload(new Blob([bytes],{type:'video/mp4'}),'jelenet_'+String(i+1).padStart(3,'0')+'.mp4');
+                        await clipDownloadAndArchive(new Blob([bytes],{type:'video/mp4'}),'jelenet_'+String(i+1).padStart(3,'0')+'.mp4',status);
                         await ff.deleteFile(out);
                     }
                 }
@@ -7704,7 +7728,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                     const code=await ff.exec(['-f','concat','-safe','0','-i','clip_concat.txt','-c','copy','-movflags','+faststart','clip_merged.mp4']);
                     if(code!==0)throw Error('Az MP4-ek összefűzése nem sikerült (FFmpeg '+code+').');
                     const bytes=await ff.readFile('clip_merged.mp4');
-                    clipDownload(new Blob([bytes],{type:'video/mp4'}),'handball-lab-osszefuzott-jelenetek.mp4');
+                    await clipDownloadAndArchive(new Blob([bytes],{type:'video/mp4'}),'handball-lab-osszefuzott-jelenetek.mp4',status);
                     await ff.deleteFile('clip_merged.mp4');await ff.deleteFile('clip_concat.txt');
                     for(const out of outputs)await ff.deleteFile(out);
                 }
