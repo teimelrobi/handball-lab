@@ -7289,7 +7289,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 if(sourceName){await ff.deleteFile(sourceName);temp.delete(sourceName);}
                 status.textContent='Összefűzés folyamatban…';
                 await ff.writeFile('team_concat.txt',new TextEncoder().encode(outputs.map(n=>"file '"+n+"'").join('\n')+'\n'));temp.add('team_concat.txt');
-                const code=await ff.exec(['-f','concat','-safe','0','-i','team_concat.txt','-c','copy','-movflags','+faststart','team_merged.mp4']);
+                const code=await ff.exec(['-fflags','+genpts','-f','concat','-safe','0','-i','team_concat.txt','-map','0:v:0','-map','0:a?','-vf','setpts=PTS-STARTPTS','-af','aresample=async=1:first_pts=0','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-ar','44100','-movflags','+faststart','team_merged.mp4']);
                 if(code!==0)throw Error('Az összefűzés sikertelen (FFmpeg '+code+').');
                 temp.add('team_merged.mp4');
                 const bytes=await ff.readFile('team_merged.mp4');
@@ -7762,7 +7762,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                     status.textContent='Jelenetek összefűzése…';
                     const concat=outputs.map(name=>"file '"+name+"'").join('\n')+'\n';
                     await ff.writeFile('clip_concat.txt',new TextEncoder().encode(concat));
-                    const code=await ff.exec(['-f','concat','-safe','0','-i','clip_concat.txt','-c','copy','-movflags','+faststart','clip_merged.mp4']);
+                    const code=await ff.exec(['-fflags','+genpts','-f','concat','-safe','0','-i','clip_concat.txt','-map','0:v:0','-map','0:a?','-vf','setpts=PTS-STARTPTS','-af','aresample=async=1:first_pts=0','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-ar','44100','-movflags','+faststart','clip_merged.mp4']);
                     if(code!==0)throw Error('Az MP4-ek összefűzése nem sikerült (FFmpeg '+code+').');
                     const bytes=await ff.readFile('clip_merged.mp4');
                     await clipDownloadAndArchive(new Blob([bytes],{type:'video/mp4'}),'handball-lab-osszefuzott-jelenetek.mp4',status);
