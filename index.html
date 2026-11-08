@@ -7368,8 +7368,13 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const sides=clipProjectTeams(p).filter(([,name])=>clipNormalizeTeam(name)===clipActiveTeam).map(([side])=>side);
                 if(!sides.length)continue;
                 for(const c of p.clips||[]){
-                    if(c.analysisTeam){if(clipNormalizeTeam(c.analysisTeam)!==clipActiveTeam)continue;}
-                    else if(c.player&&!sides.includes(c.player.side))continue;
+                    // Régi projektekben az analysisTeam tévesen az ellenfél neve is lehet.
+                    // Játékoshoz rendelt jelenetnél a jegyzőkönyvi oldal az irányadó.
+                    const linkedPlayers=[c.player,...(Array.isArray(c.attackPlayers)?c.attackPlayers:[])].filter(Boolean);
+                    const belongsToTeam=linkedPlayers.some(player=>sides.includes(player.side));
+                    if(linkedPlayers.length){
+                        if(!belongsToTeam)continue;
+                    }else if(c.analysisTeam&&clipNormalizeTeam(c.analysisTeam)!==clipActiveTeam)continue;
                     out.push({project:p,clip:c});
                 }
             }
