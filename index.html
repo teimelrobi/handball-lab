@@ -7203,7 +7203,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             return lines;
         }
         async function clipMakeCaptionPng(ff,clip,prefix,includePlayer=false){
-            const playerLabel=includePlayer&&clip.player?'#'+clip.player.num+' '+String(clip.player.name||'').trim():'';
+            const playerLabel=includePlayer&&clip.player?'#'+clip.player.num+' '+String(clip.player.name||'').trim()+(clip.category?' – '+String(clip.category).replace(/^Játékos\s*\/\s*/i,'').trim():''):'';
             const title=playerLabel||String(clip.movementName||clip.folderName||clip.figurativeFolder||'').trim();
             const note=playerLabel?'':String(clip.note||'').trim();
             if(!title&&!note)return null;
