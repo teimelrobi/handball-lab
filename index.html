@@ -7396,7 +7396,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             let back=document.getElementById('clip-archive-back');
             if(!back){back=document.createElement('button');back.id='clip-archive-back';back.className='btn-arch-action';back.style.marginBottom='12px';back.onclick=clipArchiveBack;panel.insertBefore(back,heading);}
             back.textContent=clipArchiveMatchId?'← Vissza a '+teamName+' mérkőzéseihez':'← Vissza a csapatokhoz';
-            search.placeholder=(clipArchiveMatchId?'Mérkőzés':' '+teamName)+' kereső: játékos, mezszám, mozgás, figura, megjegyzés...';
+            search.placeholder=(clipArchiveMatchId?'Csak ez a mérkőzés':' '+teamName+' – összes mérkőzés')+' kereső: játékos, mezszám, mozgás, figura, megjegyzés...';
             const box=document.getElementById('clip-team-results');box.innerHTML='';
             if(!clipArchiveMatchId){
                 const label=document.createElement('h3');label.textContent='Elemzett mérkőzések ('+allProjects.length+')';box.appendChild(label);
@@ -7412,6 +7412,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 }
                 const title=document.createElement('h3');title.textContent=teamName+' kereső – összes mérkőzés';title.style.marginTop='20px';box.appendChild(title);
             }
+            if(clipArchiveMatchId){const notice=document.createElement('div');notice.style.cssText='padding:12px;margin:8px 0;border:1px solid var(--green-accent);border-radius:10px';notice.textContent='Most csak ezt az egy mérkőzést szűröd. ';const all=document.createElement('button');all.className='btn-arch-action btn-arch-stat';all.textContent='Keresés a '+teamName+' összes mérkőzésében';all.style.marginLeft='8px';all.onclick=()=>{clipArchiveMatchId='';clipRenderTeamLibrary();};notice.appendChild(all);box.appendChild(notice);}
             const query=search.value.trim().toLocaleLowerCase('hu-HU');
             const filtered=scenes.filter(({project,clip})=>{
                 if(clipArchiveMatchId&&String(project.id)!==String(clipArchiveMatchId))return false;
