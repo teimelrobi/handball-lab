@@ -7379,9 +7379,10 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(!clip.player)return '';
             const name=String(clip.player.name||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('hu-HU').replace(/[^a-z0-9]/g,'');
             const number=String(clip.player.num??'').trim();
-            // A játékos a csapat összes mérkőzésében ugyanaz, függetlenül
-            // a hazai/vendég oldaltól és a jegyzőkönyvben szereplő csapatnévtől.
-            return name?'name:'+name:'number:'+number;
+            // Csapatszintű keresésnél a mezszám a fő azonosító: az MKSZ
+            // jegyzőkönyvek eltérő névformátuma ne bontsa szét a jeleneteket.
+            // A név csak mezszám nélküli régi jeleneteknél tartalék.
+            return number?'number:'+number:(name?'name:'+name:'');
         }
         function clipRenderTeamLibrary(reset=false){
             const panel=document.getElementById('clip-team-library');if(!clipActiveTeam){panel.style.display='none';return;}
