@@ -7384,6 +7384,19 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             // A név csak mezszám nélküli régi jeleneteknél tartalék.
             return number?'number:'+number:(name?'name:'+name:'');
         }
+        function clipTeamScenePlayers(project,clip){
+            // A támadáshoz rendelt játékosok is szerepeljenek a csapatszintű keresőben.
+            // A korábbi projektekben a játékos nem mindig a clip.player mezőben van.
+            const sides=clipProjectTeams(project).filter(([,name])=>clipNormalizeTeam(name)===clipActiveTeam).map(([side])=>side);
+            const candidates=[clip.player,...(Array.isArray(clip.attackPlayers)?clip.attackPlayers:[])].filter(Boolean);
+            const unique=new Map();
+            for(const p of candidates){
+                if(p.side&&!sides.includes(p.side))continue;
+                const key=clipTeamPlayerIdentity(project,{player:p});
+                if(key&&!unique.has(key))unique.set(key,p);
+            }
+            return unique;
+        }
         function clipRenderTeamLibrary(reset=false){
             const panel=document.getElementById('clip-team-library');if(!clipActiveTeam){panel.style.display='none';return;}
             panel.style.display='block';
@@ -7395,7 +7408,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             for(const c of [...new Set(scenes.map(x=>x.clip.category).filter(Boolean))].sort()){const o=document.createElement('option');o.value=c;o.textContent=c;category.appendChild(o);}category.value=catVal;
             player.innerHTML='<option value="">Minden játékos</option>';
             const players=new Map();
-            for(const {project,clip} of scenes)if(clip.player){const team=project.match?.[clip.player.side+'Name']||'';const key=clipTeamPlayerIdentity(project,clip);if(!players.has(key))players.set(key,{name:clip.player.name,num:clip.player.num,team});}
+            for(const {project,clip} of scenes)for(const [key,p] of clipTeamScenePlayers(project,clip)){const team=project.match?.[p.side+'Name']||'';if(!players.has(key))players.set(key,{name:p.name,num:p.num,team});}
             for(const [key,p] of players){const o=document.createElement('option');o.value=key;o.textContent='#'+p.num+' '+(p.name||'');player.appendChild(o);}player.value=playerVal;
             const teamName=clipProjectTeams(clipProjectCache.find(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===clipActiveTeam))||{}).find(([,n])=>clipNormalizeTeam(n)===clipActiveTeam)?.[1]||'Csapat';
             const allProjects=clipProjectCache.filter(p=>clipProjectTeams(p).some(([,n])=>clipNormalizeTeam(n)===clipActiveTeam));
@@ -7427,7 +7440,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 if(clipArchiveMatchId&&String(project.id)!==String(clipArchiveMatchId))return false;
                 const team=project.match?.[clip.player?.side+'Name']||'';
                 const searchable=[project.title,clip.category,clip.tacticalCategory,clip.movementName,clip.note,clip.player?.name,clip.player?.num,clip.attackType,clip.playType,clip.folderName,clip.figurativeFolder,JSON.stringify(clip.players||[]),JSON.stringify(clip.pairPlayers||[])].filter(Boolean).join(' ').toLocaleLowerCase('hu-HU');
-                return (!category.value||clip.category===category.value)&&(!player.value||clipTeamPlayerIdentity(project,clip)===player.value)&&(!query||searchable.includes(query));
+                return (!category.value||clip.category===category.value)&&(!player.value||clipTeamScenePlayers(project,clip).has(player.value))&&(!query||searchable.includes(query));
             });
             clipTeamVisible=filtered;clipTeamUpdateCount();
             const summary=document.createElement('p');summary.style.cssText='color:var(--text-muted);margin:12px 0';summary.textContent=filtered.length+' találat · '+(clipArchiveMatchId?'1 mérkőzés':allProjects.length+' mérkőzés')+' · kijelölés után MP4 export';box.appendChild(summary);
