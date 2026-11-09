@@ -7144,7 +7144,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             clearTimeout(clipSaveTimer);
             clipSaveTimer=setTimeout(async()=>{
                 if(!cloudClient||!cloudUser){if(status)status.textContent='Helyben mentve (felhőhöz jelentkezz be)';return;}
-                const {error}=await cloudClient.from('video_clip_projects').upsert({id:p.id,user_id:cloudUser.id,title:p.title,match_data:{...(p.match||{}),_clipSelectedSides:p.selectedSides},clips:p.clips,video_name:p.videoName,updated_at:p.updatedAt},{onConflict:'id'});
+                const {error}=await cloudClient.from('video_clip_projects').upsert({id:p.id,user_id:cloudUser.id,title:p.title,match_data:{...(p.match||{}),_clipSelectedSides:p.selectedSides,_clipDriveFileId:p.driveFileId||null,_clipAgeGroup:p.ageGroup||'U18'},clips:p.clips,video_name:p.videoName,updated_at:p.updatedAt},{onConflict:'id'});
                 if(status&&clipProjectId===p.id)status.textContent=error?'Helyben mentve; felhőhiba: '+error.message:'Felhőbe mentve';
             },500);
         }
@@ -7156,7 +7156,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const {data,error}=await cloudClient.from('video_clip_projects').select('id,title,match_data,clips,video_name,updated_at').order('updated_at',{ascending:false});
                 if(error)box.textContent='Felhőhiba: '+error.message;
                 else for(const p of data||[]){
-                    const cloud={id:p.id,title:p.title,match:p.match_data,clips:p.clips,videoName:p.video_name,selectedSides:p.match_data?._clipSelectedSides,updatedAt:p.updated_at};
+                    const cloud={id:p.id,title:p.title,match:p.match_data,clips:p.clips,videoName:p.video_name,driveFileId:p.match_data?._clipDriveFileId||'',ageGroup:p.match_data?._clipAgeGroup||'U18',selectedSides:p.match_data?._clipSelectedSides,updatedAt:p.updated_at};
                     if(!merged.has(p.id)||new Date(cloud.updatedAt)>new Date(merged.get(p.id).updatedAt))merged.set(p.id,cloud);
                 }
             }
