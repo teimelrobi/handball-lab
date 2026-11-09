@@ -6959,14 +6959,17 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const init=await fetch(endpoint,{method:old?'PATCH':'POST',headers:{Authorization:'Bearer '+driveAccessToken,'Content-Type':'application/json; charset=UTF-8','X-Upload-Content-Type':file.type||'video/mp4','X-Upload-Content-Length':String(file.size)},body:JSON.stringify(meta)});
                 if(!init.ok)throw Error('Drive feltöltés indítása sikertelen ('+init.status+').');
                 const session=init.headers.get('Location');if(!session)throw Error('A Drive nem adott feltöltési munkamenetet.');
-                const chunkSize=8*1024*1024;let uploaded=0;
+                const chunkSize=8*1024*1024;let uploaded=0,uploadedFileId=old?.id||'';
                 while(uploaded<file.size){
                     const end=Math.min(uploaded+chunkSize,file.size);
                     const response=await fetch(session,{method:'PUT',headers:{'Authorization':'Bearer '+driveAccessToken,'Content-Range':'bytes '+uploaded+'-'+(end-1)+'/'+file.size,'Content-Type':file.type||'application/octet-stream'},body:file.slice(uploaded,end)});
                     if(response.status!==308&&!response.ok)throw Error('Drive feltöltési hiba ('+response.status+').');
+                    if(response.ok){const result=await response.json();uploadedFileId=result.id||uploadedFileId;}
                     uploaded=end;
                     if(status)status.textContent='Google Drive feltöltés: '+Math.round(uploaded/file.size*100)+'% – '+file.name;
                 }
+                if(!uploadedFileId)throw Error('A Drive nem adta vissza a feltöltött videó azonosítóját.');
+                if(clipProjectId===projectId){clipProjectDriveFileId=uploadedFileId;clipSave();}
                 if(status)status.textContent='Google Drive-ra mentve: '+file.name;
             }finally{clipDriveUploading.delete(projectId);}
         }
