@@ -24,7 +24,8 @@
     ],
     "win": {
       "target": "nsis",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "desktop/generated-icon.ico"
     },
     "nsis": {
       "oneClick": false,
