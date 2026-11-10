@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/desktop-offline-foundation
+      - feature/desktop-drive-streaming
     paths:
       - 'desktop/**'
       - 'package.json'
