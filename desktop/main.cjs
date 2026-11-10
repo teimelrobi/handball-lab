@@ -10,9 +10,11 @@ const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; char
 let server;
 
 let oauthPending = false;
-ipcMain.handle('desktop:google-drive-auth', async (_event, clientId) => {
+ipcMain.handle('desktop:google-drive-auth', async (_event, credentials) => {
+  const { clientId, clientSecret } = credentials && typeof credentials === 'object' ? credentials : {};
   if (oauthPending) throw new Error('Már folyamatban van Google Drive bejelentkezés.');
   if (typeof clientId !== 'string' || !/^\d+-[a-z0-9-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('Érvénytelen Google OAuth Desktop Client ID.');
+  if (typeof clientSecret !== 'string' || !clientSecret.trim() || clientSecret.length > 512) throw new Error('A Google Desktop OAuth Client Secret megadása szükséges.');
   oauthPending = true;
   const state = crypto.randomBytes(24).toString('base64url');
   const verifier = crypto.randomBytes(48).toString('base64url');
@@ -52,7 +54,7 @@ ipcMain.handle('desktop:google-drive-auth', async (_event, clientId) => {
     });
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:new URLSearchParams({client_id:clientId,code,code_verifier:verifier,redirect_uri:redirectUri,grant_type:'authorization_code'})
+      body:new URLSearchParams({client_id:clientId,client_secret:clientSecret,code,code_verifier:verifier,redirect_uri:redirectUri,grant_type:'authorization_code'})
     });
     const token = await response.json();
     if (!response.ok || !token.access_token) throw new Error('Google token hiba: ' + (token.error_description || token.error || response.status));
