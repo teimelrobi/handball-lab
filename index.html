@@ -2097,7 +2097,7 @@ KOVÁCS DÁVID MÁTÉ
                     if(silent)throw new Error('A Desktop Google Drive kapcsolat még nincs beállítva.');
                     clientId=prompt('KéziStat Desktop: add meg a Google Cloud Console-ban létrehozott „Desktop app” típusú OAuth Client ID-t (nem a Client Secretet):')?.trim()||'';
                     if(!clientId)throw new Error('A Google Desktop Client ID megadása szükséges.');
-                    if(!/^\\d+-[a-z0-9-]+\\.apps\\.googleusercontent\\.com$/.test(clientId))throw new Error('A Desktop Client ID formátuma nem megfelelő.');
+                    if(!/^\d+-[a-z0-9-]+\.apps\.googleusercontent\.com$/.test(clientId))throw new Error('A Desktop Client ID formátuma nem megfelelő.');
                     localStorage.setItem('handball_desktop_google_client_id',clientId);
                 }
                 try{
