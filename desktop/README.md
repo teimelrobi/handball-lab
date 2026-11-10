@@ -21,3 +21,9 @@ Ez egy **kísérleti Electron-burkolat** a meglévő KéziStat webes felülethez
 2. Tartós helyi projekt-/videótár és offline módosításnapló.
 3. Drive kapcsolat + kétirányú szinkron és konfliktuskezelés.
 4. Natív, helyi videóexport és tesztelt Windows telepítő.
+
+## Google Drive bejelentkezés Desktopban (0.2 teszt)
+
+A Desktop változat natív OAuth authorization-code + PKCE folyamatot használ, a rendszer alapértelmezett böngészőjében. Ehhez a Google Cloud Console-ban **Desktop app** típusú OAuth kliens szükséges ugyanabban a Google Cloud projektben, ahol a Drive API engedélyezve van. A webes (JavaScript) kliensazonosító nem megfelelő. A kliens **Client ID** értékét kell megadni a Desktopban az első Drive-kapcsolódáskor, **Client Secretet soha ne adj meg**. Az OAuth consent screen / tesztfelhasználók és a Drive-scope engedélyek külön beállítást igényelhetnek. A Desktop csak rövid életű hozzáférési tokent kezel memóriában, a Client ID-t tárolja helyben; újraindításkor új engedélyezés szükséges lehet. A Google Drive-hozzáférés internetet igényel; a teljes offline szinkronizáció még nincs kész.
+
+Biztonság: loopback callback kizárólag 127.0.0.1-en, véletlen porton; state ellenőrzés, PKCE S256, 3 perces időkorlát, izolált preload bridge. Ez fejlesztői teszt, nem auditált éles hitelesítési megoldás.
