@@ -25,14 +25,42 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Build Windows installer
-        run: npm run desktop:pack
+      - name: Build portable Windows ZIP
+        id: portable
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          npm run desktop:pack -- --win zip --publish never 2>&1 | Tee-Object -FilePath portable-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - name: Upload Windows installer
+          DEBUG: electron-builder
+      - name: Build Windows installer
+        id: installer
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          npm run desktop:pack -- --win nsis --publish never 2>&1 | Tee-Object -FilePath installer-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          DEBUG: electron-builder
+      - name: Upload Windows build files
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: KeziStat-Desktop-Windows-Test
-          path: dist/*.exe
+          path: |
+            dist/*.exe
+            dist/*.zip
+            portable-build.log
+            installer-build.log
           if-no-files-found: error
           retention-days: 14
+      - name: Report build result
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Portable ZIP: ${{ steps.portable.outcome }}"
+          Write-Host "Installer: ${{ steps.installer.outcome }}"
+          if ('${{ steps.portable.outcome }}' -ne 'success' -and '${{ steps.installer.outcome }}' -ne 'success') { exit 1 }
