@@ -34,7 +34,7 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          npm run desktop:pack -- --win zip --publish never 2>&1 | Tee-Object -FilePath portable-build.log
+          npm run desktop:zip 2>&1 | Tee-Object -FilePath portable-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -44,7 +44,7 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          npm run desktop:pack -- --win nsis --publish never 2>&1 | Tee-Object -FilePath installer-build.log
+          npm run desktop:installer 2>&1 | Tee-Object -FilePath installer-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
