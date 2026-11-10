@@ -7099,14 +7099,33 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             const blob=new Blob(chunks,{type:res.headers.get('content-type')||'video/mp4'});
             return new File([blob],name||'drive-video.mp4',{type:blob.type||'video/mp4'});
         }
+        async function clipAttachDriveStream(remote,status){
+            if(!window.kezistatDesktop?.driveStreamUrl)return false;
+            if(!isDriveAuthorized()&&!await clipEnsureDriveAccess())throw Error('Google Drive összekapcsolás szükséges.');
+            const url=await window.kezistatDesktop.driveStreamUrl({fileId:remote.id,accessToken:driveAccessToken});
+            if(clipVideoUrl&&clipVideoUrl.startsWith('blob:'))URL.revokeObjectURL(clipVideoUrl);
+            clipVideoUrl=url;clipOriginalFile=null;clipProjectVideoName=remote.name;
+            const video=document.getElementById('clip-video');
+            video.src=url;video.load();
+            document.getElementById('clip-range-label').textContent='Online Drive-videó: '+remote.name;
+            if(status)status.textContent='Online lejátszás a Google Drive-ról: '+remote.name+' (nincs teljes letöltés)';
+            return true;
+        }
         async function clipImportDriveVideo(remote){
             const projectId=clipProjectId,status=document.getElementById('clip-save-status'),pickerStatus=document.getElementById('clip-drive-picker-status');
             if(!projectId){if(pickerStatus)pickerStatus.textContent='Előbb nyiss meg vagy hozz létre egy projektet.';return;}
             if(clipDriveImportBusy)return;
             clipDriveImportBusy=true;
             if(pickerStatus)pickerStatus.textContent='Betöltés indítása: '+remote.name;
-            if(status)status.textContent='Drive-videó betöltése: '+remote.name;
             try{
+                if(window.kezistatDesktop?.driveStreamUrl){
+                    await clipAttachDriveStream(remote,status);
+                    if(projectId!==clipProjectId)return;
+                    ++clipVideoRestoreToken;clipStart=null;clipEnd=null;
+                    clipProjectDriveFileId=remote.id;clipSave();
+                    document.getElementById('clip-drive-picker').style.display='none';
+                    return;
+                }
                 const file=await clipDownloadDriveFileById(remote.id,remote.name,status);
                 if(projectId!==clipProjectId)return;
                 ++clipVideoRestoreToken;clipAttachVideo(file);clipStart=null;clipEnd=null;
@@ -7180,7 +7199,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const file=await clipGetStoredVideo(projectId);
                 if(token!==clipVideoRestoreToken||clipProjectId!==projectId)return;
                 if(file){clipAttachVideo(file);if(status)status.textContent='Mentett videó automatikusan betöltve (helyi tárhely)';}
-                else if(isDriveAuthorized()||await clipEnsureDriveAccess()){const remote=clipProjectDriveFileId?await clipDownloadDriveFileById(clipProjectDriveFileId,clipProjectVideoName,status):await clipDriveDownload(projectId,status);if(token!==clipVideoRestoreToken||clipProjectId!==projectId)return;if(remote){clipAttachVideo(remote);if(status)status.textContent='Google Drive-videó betöltve';try{await clipStoreVideo(projectId,remote);}catch(e){console.warn(e);}}else if(status)status.textContent='Ehhez a projekthez még nincs mentett videó.';}else if(status)status.textContent='Helyi videó nincs. Kapcsold össze a Google Drive-ot vagy töltsd be a fájlt.';
+                else if(isDriveAuthorized()||await clipEnsureDriveAccess()){if(window.kezistatDesktop?.driveStreamUrl){const remote=clipProjectDriveFileId?{id:clipProjectDriveFileId,name:clipProjectVideoName||'Mérkőzésvideó'}:await clipDriveFind(projectId);if(token!==clipVideoRestoreToken||clipProjectId!==projectId)return;if(remote){await clipAttachDriveStream(remote,status);clipProjectDriveFileId=remote.id;clipSave();}else if(status)status.textContent='Ehhez a projekthez még nincs Drive-videó.';}else{const remote=clipProjectDriveFileId?await clipDownloadDriveFileById(clipProjectDriveFileId,clipProjectVideoName,status):await clipDriveDownload(projectId,status);if(token!==clipVideoRestoreToken||clipProjectId!==projectId)return;if(remote){clipAttachVideo(remote);if(status)status.textContent='Google Drive-videó betöltve';try{await clipStoreVideo(projectId,remote);}catch(e){console.warn(e);}}else if(status)status.textContent='Ehhez a projekthez még nincs mentett videó.';}}else if(status)status.textContent='Helyi videó nincs. Kapcsold össze a Google Drive-ot vagy töltsd be a fájlt.';
             }catch(e){if(token===clipVideoRestoreToken&&status)status.textContent='Videó visszatöltési hiba: '+e.message;}
         }
 
@@ -7193,7 +7212,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             clearTimeout(clipSaveTimer);
             clipSaveTimer=setTimeout(async()=>{
                 if(!cloudClient||!cloudUser){if(status)status.textContent='Helyben mentve (felhőhöz jelentkezz be)';return;}
-                const {error}=await cloudClient.from('video_clip_projects').upsert({id:p.id,user_id:cloudUser.id,title:p.title,match_data:{...(p.match||{}),_clipSelectedSides:p.selectedSides},clips:p.clips,video_name:p.videoName,updated_at:p.updatedAt},{onConflict:'id'});
+                const {error}=await cloudClient.from('video_clip_projects').upsert({id:p.id,user_id:cloudUser.id,title:p.title,match_data:{...(p.match||{}),_clipSelectedSides:p.selectedSides,_clipDriveFileId:p.driveFileId||null,_clipAgeGroup:p.ageGroup||'U18'},clips:p.clips,video_name:p.videoName,updated_at:p.updatedAt},{onConflict:'id'});
                 if(status&&clipProjectId===p.id)status.textContent=error?'Helyben mentve; felhőhiba: '+error.message:'Felhőbe mentve';
             },500);
         }
@@ -7205,7 +7224,7 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                 const {data,error}=await cloudClient.from('video_clip_projects').select('id,title,match_data,clips,video_name,updated_at').order('updated_at',{ascending:false});
                 if(error)box.textContent='Felhőhiba: '+error.message;
                 else for(const p of data||[]){
-                    const cloud={id:p.id,title:p.title,match:p.match_data,clips:p.clips,videoName:p.video_name,selectedSides:p.match_data?._clipSelectedSides,updatedAt:p.updated_at};
+                    const cloud={id:p.id,title:p.title,match:p.match_data,clips:p.clips,videoName:p.video_name,driveFileId:p.match_data?._clipDriveFileId||'',ageGroup:p.match_data?._clipAgeGroup||'U18',selectedSides:p.match_data?._clipSelectedSides,updatedAt:p.updated_at};
                     if(!merged.has(p.id)||new Date(cloud.updatedAt)>new Date(merged.get(p.id).updatedAt))merged.set(p.id,cloud);
                 }
             }
