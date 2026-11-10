@@ -8,6 +8,16 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.json':'application/json; charset=utf-8', '.webmanifest':'application/manifest+json', '.png':'image/png', '.svg':'image/svg+xml', '.ico':'image/x-icon' };
 let server;
+let desktopDriveToken = '';
+const driveStreamNonce = crypto.randomBytes(24).toString('hex');
+ipcMain.handle('desktop:drive-stream-url', (event, {fileId, accessToken} = {}) => {
+  if (!event.senderFrame?.url?.startsWith('http://127.0.0.1:' + server.address().port + '/')) throw new Error('Nem engedélyezett alkalmazásablak.');
+  if (typeof fileId !== 'string' || !/^[a-zA-Z0-9_-]{10,200}$/.test(fileId)) throw new Error('Érvénytelen Google Drive fájlazonosító.');
+  if (typeof accessToken !== 'string' || !/^[a-zA-Z0-9._~-]{20,4096}$/.test(accessToken)) throw new Error('Hiányzó Google Drive hozzáférés.');
+  desktopDriveToken = accessToken;
+  return 'http://127.0.0.1:' + server.address().port + '/__drive_stream/' + driveStreamNonce + '/' + encodeURIComponent(fileId);
+});
+
 
 let oauthPending = false;
 ipcMain.handle('desktop:google-drive-auth', async (_event, credentials) => {
@@ -67,6 +77,32 @@ function startLocalServer() {
       let pathname;
       try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); }
       catch { res.writeHead(400).end(); return; }
+      if (pathname.startsWith('/__drive_stream/')) {
+        const match = /^\/__drive_stream\/([a-f0-9]{48})\/([a-zA-Z0-9_-]{10,200})$/.exec(pathname);
+        if ((req.method !== 'GET' && req.method !== 'HEAD') || !match || match[1] !== driveStreamNonce || !desktopDriveToken) {
+          res.writeHead(403).end(); return;
+        }
+        const headers = {Authorization:'Bearer ' + desktopDriveToken};
+        if (typeof req.headers.range === 'string' && /^bytes=\d+-\d*$/.test(req.headers.range)) headers.Range = req.headers.range;
+        const upstream = 'https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(match[2]) + '?alt=media';
+        fetch(upstream, {method:req.method, headers, signal:AbortSignal.timeout(120000)}).then(response => {
+          if (!response.ok && response.status !== 206) {
+            res.writeHead(response.status, {'Cache-Control':'no-store','Content-Type':'text/plain; charset=utf-8'});
+            res.end('Google Drive videó nem érhető el (' + response.status + ').'); return;
+          }
+          const out = {'Content-Type':response.headers.get('content-type') || 'video/mp4',
+            'Accept-Ranges':'bytes','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
+          for (const h of ['content-length','content-range']) if (response.headers.has(h)) out[h] = response.headers.get(h);
+          res.writeHead(response.status, out);
+          if (req.method === 'HEAD' || !response.body) {res.end();return;}
+          const {Readable} = require('node:stream');
+          const stream = Readable.fromWeb(response.body);
+          stream.on('error', () => {if (!res.destroyed) res.destroy();});
+          res.on('close', () => stream.destroy());
+          stream.pipe(res);
+        }).catch(() => {if (!res.headersSent) res.writeHead(502).end('Drive kapcsolat megszakadt.');else res.destroy();});
+        return;
+      }
       // Keep legacy absolute /handball-lab/* asset references working.
       if (pathname.startsWith('/handball-lab/')) pathname = pathname.slice('/handball-lab'.length);
       const target = path.resolve(root, '.' + pathname);
