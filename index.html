@@ -2091,6 +2091,28 @@ KOVÁCS DÁVID MÁTÉ
             return true;
         }
         async function requestDriveAccessToken(silent=false) {
+            if(window.kezistatDesktop?.connectGoogleDrive){
+                let clientId=localStorage.getItem('handball_desktop_google_client_id')||'';
+                if(!clientId){
+                    if(silent)throw new Error('A Desktop Google Drive kapcsolat még nincs beállítva.');
+                    clientId=prompt('KéziStat Desktop: add meg a Google Cloud Console-ban létrehozott „Desktop app” típusú OAuth Client ID-t (nem a Client Secretet):')?.trim()||'';
+                    if(!clientId)throw new Error('A Google Desktop Client ID megadása szükséges.');
+                    if(!/^\\d+-[a-z0-9-]+\\.apps\\.googleusercontent\\.com$/.test(clientId))throw new Error('A Desktop Client ID formátuma nem megfelelő.');
+                    localStorage.setItem('handball_desktop_google_client_id',clientId);
+                }
+                try{
+                    const resp=await window.kezistatDesktop.connectGoogleDrive(clientId);
+                    driveAccessToken=resp.access_token;
+                    driveTokenExpiresAt=Date.now()+Number(resp.expires_in||3600)*1000-60000;
+                    sessionStorage.setItem('handball_drive_recent_consent','1');
+                    localStorage.setItem('handball_drive_was_connected','1');
+                    updateDriveUI();
+                    return driveAccessToken;
+                }catch(e){
+                    if(!silent&&/invalid_client|unauthorized_client|Érvénytelen Google OAuth Desktop Client ID/.test(e.message||''))localStorage.removeItem('handball_desktop_google_client_id');
+                    throw e;
+                }
+            }
             if(!await initDriveTokenClient()) throw new Error('A Google bejelentkezési modul nem tölthető be. Ellenőrizd, hogy a böngésző nem blokkolja-e az accounts.google.com oldalt (reklámblokkoló, követésvédelem vagy hálózati szűrő), majd próbáld újra.');
             return await new Promise((resolve,reject)=>{
                 driveTokenClient.callback=resp=>{
