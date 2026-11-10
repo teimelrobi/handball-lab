@@ -6,7 +6,9 @@
   "main": "desktop/main.cjs",
   "scripts": {
     "desktop": "electron .",
-    "desktop:pack": "electron-builder --win nsis"
+    "desktop:pack": "electron-builder --win",
+    "desktop:zip": "electron-builder --win zip --publish never",
+    "desktop:installer": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {
     "electron": "^33.4.11",
