@@ -12,7 +12,7 @@ let server;
 let oauthPending = false;
 ipcMain.handle('desktop:google-drive-auth', async (_event, clientId) => {
   if (oauthPending) throw new Error('Már folyamatban van Google Drive bejelentkezés.');
-  if (typeof clientId !== 'string' || !/^\\d+-[a-z0-9-]+\\.apps\\.googleusercontent\\.com$/.test(clientId)) throw new Error('Érvénytelen Google OAuth Desktop Client ID.');
+  if (typeof clientId !== 'string' || !/^\d+-[a-z0-9-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('Érvénytelen Google OAuth Desktop Client ID.');
   oauthPending = true;
   const state = crypto.randomBytes(24).toString('base64url');
   const verifier = crypto.randomBytes(48).toString('base64url');
