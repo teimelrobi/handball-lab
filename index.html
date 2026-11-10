@@ -2093,37 +2093,42 @@ KOVÁCS DÁVID MÁTÉ
         async function requestDriveAccessToken(silent=false) {
             if(window.kezistatDesktop?.connectGoogleDrive){
                 let clientId=localStorage.getItem('handball_desktop_google_client_id')||'';
-                if(!clientId){
+                let clientSecret=window.__desktopGoogleClientSecret||'';
+                if(!clientId||!clientSecret){
                     if(silent)throw new Error('A Desktop Google Drive kapcsolat még nincs beállítva.');
-                    clientId=await new Promise((resolve,reject)=>{
+                    const credentials=await new Promise(resolve=>{
                         const backdrop=document.createElement('div');
                         backdrop.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:20px';
                         const panel=document.createElement('div');
                         panel.style.cssText='background:#111d1b;color:#fff;border:1px solid #34564b;border-radius:14px;padding:24px;max-width:540px;width:100%;font:15px Arial,sans-serif;box-sizing:border-box';
                         const heading=document.createElement('h2');heading.textContent='Google Drive – Desktop összekapcsolás';heading.style.margin='0 0 12px';
-                        const description=document.createElement('p');description.textContent='Másold be a Google Cloud Console-ban létrehozott Desktop app típusú OAuth Client ID-t. Client Secretet és jelszót ne adj meg.';description.style.lineHeight='1.5';
-                        const field=document.createElement('input');field.type='text';field.placeholder='123456789-xxxxx.apps.googleusercontent.com';field.autocomplete='off';field.spellcheck=false;field.style.cssText='box-sizing:border-box;width:100%;padding:12px;border-radius:7px;border:1px solid #58756d;background:#07120f;color:white;margin:10px 0';
+                        const description=document.createElement('p');description.textContent='Add meg a Google Cloud Console Desktop app OAuth Client ID és Client Secret értékét. A Client Secret csak az alkalmazás aktuális futásáig marad a memóriában, nem kerül a projektbe vagy a felhőbe.';description.style.lineHeight='1.5';
+                        const idField=document.createElement('input');idField.type='text';idField.placeholder='Client ID: 123456789-xxxxx.apps.googleusercontent.com';idField.value=clientId;idField.autocomplete='off';idField.spellcheck=false;
+                        const secretField=document.createElement('input');secretField.type='password';secretField.placeholder='Client Secret';secretField.autocomplete='off';secretField.spellcheck=false;
+                        for(const field of [idField,secretField])field.style.cssText='box-sizing:border-box;width:100%;padding:12px;border-radius:7px;border:1px solid #58756d;background:#07120f;color:white;margin:7px 0';
                         const error=document.createElement('p');error.style.cssText='color:#ff9e9e;min-height:18px;margin:4px 0 10px';
                         const actions=document.createElement('div');actions.style.cssText='display:flex;gap:12px;justify-content:flex-end';
                         const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Mégse';cancel.style.cssText='padding:10px 20px;border-radius:7px;cursor:pointer';
                         const confirm=document.createElement('button');confirm.type='button';confirm.textContent='Összekapcsolás';confirm.style.cssText='padding:10px 20px;border:0;border-radius:7px;background:#14c58a;color:#001b12;font-weight:bold;cursor:pointer';
-                        const finish=(value)=>{document.removeEventListener('keydown',onKey);backdrop.remove();resolve(value);};
-                        const onKey=(event)=>{if(event.key==='Escape')finish('');};
-                        cancel.addEventListener('click',()=>finish(''));
+                        const finish=value=>{document.removeEventListener('keydown',onKey);backdrop.remove();resolve(value);};
+                        const onKey=event=>{if(event.key==='Escape')finish(null);};
+                        cancel.addEventListener('click',()=>finish(null));
                         confirm.addEventListener('click',()=>{
-                            const value=field.value.trim();
-                            if(!/^\d+-[a-z0-9-]+\.apps\.googleusercontent\.com$/.test(value)){error.textContent='Érvénytelen Client ID. A Desktop app kliensazonosítóját add meg.';return;}
-                            finish(value);
+                            const id=idField.value.trim(),secret=secretField.value.trim();
+                            if(!/^\d+-[a-z0-9-]+\.apps\.googleusercontent\.com$/.test(id)){error.textContent='Érvénytelen Desktop Client ID.';return;}
+                            if(!secret){error.textContent='A Google tokenkéréshez a Desktop Client Secret is szükséges.';return;}
+                            finish({clientId:id,clientSecret:secret});
                         });
-                        field.addEventListener('keydown',event=>{if(event.key==='Enter')confirm.click();});
-                        actions.append(cancel,confirm);panel.append(heading,description,field,error,actions);backdrop.append(panel);document.body.append(backdrop);document.addEventListener('keydown',onKey);field.focus();
+                        secretField.addEventListener('keydown',event=>{if(event.key==='Enter')confirm.click();});
+                        actions.append(cancel,confirm);panel.append(heading,description,idField,secretField,error,actions);backdrop.append(panel);document.body.append(backdrop);document.addEventListener('keydown',onKey);(clientId?secretField:idField).focus();
                     });
-                    if(!clientId)throw new Error('A Google Desktop Client ID megadása szükséges.');
-                    if(!/^\d+-[a-z0-9-]+\.apps\.googleusercontent\.com$/.test(clientId))throw new Error('A Desktop Client ID formátuma nem megfelelő.');
+                    if(!credentials)throw new Error('Google Drive összekapcsolás megszakítva.');
+                    clientId=credentials.clientId;clientSecret=credentials.clientSecret;
                     localStorage.setItem('handball_desktop_google_client_id',clientId);
+                    window.__desktopGoogleClientSecret=clientSecret;
                 }
                 try{
-                    const resp=await window.kezistatDesktop.connectGoogleDrive(clientId);
+                    const resp=await window.kezistatDesktop.connectGoogleDrive({clientId,clientSecret});
                     driveAccessToken=resp.access_token;
                     driveTokenExpiresAt=Date.now()+Number(resp.expires_in||3600)*1000-60000;
                     sessionStorage.setItem('handball_drive_recent_consent','1');
