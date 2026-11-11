@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - feature/desktop-offline-foundation
+      - feature/desktop-drive-streaming
+      - fix/desktop-ffmpeg-esm-core-20261111
     paths:
       - 'desktop/**'
       - 'package.json'
@@ -25,6 +27,17 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Bundle FFmpeg browser modules for offline Desktop export
+        shell: pwsh
+        run: |
+          $ffmpeg = 'node_modules/@ffmpeg/ffmpeg/dist/esm'
+          $core = 'node_modules/@ffmpeg/core/dist/esm'
+          if (!(Test-Path "$ffmpeg/index.js") -or !(Test-Path "$ffmpeg/worker.js")) { throw 'FFmpeg ESM files missing from npm package.' }
+          if (!(Test-Path "$core/ffmpeg-core.js") -or !(Test-Path "$core/ffmpeg-core.wasm")) { throw 'FFmpeg core files missing from npm package.' }
+          New-Item -ItemType Directory -Force vendor/ffmpeg, vendor/ffmpeg-core | Out-Null
+          Copy-Item "$ffmpeg/*" vendor/ffmpeg/ -Recurse -Force
+          Copy-Item "$core/*" vendor/ffmpeg-core/ -Recurse -Force
+          Write-Host 'FFmpeg runtime copied to vendor for Desktop package.'
       - name: Generate Windows icon
         run: |
           python -m pip install --disable-pip-version-check pillow

@@ -19,6 +19,7 @@
     "productName": "KéziStat Desktop",
     "files": [
       "index.html",
+      "vendor/**/*",
       "icons/**/*",
       "manifest.webmanifest",
       "desktop/**/*",
@@ -34,5 +35,9 @@
       "allowToChangeInstallationDirectory": true
     },
     "forceCodeSigning": false
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@ffmpeg/core": "0.12.10"
   }
 }
