@@ -7752,32 +7752,53 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
         }
         async function clipLoadFfmpeg(status){
             if(clipFfmpeg)return clipFfmpeg;
-            status.textContent='MP4 feldolgozó betöltése a saját szerverről…';
-            // Minden modul és WASM azonos originről érkezik Vercel proxyval,
-            // ezért sem cross-origin Worker, sem blob: module import nem szükséges.
+            status.textContent='MP4 feldolgozó betöltése…';
             const base='/vendor/ffmpeg/';
             const core='/vendor/ffmpeg-core/';
-            const check=async(path)=>{
+            // A Vercel CDN proxy mögött a core JS MIME-típusa vagy az átirányítás
+            // megakadályozhatja a Worker dinamikus ES-modul importját.
+            // Ellenőrzött, azonos originről letöltött tartalomból létrehozott
+            // blob URL-lel a modul betöltése független a proxy MIME-fejléceitől.
+            const get=async(path)=>{
                 const response=await fetch(path,{cache:'no-store'});
                 if(!response.ok)throw Error('Hiányzó videófeldolgozó fájl ('+response.status+'): '+path);
                 return response;
             };
-            await check(base+'index.js');
-            await check(base+'worker.js');
-            await check(core+'ffmpeg-core.js');
-            await check(core+'ffmpeg-core.wasm');
-            status.textContent='Videófeldolgozó indítása…';
-            const {FFmpeg}=await import(base+'index.js');
-            const ff=new FFmpeg();
+            const [entry,worker]=await Promise.all([get(base+'index.js'),get(base+'worker.js')]);
+            for(const [response,path] of [[entry,base+'index.js'],[worker,base+'worker.js']]){
+                const type=response.headers.get('content-type')||'';
+                if(type.includes('text/html'))throw Error('A kiszolgáló HTML-oldalt adott JavaScript helyett: '+path);
+            }
+            const coreJsResponse=await get(core+'ffmpeg-core.js');
+            const coreJs=await coreJsResponse.text();
+            if(!coreJs.trim()||/^\s*<!doctype html|^\s*<html/i.test(coreJs))
+                throw Error('Az FFmpeg core JavaScript helyett hibás választ kaptunk.');
+            const wasmResponse=await get(core+'ffmpeg-core.wasm');
+            const wasmBytes=await wasmResponse.arrayBuffer();
+            const magic=new Uint8Array(wasmBytes,0,Math.min(wasmBytes.byteLength,4));
+            if(magic.length!==4||magic[0]!==0||magic[1]!==97||magic[2]!==115||magic[3]!==109)
+                throw Error('Az FFmpeg WASM fájl nem érvényes. Ellenőrizd a Vercel CDN-proxyt.');
+            const coreBlobURL=URL.createObjectURL(new Blob([coreJs],{type:'text/javascript'}));
+            const wasmBlobURL=URL.createObjectURL(new Blob([wasmBytes],{type:'application/wasm'}));
+            let ff=null;
             try{
+                status.textContent='Videófeldolgozó indítása…';
+                const {FFmpeg}=await import(base+'index.js');
+                ff=new FFmpeg();
                 await ff.load({
                     classWorkerURL:new URL(base+'worker.js',location.origin).href,
-                    coreURL:new URL(core+'ffmpeg-core.js',location.origin).href,
-                    wasmURL:new URL(core+'ffmpeg-core.wasm',location.origin).href
+                    coreURL:coreBlobURL,
+                    wasmURL:wasmBlobURL
                 });
                 clipFfmpeg=ff;
                 return ff;
-            }catch(e){ff.terminate();throw e;}
+            }catch(e){
+                if(ff)ff.terminate();
+                throw e;
+            }finally{
+                URL.revokeObjectURL(coreBlobURL);
+                URL.revokeObjectURL(wasmBlobURL);
+            }
         }
         async function clipExportMp4(merge){
             if(clipExportBusy)return;
