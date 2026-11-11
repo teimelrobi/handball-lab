@@ -4,6 +4,7 @@ on:
     branches:
       - feature/desktop-offline-foundation
       - feature/desktop-drive-streaming
+      - fix/desktop-ffmpeg-esm-core-20261111
     paths:
       - 'desktop/**'
       - 'package.json'
@@ -30,7 +31,7 @@ jobs:
         shell: pwsh
         run: |
           $ffmpeg = 'node_modules/@ffmpeg/ffmpeg/dist/esm'
-          $core = 'node_modules/@ffmpeg/core/dist/umd'
+          $core = 'node_modules/@ffmpeg/core/dist/esm'
           if (!(Test-Path "$ffmpeg/index.js") -or !(Test-Path "$ffmpeg/worker.js")) { throw 'FFmpeg ESM files missing from npm package.' }
           if (!(Test-Path "$core/ffmpeg-core.js") -or !(Test-Path "$core/ffmpeg-core.wasm")) { throw 'FFmpeg core files missing from npm package.' }
           New-Item -ItemType Directory -Force vendor/ffmpeg, vendor/ffmpeg-core | Out-Null
