@@ -170,6 +170,7 @@ function refresh(){
 window.performancePanelRender=renderPerformance;
 window.performancePanelRefresh=refresh;
 E('perfReload').addEventListener('click',refresh);
+E('globalTeam').addEventListener('change',refresh);
 for(const id of ['perfA','perfB','perfCategory','perfMin'])E(id).addEventListener('change',renderPerformance);
 E('perfExport').addEventListener('click',()=>{
  const rows=[['Páros','Együtt (másodperc)','Meccsek','Lőtt','Kapott','Gólkülönbség','Jelölés A→B','Jelölés B→A']];
