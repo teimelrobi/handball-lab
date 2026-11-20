@@ -4,6 +4,14 @@
 <style>
 :root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#23344b;background:#f4f6f9;color-scheme:light}*{box-sizing:border-box}body{margin:0}header{background:linear-gradient(105deg,#193a53,#117b83);color:white;padding:26px 36px}header .inner{max-width:1450px;margin:auto}h1{margin:0;font-size:25px}header p{margin:7px 0 0;color:#d9f1f0;font-size:14px}.shell{max-width:1450px;margin:auto;padding:22px 20px 60px;display:grid;grid-template-columns:325px minmax(0,1fr);gap:16px;align-items:start}section,.panel{background:white;border:1px solid #e3e8ef;border-radius:13px;box-shadow:0 1px 5px rgba(27,54,74,.035)}section{padding:17px;margin-bottom:15px}.sidebar{position:sticky;top:12px;max-height:calc(100vh - 25px);overflow:auto}h2{font-size:17px;margin:0 0 14px}h3{font-size:15px;margin:0 0 10px}.caption{font-size:12px;color:#667689;line-height:1.55}.field{display:flex;flex-direction:column;gap:6px;margin:12px 0}.field>label,.field>.heading{font-size:12px;font-weight:700;color:#51657b}select,input[type=number],input[type=text]{border:1px solid #cbd8e2;background:#fbfcfd;border-radius:8px;padding:10px;width:100%;font-size:13px;color:#263e55}button,.filebtn{background:#127c85;color:white;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;font:600 13px inherit;display:inline-flex;align-items:center;justify-content:center;gap:8px}button.secondary{background:#ecf2f5;color:#27516a}button:disabled{opacity:.45;cursor:default}.filebtn{width:100%;font-weight:700;font-size:14px}.filebtn input{display:none}.checks{display:flex;flex-direction:column;gap:9px;margin:11px 0}.checks label{font-size:13px;display:flex;align-items:center;gap:9px}.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{padding:5px 8px;border:1px solid #d4dce5;border-radius:17px;background:#f8fbfc;font-size:12px;cursor:pointer;user-select:none}.chip.active{background:#ddf2ef;border-color:#39988a;color:#126b60;font-weight:700}.muted{color:#6f7d8b}.status{font-size:12px;margin-top:10px;line-height:1.5}.status.ok{color:#197d66}.status.error{color:#b32633}.main{min-width:0}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:14px}.metric{background:white;border:1px solid #e3e8ef;border-radius:12px;padding:14px 16px}.metric strong{font-size:24px;display:block;color:#1d455d}.metric span{font-size:11px;color:#647688}.toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:11px}.toolbar h2{margin:0}.right{display:flex;gap:8px}.panel{padding:18px;margin-bottom:15px}.chart{width:100%;height:510px;border:1px solid #e8eef2;border-radius:10px;background:#fafcfd;touch-action:none;display:block}.legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:#53697b}.swatch{display:inline-block;width:19px;height:4px;border-radius:3px;vertical-align:middle;margin-right:5px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:15px}.scroll{overflow:auto;max-height:375px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{padding:9px 8px;text-align:left;border-bottom:1px solid #e8edf1}th{position:sticky;top:0;background:#f1f6f8;color:#506579}tr.clickable{cursor:pointer}tr.clickable:hover{background:#eaf6f5}.pill{font-size:11px;padding:3px 7px;border-radius:11px;background:#e5f2ef;color:#147768}.group{border:1px solid #e4eaf0;border-radius:9px;padding:11px 12px;margin-bottom:9px;cursor:pointer}.group:hover{border-color:#43a595;background:#f7fcfa}.group.selected{border-color:#159781;background:#eaf8f3}.group h4{margin:0 0 5px;font-size:13px}.group p{margin:3px 0;color:#647688;font-size:12px;line-height:1.45}.notice{background:#fff8e9;border:1px solid #f0e2bd;color:#655331;padding:11px 13px;border-radius:9px;font-size:12px;line-height:1.55}.nodeLabel{font-family:Inter,Segoe UI,Arial,sans-serif;pointer-events:none}.node{cursor:pointer}.edge{stroke-linecap:round}.heading2{font-weight:700;font-size:14px;margin:10px 0}.statline{font-size:12px;margin:7px 0;color:#5d6f83}.smallbutton{font-size:12px;padding:8px 10px}.hidden{display:none!important}@media(max-width:970px){.shell{display:block}.sidebar{position:static;max-height:none}.metrics{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}.chart{height:420px}}@media print{header,.sidebar,.toolbar button{display:none!important}.shell{display:block;padding:0}.chart{height:470px}.panel{break-inside:avoid}}
 
+
+/* Mérkőzésstatisztikai és szociometriai összekapcsolás */
+.perfControls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.perfControls .field{margin:0 0 14px}.perfFilters{display:flex;align-items:center;gap:24px;flex-wrap:wrap;margin:10px 0 20px}
+.perfResult{background:#f1f7f8;border:1px solid #d9e9ed;border-radius:10px;padding:15px;line-height:1.6;font-size:13px}
+.perfResult p{margin:6px 0}.perfMapRow{display:grid;grid-template-columns:minmax(150px,1fr) minmax(170px,1fr);gap:12px;margin:8px 0;align-items:center}
+@media(max-width:760px){.perfControls{grid-template-columns:1fr}.perfMapRow{grid-template-columns:1fr}}
+
 /* KéziStat csapatdinamika integrált képernyő */
 .topbar{background:#e8f0f4;border-bottom:1px solid #d5e3ea;padding:12px 25px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
 .tabs{display:flex;flex-wrap:wrap;gap:7px}.tab{background:transparent;color:#365b72;border:1px solid #b6ced8;padding:9px 15px;font-weight:750;border-radius:9px}.tab.active{background:#127c85;color:#fff;border-color:#127c85}
@@ -24,6 +32,7 @@
   <button class="tab active" data-panel="overviewView" type="button">Csapatáttekintés</button>
   <button class="tab" data-panel="profileView" type="button">Egyéni következtetések</button>
   <button class="tab" data-panel="networkView" type="button">Szociometriai háló és klikkek</button>
+  <button class="tab" data-panel="performanceView" type="button">Játékoskapcsolatok és teljesítmény</button>
  </div>
  <div class="upload"><label class="filebtn">Excel betöltése (.xlsx)<input type="file" id="fileTop" accept=".xlsx" hidden></label><small id="globalStatus" role="status">Nincs betöltött munkafüzet</small></div>
 </div>
@@ -46,6 +55,34 @@
  <div class="profileHeader"><h2 style="margin:0;flex:1">Komplex egyéni edzői következtetések</h2><select id="profileSelect" aria-label="Játékos kiválasztása"><option value="">Előbb tölts be egy Excel-fájlt</option></select></div>
  <div id="profileStatus">A riportok rövid, ellenőrizhető edzői hipotézisek; nem személyiségdiagnózisok.</div>
  <div id="profileBody" class="emptyState">A játékos kiválasztásakor megjelenik az öt részes értékelés.</div>
+</div>
+<div id="performanceView" class="sectionContent hidden">
+ <div class="profileHeader"><h2 style="margin:0;flex:1">Játékoskapcsolatok és mérkőzésteljesítmény</h2><button id="perfReload" class="secondary" type="button">Mérkőzésadatok újratöltése</button></div>
+ <p class="caption">A korábban betöltött Excel személyiség- és szociometriai adatait összevetjük a KéziStat ezen a böngészőn mentett mérkőzésadataival. Csak az azonosítható korosztályhoz tartozó, teljes összeállításnaplós meccsekből számolunk együtt töltött időt.</p>
+ <div id="perfState" class="notice" style="margin:12px 0">Először töltsd be az Excel-fájlt.</div>
+ <div class="panel">
+  <h2>Két játékos összevetése</h2>
+  <div class="perfControls">
+   <div class="field"><label for="perfA">Első játékos</label><select id="perfA"><option value="">Excel betöltése szükséges</option></select></div>
+   <div class="field"><label for="perfB">Második játékos</label><select id="perfB"><option value="">Excel betöltése szükséges</option></select></div>
+   <div class="field"><label for="perfCategory">Szociometriai kapcsolattípus</label><select id="perfCategory"><option value="0">Összes kapcsolat</option><option value="1">Szakmai együttműködés</option><option value="2">Támadás és védekezés</option><option value="3">Bizalom és támogatás</option><option value="4">Kommunikáció és vezetés</option><option value="5">Közösségi kapcsolatok</option></select></div>
+  </div>
+  <div id="perfNotice" class="notice" role="status">Nincs még ellenőrzött mérkőzésadat.</div>
+  <div id="perfResult" class="perfResult" style="margin-top:14px">Az összehasonlításhoz válassz két játékost.</div>
+ </div>
+ <div class="panel">
+  <div class="toolbar"><h2>Párosok – játékidő szerinti sorrend</h2><div class="right"><button id="perfExport" type="button" class="secondary">CSV export</button></div></div>
+  <div class="perfFilters">
+   <label class="field" for="perfMin" style="margin:0">Minimum ellenőrzött közös játékidő (perc)
+    <input type="number" id="perfMin" value="10" min="0" max="3600" step="1" style="max-width:130px">
+   </label>
+   <span class="caption" id="perfShown"></span>
+  </div>
+  <div class="scroll"><table><thead><tr><th>Játékospár</th><th>Együtt</th><th>Meccs</th><th>Lőtt / kapott</th><th>+/−</th><th>Jelölés oda / vissza</th></tr></thead><tbody id="perfRanking"></tbody></table></div>
+  <p class="caption">A gólkülönbség a páros együttes pályán létekor rögzített gólokat jelenti, nem a játékosok személyes góltermését. A kérdőíves jelöléseket a kiválasztott kapcsolattípus szerint szűrjük; a perc és a gólkülönbség nem attól függ.</p>
+ </div>
+ <details class="panel"><summary style="cursor:pointer;font-weight:700">Játékosnevek párosítása (ha az Excel és a mérkőzéskeret neve eltér)</summary><div id="perfMap" style="padding-top:12px">Nincs betöltött játékoslista.</div></details>
+ <div class="notice">Szakmai korlát: a közös játékidő és a gólkülönbség nem méri önmagában a páros együttműködés minőségét. A KéziStat későbbi csapatoptimalizálója a posztokat, az ellenfelet, a létszámhelyzetet és az egyéni formát is külön vizsgálja majd. A kitöltött kérdőív adatai nem kerülnek fel a szerverre.</div>
 </div>
 <div id="networkView" class="hidden">
 <div class="shell"><aside class="sidebar">
@@ -124,9 +161,9 @@ for(let id of ['minEdge','mutual','weighted','showIsolates'])$(id).addEventListe
 
 // -- Integrált csapatdinamika-áttekintés és egyéni riport --
 function setActivePanel(id){
- for(const x of ['overviewView','profileView','networkView'])$(x).classList.toggle('hidden',x!==id);
+ for(const x of ['overviewView','profileView','networkView','performanceView'])$(x).classList.toggle('hidden',x!==id);
  document.querySelectorAll('.tab').forEach(b=>{const active=b.dataset.panel===id;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active))});
- if(id==='overviewView')renderOverview();if(id==='profileView')renderProfile();if(id==='networkView'&&players.length)render();
+ if(id==='overviewView')renderOverview();if(id==='profileView')renderProfile();if(id==='networkView'&&players.length)render();if(id==='performanceView')window.performancePanelRender?.();
 }
 function selectedTeam(){return $('globalTeam').value}
 function relevant(){return players.filter(p=>p.team===selectedTeam())}
@@ -158,11 +195,11 @@ function renderProfile(){let id=$('profileSelect').value,p=players.find(x=>x.id=
  $('profileStatus').textContent='A szöveges következtetések a betöltött Excel „FU16 értelmezések” lapjából származnak. Nem frissülnek automatikusan a válaszok módosításakor.';
 }
 function uiDataLoaded(filename){loadedFilename=filename;let t=$('globalStatus');t.textContent=`Betöltve: ${filename} · ${players.length} játékos`;
- $('team').value=$('globalTeam').value;refreshProfileOptions();renderOverview();setActivePanel('overviewView');
+ $('team').value=$('globalTeam').value;refreshProfileOptions();renderOverview();window.performancePanelRefresh?.();setActivePanel('overviewView');
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>setActivePanel(b.dataset.panel)));
 $('globalTeam').addEventListener('change',()=>{$('team').value=$('globalTeam').value;selected.clear();chosenGroup=null;populatePlayerChips();refreshProfileOptions();renderOverview();if(players.length)render()});
 $('team').addEventListener('change',()=>{if($('team').value!=='all'){$('globalTeam').value=$('team').value;refreshProfileOptions();renderOverview()}});
 $('profileSelect').addEventListener('change',renderProfile);
 $('fileTop').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;$('globalStatus').textContent='Excel feldolgozása...';try{await readFile(f)}catch(err){$('globalStatus').textContent='Betöltési hiba: '+err.message;console.error(err)}});
-</script></body></html>
+</script><script src="./csapatdinamika-teljesitmeny.js"></script></body></html>
