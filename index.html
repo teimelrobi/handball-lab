@@ -962,6 +962,11 @@
                     <h3 style="color:#d5b3f3;">STAT</h3>
                     <p>Csapat- és játékosstatisztikák az összes mérkőzésből</p>
                 </div>
+                <div class="menu-card blue" onclick="showScreen('view-team-dynamics')">
+                    <i class="fas fa-project-diagram" style="color:#54c4d0"></i>
+                    <h3>Csapatdinamika</h3>
+                    <p>Személyiségprofilok, kohézió, szociometriai háló és klikkek</p>
+                </div>
                 <div class="menu-card blue" onclick="showScreen('view-cloud')">
                     <i class="fas fa-cloud"></i>
                     <h3>Felhő & fiók</h3>
@@ -998,6 +1003,16 @@
             </div>
             <div id="career-stat-content"><div class="career-empty">Válassz csapatot és játékost.</div></div>
         </div>
+    </div>
+
+    <!-- CSAPATDINAMIKA – elkülönített, helyi Excel-beolvasás -->
+    <div class="screen" id="view-team-dynamics" style="padding:16px 22px;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex-shrink:0;margin-bottom:10px;">
+            <button class="back-btn" onclick="showScreen('view-home')" style="margin:0;"><i class="fas fa-arrow-left"></i> Főmenü</button>
+            <h2 style="color:var(--green-accent);margin:0;font-size:22px;">Csapatdinamika</h2>
+            <a href="./csapatdinamika.html" target="_blank" rel="noopener noreferrer" style="margin-left:auto;color:var(--green-accent);font-size:13px;">Megnyitás külön ablakban <i class="fas fa-external-link-alt"></i></a>
+        </div>
+        <iframe title="KéziStat Csapatdinamika" src="./csapatdinamika.html" loading="lazy" style="width:100%;flex:1;min-height:0;border:1px solid var(--border-color);border-radius:12px;background:#f4f6f9;"></iframe>
     </div>
 
     <!-- 1. CSAPATOK KEZELÉSE -->
