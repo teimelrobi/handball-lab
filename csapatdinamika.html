@@ -12,6 +12,31 @@
 .perfResult p{margin:6px 0}.perfMapRow{display:grid;grid-template-columns:minmax(150px,1fr) minmax(170px,1fr);gap:12px;margin:8px 0;align-items:center}
 @media(max-width:760px){.perfControls{grid-template-columns:1fr}.perfMapRow{grid-template-columns:1fr}}
 
+
+/* Csapatoptimalizáló */
+.optControls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.optControls .field{min-width:0;margin:0}.optControls select{width:100%}
+.optToggle{margin:14px 0;display:flex;align-items:center;gap:9px;font-size:13px}
+.optCheck{display:flex;align-items:center;gap:7px;cursor:pointer;white-space:nowrap}
+.optCheck input{width:17px;height:17px}
+.optSelect{min-width:135px;width:100%;font-size:13px}
+#optRoster td{vertical-align:middle}
+.optLight,.optSmall{font-size:12px;color:#738797;line-height:1.55}
+.optActions{display:flex;gap:12px;margin-top:18px;flex-wrap:wrap}
+.optActions button{padding:12px 16px}
+.optPairLineups{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.optLineup,.optAdvice{background:#fff;border:1px solid #dce7eb;border-radius:12px;padding:16px;margin:14px 0}
+.optLineup h3,.optAdvice h3{margin:0 0 12px;color:#125f74}
+.optLineupRows{display:flex;flex-direction:column;gap:5px}
+.optLineupRow{display:grid;grid-template-columns:120px minmax(150px,1fr);gap:4px 12px;background:#f5f9fa;border-radius:8px;padding:11px 12px}
+.optLineupRow .optReason{grid-column:2;font-size:11px;color:#607484}
+.optPosition{font-size:12px;color:#426777}
+.optPlayer{font-size:13px;font-weight:700}
+.optBanner,.optWarning{padding:13px 16px;border-radius:9px;font-size:13px;margin:15px 0;background:#eef4f8;border:1px solid #ccdee7;color:#23465a;line-height:1.6}
+.optWarning{background:#fff5e9;border-color:#f1d5b4;color:#795127}
+@media(max-width:1060px){.optControls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.optPairLineups,.optControls{grid-template-columns:1fr}.optLineupRow{grid-template-columns:90px minmax(0,1fr)}}
+
 /* KéziStat csapatdinamika integrált képernyő */
 .topbar{background:#e8f0f4;border-bottom:1px solid #d5e3ea;padding:12px 25px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
 .tabs{display:flex;flex-wrap:wrap;gap:7px}.tab{background:transparent;color:#365b72;border:1px solid #b6ced8;padding:9px 15px;font-weight:750;border-radius:9px}.tab.active{background:#127c85;color:#fff;border-color:#127c85}
@@ -33,6 +58,7 @@
   <button class="tab" data-panel="profileView" type="button">Egyéni következtetések</button>
   <button class="tab" data-panel="networkView" type="button">Szociometriai háló és klikkek</button>
   <button class="tab" data-panel="performanceView" type="button">Játékoskapcsolatok és teljesítmény</button>
+  <button class="tab" data-panel="optimizerView" type="button">Csapatoptimalizáló</button>
  </div>
  <div class="upload"><label class="filebtn">Excel betöltése (.xlsx)<input type="file" id="fileTop" accept=".xlsx" hidden></label><small id="globalStatus" role="status">Nincs betöltött munkafüzet</small></div>
 </div>
@@ -83,6 +109,34 @@
  </div>
  <details class="panel"><summary style="cursor:pointer;font-weight:700">Játékosnevek párosítása (ha az Excel és a mérkőzéskeret neve eltér)</summary><div id="perfMap" style="padding-top:12px">Nincs betöltött játékoslista.</div></details>
  <div class="notice">Szakmai korlát: a közös játékidő és a gólkülönbség nem méri önmagában a páros együttműködés minőségét. A KéziStat későbbi csapatoptimalizálója a posztokat, az ellenfelet, a létszámhelyzetet és az egyéni formát is külön vizsgálja majd. A kitöltött kérdőív adatai nem kerülnek fel a szerverre.</div>
+</div>
+<div id="optimizerView" class="sectionContent hidden">
+ <div class="profileHeader"><h2 style="margin:0;flex:1">Csapatoptimalizáló – támadó és védekező hetes</h2><button type="button" class="secondary" id="optReload">Adatok frissítése</button></div>
+ <p class="caption">Edzői döntéstámogató eszköz. A nevezett keretet, posztokat, ellenőrzött meccsstatisztikákat, közös játékidőket és opcionálisan a kölcsönös szociometriai választásokat együttesen értékeli. Nem automatikus játékosminősítés.</p>
+ <div class="panel">
+  <div class="optControls">
+   <label class="field">KéziStat-csapat<select id="optTeam"></select></label>
+   <label class="field">Mérkőzéshelyzet<select id="optSituation">
+    <option value="normal">Általános mérkőzés</option>
+    <option value="late-attack">57:00 – döntetlen, mi támadunk</option>
+    <option value="late-defense">57:00 – döntetlen, védekezünk</option>
+    <option value="power">Emberelőny – tájékoztató</option>
+    <option value="short">Emberhátrány – tájékoztató</option>
+   </select></label>
+   <label class="field">Legfeljebb ennyi támadó–védő csere<select id="optSwaps"><option>0</option><option>1</option><option>2</option><option selected>3</option></select></label>
+   <label class="field">Mérkőzések a teljesítményhez<select id="optPeriod"><option value="all">Összes elérhető</option><option value="5">Utolsó 5</option><option value="10">Utolsó 10</option></select></label>
+  </div>
+  <label class="optCheck optToggle"><input type="checkbox" id="optSocial" checked> Kölcsönös szociometriai kapcsolatok figyelembevétele (kis súllyal)</label>
+  <p class="caption" id="optStatus" role="status">Az optimálisnak becsült hetesekhez szükség van a mérkőzésadatokra és a posztokra.</p>
+ </div>
+ <div class="panel">
+  <div class="toolbar"><h2>Mérkőzéskeret és posztok</h2><div class="right"><span class="caption" id="optCount">0 / 16 nevezett</span><button id="optRecent" type="button" class="secondary">Legutóbbi keret kijelölése</button></div></div>
+  <p class="caption">Válassz ki 7–16 nevezett játékost. Elsődleges és másodlagos posztot adhatsz meg; a rendszer csak megfelelő posztra ajánl játékost. Ha a statisztikában eltérő a név, párosítsd a játékosokat.</p>
+  <div class="scroll"><table><thead><tr><th>Nevezés / játékos</th><th>Elsődleges poszt</th><th>Másodlagos poszt</th><th>KéziStat-név</th><th>Forrás</th></tr></thead><tbody id="optRoster"></tbody></table></div>
+  <div class="optActions"><button id="optCalculate" type="button">Támadó és védekező hetes kiszámítása</button><button id="optExport" class="secondary" type="button" disabled>Javaslat CSV-exportja</button></div>
+ </div>
+ <div id="optResult" aria-live="polite"></div>
+ <div class="notice">Az algoritmus előzetes, magyarázható súlyozást használ: az alapfeltétel az érvényes nevezett keret és a posztlefedés. Mérkőzésstatisztika csak teljes összeállításnaplóból számolódik. A védekező helyeket a 6:0 / 5:1 felálláshoz az edző rendeli hozzá. A játékosok aktuális terhelését és egészségi állapotát a rendszer még nem ismeri.</div>
 </div>
 <div id="networkView" class="hidden">
 <div class="shell"><aside class="sidebar">
@@ -161,9 +215,9 @@ for(let id of ['minEdge','mutual','weighted','showIsolates'])$(id).addEventListe
 
 // -- Integrált csapatdinamika-áttekintés és egyéni riport --
 function setActivePanel(id){
- for(const x of ['overviewView','profileView','networkView','performanceView'])$(x).classList.toggle('hidden',x!==id);
+ for(const x of ['overviewView','profileView','networkView','performanceView','optimizerView'])$(x).classList.toggle('hidden',x!==id);
  document.querySelectorAll('.tab').forEach(b=>{const active=b.dataset.panel===id;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active))});
- if(id==='overviewView')renderOverview();if(id==='profileView')renderProfile();if(id==='networkView'&&players.length)render();if(id==='performanceView')window.performancePanelRender?.();
+ if(id==='overviewView')renderOverview();if(id==='profileView')renderProfile();if(id==='networkView'&&players.length)render();if(id==='performanceView')window.performancePanelRender?.();if(id==='optimizerView')window.teamOptimizerRender?.();
 }
 function selectedTeam(){return $('globalTeam').value}
 function relevant(){return players.filter(p=>p.team===selectedTeam())}
@@ -195,11 +249,11 @@ function renderProfile(){let id=$('profileSelect').value,p=players.find(x=>x.id=
  $('profileStatus').textContent='A szöveges következtetések a betöltött Excel „FU16 értelmezések” lapjából származnak. Nem frissülnek automatikusan a válaszok módosításakor.';
 }
 function uiDataLoaded(filename){loadedFilename=filename;let t=$('globalStatus');t.textContent=`Betöltve: ${filename} · ${players.length} játékos`;
- $('team').value=$('globalTeam').value;refreshProfileOptions();renderOverview();window.performancePanelRefresh?.();setActivePanel('overviewView');
+ $('team').value=$('globalTeam').value;refreshProfileOptions();renderOverview();window.performancePanelRefresh?.();window.teamOptimizerRefresh?.();setActivePanel('overviewView');
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>setActivePanel(b.dataset.panel)));
 $('globalTeam').addEventListener('change',()=>{$('team').value=$('globalTeam').value;selected.clear();chosenGroup=null;populatePlayerChips();refreshProfileOptions();renderOverview();if(players.length)render()});
 $('team').addEventListener('change',()=>{if($('team').value!=='all'){$('globalTeam').value=$('team').value;refreshProfileOptions();renderOverview()}});
 $('profileSelect').addEventListener('change',renderProfile);
 $('fileTop').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;$('globalStatus').textContent='Excel feldolgozása...';try{await readFile(f)}catch(err){$('globalStatus').textContent='Betöltési hiba: '+err.message;console.error(err)}});
-</script><script src="./csapatdinamika-teljesitmeny.js"></script></body></html>
+</script><script src="./csapatdinamika-teljesitmeny.js"></script><script src="./csapatdinamika-optimalizalo.js"></script></body></html>
