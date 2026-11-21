@@ -1,0 +1,38 @@
+{
+  "name": "kezistat-desktop",
+  "version": "0.2.0",
+  "private": true,
+  "description": "KéziStat Windows desktop prototype",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "desktop": "electron .",
+    "desktop:pack": "electron-builder --win",
+    "desktop:zip": "electron-builder --win zip --publish never",
+    "desktop:installer": "electron-builder --win nsis --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.kezistat.desktop",
+    "productName": "KéziStat Desktop",
+    "files": [
+      "index.html",
+      "icons/**/*",
+      "manifest.webmanifest",
+      "desktop/**/*",
+      "!desktop/README.md"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false,
+      "icon": "desktop/generated-icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "forceCodeSigning": false
+  }
+}

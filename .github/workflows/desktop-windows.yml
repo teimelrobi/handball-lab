@@ -1,0 +1,113 @@
+name: KéziStat Desktop Windows test installer
+on:
+  push:
+    branches:
+      - feature/desktop-offline-foundation
+    paths:
+      - 'desktop/**'
+      - 'package.json'
+      - 'index.html'
+      - 'icons/**'
+      - '.github/workflows/desktop-windows.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Generate Windows icon
+        run: |
+          python -m pip install --disable-pip-version-check pillow
+          python desktop/build-icon.py
+      - name: Build portable Windows ZIP
+        id: portable
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          npm run desktop:zip 2>&1 | Tee-Object -FilePath portable-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          DEBUG: electron-builder
+      - name: Build Windows installer
+        id: installer
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          npm run desktop:installer 2>&1 | Tee-Object -FilePath installer-build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          DEBUG: electron-builder
+      - name: Inspect and hash Windows packages
+        if: steps.portable.outcome == 'success' || steps.installer.outcome == 'success'
+        shell: pwsh
+        run: |
+          $packages = @(Get-ChildItem -Path dist -File | Where-Object { $_.Extension -in @('.exe', '.zip') })
+          if ($packages.Count -eq 0) { throw 'No Windows installer or portable archive was produced.' }
+          $packages | ForEach-Object {
+            if ($_.Length -lt 1000000) { throw "Unexpectedly small package: $($_.Name)" }
+            Write-Host "Package: $($_.Name) ($($_.Length) bytes)"
+          }
+          $packages | Get-FileHash -Algorithm SHA256 | ForEach-Object {
+            "$($_.Hash)  $(Split-Path $_.Path -Leaf)"
+          } | Set-Content -Path dist/SHA256SUMS.txt -Encoding ascii
+          Get-Content dist/SHA256SUMS.txt
+      - name: Windows Defender scan (if available)
+        if: steps.portable.outcome == 'success' || steps.installer.outcome == 'success'
+        shell: pwsh
+        run: |
+          $status = Get-MpComputerStatus -ErrorAction SilentlyContinue
+          if (-not $status -or -not $status.AntivirusEnabled) {
+            Write-Warning 'Windows Defender antivirus is unavailable on this runner. No clean scan is claimed.'
+            "Defender scan unavailable on GitHub runner; verify on your PC." | Set-Content dist/SCAN-STATUS.txt
+          } else {
+            Update-MpSignature -ErrorAction SilentlyContinue
+            $files = @(Get-ChildItem dist -File | Where-Object { $_.Extension -in @('.exe', '.zip') })
+            foreach ($file in $files) {
+              Write-Host "Scanning $($file.Name)"
+              Start-MpScan -ScanType CustomScan -ScanPath $file.FullName -ErrorAction Stop
+            }
+            $threats = @(Get-MpThreatDetection -ErrorAction SilentlyContinue | Where-Object { $_.InitialDetectionTime -gt (Get-Date).AddMinutes(-30) })
+            if ($threats.Count -gt 0) { throw 'Defender detected a potential threat; packages will not be uploaded.' }
+            "Windows Defender custom scan completed with no detected threats (not a guarantee of safety)." | Set-Content dist/SCAN-STATUS.txt
+          }
+      - name: Upload installer and portable ZIP
+        if: steps.portable.outcome == 'success' || steps.installer.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeziStat-Desktop-0.2.0-Windows
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/SHA256SUMS.txt
+            dist/SCAN-STATUS.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload diagnostic logs separately
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeziStat-Desktop-Build-Logs
+          path: |
+            portable-build.log
+            installer-build.log
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Report build result
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Portable ZIP: ${{ steps.portable.outcome }}"
+          Write-Host "Installer: ${{ steps.installer.outcome }}"
+          if ('${{ steps.portable.outcome }}' -ne 'success' -and '${{ steps.installer.outcome }}' -ne 'success') { exit 1 }
