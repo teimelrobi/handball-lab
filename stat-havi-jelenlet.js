@@ -587,9 +587,9 @@ function renderActivitySummary(seasonSessions,cutoff,periodStart,from,to){
  const allSeason=categoryTotals(seasonSessions,from,to);
  const totals=CAT_LIST.map(cat=>cat.label+': '+(cat.id==='match'?allSeason[cat.id].count+' db':formatActivityHours(allSeason[cat.id].minutes))).join(' · ');
  activitySummary.append(elem('p','amSummaryNote',
-  'A mai napig '+past.length+' alkalom szerepel a naptárban, ez dátum szerinti ütemezés, nem igazolt megtartás. '+
+  'A mai napig '+past.filter(x=>x.kind!=='official'&&x.kind!=='match').length+' edzésalkalom szerepel a naptárban, ez dátum szerinti ütemezés, nem igazolt megtartás. '+
   'A vegyes edzéseket külön labdás és erőnléti óraszámban mutatjuk, de a jelenlét szempontjából egy alkalom. Mérkőzésként kizárólag a KéziStat statisztikájában szereplő bajnokikat számoljuk. '+
-  'Még '+future.length+' későbbi alkalom van beütemezve.'));
+  'Még '+future.filter(x=>x.kind!=='official'&&x.kind!=='match').length+' későbbi edzésalkalom van beütemezve.'));
  activitySummary.append(elem('p','amSummaryNote','Teljes kiválasztott évad bontása: '+totals+'.'));
  const unknown=unknownMatches(from,cutoff);
  if(unknown.length)activitySummary.append(elem('p','amSummaryNote',unknown.length+' statisztikai meccs besorolása bizonytalan. Ezeket csak akkor számoljuk, ha a naptárban bajnokiként megjelölöd.'));
@@ -605,7 +605,7 @@ function renderCalendarMonth(y,m,ss,specialTitle){
   const monthly=categoryTotals(ss,iso(y,m,1),iso(y,m,new Date(y,m,0).getDate()));
   const monthDetail=CAT_LIST.map(cat=>cat.label+': '+(cat.id==='match'?monthly[cat.id].count+' db':formatActivityHours(monthly[cat.id].minutes))).join(' · ');
   summ.append(elem('span','',specialTitle||(months[m>=8?m-8:m+4][0].toUpperCase()+months[m>=8?m-8:m+4].slice(1)+' '+y)),
-    elem('span','amSmall',ss.length+' alkalom · '+(ss.reduce((a,b)=>a+(Number(b.duration)||0),0)/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra · '+monthDetail));
+    elem('span','amSmall',ss.filter(x=>x.kind!=='official'&&x.kind!=='match').length+' edzésalkalom · '+(ss.filter(x=>x.kind!=='official'&&x.kind!=='match').reduce((a,b)=>a+(Number(b.duration)||0),0)/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' edzésóra · '+monthDetail));
   details.append(summ);
   details.addEventListener('toggle',()=>{if(details.open)state.opened.add(monthKey);else state.opened.delete(monthKey)});
   const days=elem('div','amDays');
@@ -642,7 +642,7 @@ function render(){
  const septMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-09-')).length;
  const octMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-10-')).length;
  const novMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-11-')).length;
- summary.textContent=y+'/'+String((y+1)%100).padStart(2,'0')+' évad · '+seasonSessions.length+' alkalom · '+hours.toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra tervezett/rögzített időtartam. Az ismeretlen jelenlét nem számít hiányzásnak.'+(y===2026&&state.age==='FU16'?' · Archív mérkőzések: szeptember '+septMatches+', október '+octMatches+', november '+novMatches+'.':'');
+ summary.textContent=y+'/'+String((y+1)%100).padStart(2,'0')+' évad · '+seasonSessions.filter(x=>x.kind!=='official'&&x.kind!=='match').length+' edzésalkalom · '+hours.toLocaleString('hu-HU',{maximumFractionDigits:1})+' edzésóra. Az ismeretlen jelenlét nem számít hiányzásnak.'+(y===2026&&state.age==='FU16'?' · Archív mérkőzések: szeptember '+septMatches+', október '+octMatches+', november '+novMatches+'.':'');
  renderActivitySummary(seasonSessions,cutoff,preseasonSessions.length?'2026. július 27.':'augusztus 1.',preseasonSessions.length?'2026-07-27':iso(y,8,1),iso(y+1,7,31));
  if(!state.roster.length){holder.append(elem('p','amSmall','A csapat kerete üres; előbb vidd fel a játékosokat a Csapatok kezelése részben.'))}
  if(preseasonSessions.length)renderCalendarMonth(2026,7,preseasonSessions,'Előszezon – Július 2026');
