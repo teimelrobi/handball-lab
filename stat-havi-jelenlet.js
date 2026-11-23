@@ -186,6 +186,16 @@ const css=elem('style');css.textContent=`
 #amPanel .amAttendance select{min-width:112px}
 #amPanel .amAttendance input[type=text]{min-width:150px;max-width:300px}
 #amPanel .amInfo{padding:10px 13px;background:#193b43;border-radius:9px;margin-top:12px;line-height:1.5;color:#c1e9df;font-size:12px}
+#amPanel .amSummary{margin:14px 0 22px}
+#amPanel .amSummary h4{color:#d7f5ed;font-size:14px;margin:0 0 10px;font-weight:750}
+#amPanel .amSummaryGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+#amPanel .amSummaryCard{background:#203a48;border:1px solid #3d6471;border-radius:10px;padding:13px;min-width:0}
+#amPanel .amSummaryNumber{font-size:27px;font-weight:800;line-height:1.15;color:#4de0b5;font-variant-numeric:tabular-nums}
+#amPanel .amSummaryLabel{font-size:12px;font-weight:650;color:#dfedf0;margin-top:4px}
+#amPanel .amSummaryDuration{font-size:12px;color:#a7c6d0;margin-top:3px}
+#amPanel .amSummaryNote{font-size:12px;color:#b0c7d1;line-height:1.55;margin:10px 0 0}
+@media(max-width:760px){#amPanel .amSummaryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:390px){#amPanel .amSummaryGrid{grid-template-columns:1fr 1fr};#amPanel .amSummaryNumber{font-size:22px}}
 #amPanel button.amDanger{border-color:#a1595d;color:#ffd9d8;background:#462a35}
 #amPanel .amHighlight{color:#4de3b7}
 @media(max-width:780px){#amPanel .amDay{grid-template-columns:85px minmax(0,1fr)}#amPanel .amDay>.amAdd{grid-column:2;justify-self:start}#amPanel .amMonth summary{flex-wrap:wrap}#amPanel .amMonth summary .amSmall{margin-left:0}}
@@ -201,8 +211,9 @@ const desc=elem('p','amSmall','A szezon augusztus 1-jén kezdődik és július 3
 const tools=elem('div','amTools');
 const season=choose([]),context=elem('span','amSmall',''),summary=elem('div','amInfo','');
 tools.append(field('Évad (augusztus–július)',season),context,button('Frissítés',()=>load()));
+const activitySummary=elem('section','amSummary');
 const holder=elem('div','');
-panel.append(h,desc,tools,summary,holder);
+panel.append(h,desc,tools,summary,activitySummary,holder);
 let state={age:'',team:'',roster:[],sessions:[],opened:new Set(),editor:'',message:'',seasonStart:0};
 const today=new Date(),startYear=today.getMonth()>=7?today.getFullYear():today.getFullYear()-1;
 for(let y=startYear-2;y<=startYear+1;y++)season.add(new Option(y+'/'+String((y+1)%100).padStart(2,'0'),String(y)));
@@ -435,16 +446,81 @@ function sessionStatus(id){
  }
  return {present:pres,absent:abs,excused:exc,unmarked:state.roster.length-pres-abs-exc};
 }
+
+/* Az alkalmakat típus alapján számoljuk, nem a játékosok jelenlétéből.
+   A vegyes 120 perces edzés egy naptári alkalom, de két típus (labdás + erőnléti).
+   A meccs és edzőmeccs egyaránt a mérkőzések közé tartozik. */
+const CAT_LIST=[
+ {id:'ball',label:'Labdás / termi'},
+ {id:'strength',label:'Erőnléti'},
+ {id:'run',label:'Futóedzés'},
+ {id:'match',label:'Mérkőzés'}
+];
+function eventParts(session){
+ const minutes=Number(session.duration)>0?Number(session.duration):0;
+ const kind=session.kind;
+ if(kind==='mixed'){
+  const parts=Array.isArray(session.components)?session.components:[];
+  const rawBall=parts.filter(x=>x.kind==='ball').reduce((sum,x)=>sum+(Number(x.duration)||0),0);
+  const rawStrength=parts.filter(x=>x.kind==='strength').reduce((sum,x)=>sum+(Number(x.duration)||0),0);
+  const ball=rawBall||minutes/2,strength=rawStrength||minutes/2;
+  return [{kind:'ball',minutes:ball},{kind:'strength',minutes:strength}];
+ }
+ if(kind==='ball')return [{kind:'ball',minutes}];
+ if(kind==='strength')return [{kind:'strength',minutes}];
+ if(kind==='run')return [{kind:'run',minutes}];
+ if(kind==='match'||kind==='official')return [{kind:'match',minutes}];
+ return [];
+}
+function categoryTotals(sessions){
+ const result=Object.fromEntries(CAT_LIST.map(c=>[c.id,{count:0,minutes:0}]));
+ for(const session of sessions)for(const part of eventParts(session)){
+  const row=result[part.kind];if(!row)continue;
+  row.count++;row.minutes+=part.minutes;
+ }
+ return result;
+}
+function formatActivityHours(minutes){
+ return (minutes/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra';
+}
+function renderActivitySummary(seasonSessions,cutoff){
+ activitySummary.replaceChildren();
+ const past=seasonSessions.filter(s=>s.date<=cutoff),future=seasonSessions.filter(s=>s.date>cutoff);
+ const grouped=categoryTotals(past);
+ activitySummary.append(elem('h4','','Eddig ütemezett alkalmak · augusztus 1. – '+cutoff));
+ const cards=elem('div','amSummaryGrid');
+ for(const cat of CAT_LIST){
+  const card=elem('div','amSummaryCard'),stat=grouped[cat.id];
+  card.append(elem('div','amSummaryNumber',stat.count),
+              elem('div','amSummaryLabel',cat.label),
+              elem('div','amSummaryDuration',formatActivityHours(stat.minutes)));
+  cards.append(card);
+ }
+ activitySummary.append(cards);
+ const allSeason=categoryTotals(seasonSessions);
+ const totals=CAT_LIST.map(cat=>cat.label+': '+allSeason[cat.id].count).join(' · ');
+ activitySummary.append(elem('p','amSummaryNote',
+  'A mai napig '+past.length+' alkalom szerepel a naptárban, ez dátum szerinti ütemezés, nem igazolt megtartás. '+
+  'A vegyes labdás + erőnléti foglalkozás mindkét típusnál 1-1-nek számít, de a jelenlét és a teljes alkalomszám szempontjából egy esemény. '+
+  'Még '+future.length+' későbbi alkalom van beütemezve.'));
+ activitySummary.append(elem('p','amSummaryNote','Teljes kiválasztott évad tervezett bontása: '+totals+'.'));
+}
+
 function render(){
  holder.replaceChildren();
+ activitySummary.replaceChildren();
  context.textContent=state.age?state.age+' · '+state.team+' · '+state.roster.length+' játékos':'Válassz a STAT menüpont tetején FU16/FU18-as csapatot.';
  if(!state.age){summary.textContent='Az edzésnaptár a STAT csapatválasztóban kijelölt FU16-os vagy FU18-as csapathoz tartozik.';return}
  const y=Number(season.value),seasonSessions=state.sessions.filter(s=>s.date>=iso(y,8,1)&&s.date<=iso(y+1,7,31));
  const hours=seasonSessions.reduce((a,b)=>a+(Number(b.duration)||0),0)/60;
+ const currentDay=new Date(),localToday=iso(currentDay.getFullYear(),currentDay.getMonth()+1,currentDay.getDate());
+ const seasonStart=iso(y,8,1),seasonEnd=iso(y+1,7,31);
+ const cutoff=localToday<seasonStart?seasonStart:localToday>seasonEnd?seasonEnd:localToday;
  const septMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-09-')).length;
  const octMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-10-')).length;
  const novMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-11-')).length;
  summary.textContent=y+'/'+String((y+1)%100).padStart(2,'0')+' évad · '+seasonSessions.length+' alkalom · '+hours.toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra tervezett/rögzített időtartam. Az ismeretlen jelenlét nem számít hiányzásnak.'+(y===2026&&state.age==='FU16'?' · Archív mérkőzések: szeptember '+septMatches+', október '+octMatches+', november '+novMatches+'.':'');
+ renderActivitySummary(seasonSessions,cutoff);
  if(!state.roster.length){holder.append(elem('p','amSmall','A csapat kerete üres; előbb vidd fel a játékosokat a Csapatok kezelése részben.'))}
  for(let i=0;i<12;i++){
   const y=monthYear(i),m=monthNum(i),monthKey=iso(y,m,1),ss=seasonSessions.filter(x=>x.date.startsWith(monthKey.slice(0,7)));
@@ -452,7 +528,10 @@ function render(){
   if(state.opened.size===0){if(y===today.getFullYear()&&m===today.getMonth()+1)state.opened.add(monthKey)}
   details.open=state.opened.has(monthKey);
   const summ=elem('summary');
-  summ.append(elem('span','',months[i][0].toUpperCase()+months[i].slice(1)+' '+y),elem('span','amSmall',ss.length+' alkalom · '+(ss.reduce((a,b)=>a+(Number(b.duration)||0),0)/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra'));
+  const monthly=categoryTotals(ss);
+  const monthDetail=CAT_LIST.map(cat=>cat.label+': '+monthly[cat.id].count).join(' · ');
+  summ.append(elem('span','',months[i][0].toUpperCase()+months[i].slice(1)+' '+y),
+    elem('span','amSmall',ss.length+' alkalom · '+(ss.reduce((a,b)=>a+(Number(b.duration)||0),0)/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra · '+monthDetail));
   details.append(summ);
   details.addEventListener('toggle',()=>{if(details.open)state.opened.add(monthKey);else state.opened.delete(monthKey)});
   const days=elem('div','amDays');
