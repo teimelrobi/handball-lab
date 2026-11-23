@@ -4,7 +4,7 @@ const SESSIONS_KEY='kezistat_training_sessions_v1',PROFILES_KEY='kezistat_player
 const $=id=>document.getElementById(id),norm=s=>String(s??'').trim().toLocaleLowerCase('hu-HU').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
 const key=(age,team)=>norm(age)+'|'+norm(team),personKey=(age,team,name)=>key(age,team)+'|'+norm(name);
 const months=['augusztus','szeptember','október','november','december','január','február','március','április','május','június','július'];
-const types={ball:'Labdás',strength:'Erőnlét',run:'Futóedzés',match:'Edzőmérkőzés',other:'Egyéb'},typeToProfile={ball:'team',strength:'strength',run:'strength',match:'match',other:'other'};
+const types={ball:'Labdás',mixed:'Labdás + erőnlét (60+60 perc)',strength:'Erőnlét',run:'Futóedzés',match:'Edzőmérkőzés',official:'Mérkőzés',other:'Egyéb'},typeToProfile={ball:'team',mixed:'team',strength:'strength',run:'strength',match:'match',official:'match',other:'other'};
 
 // A FU16 2026. augusztusi időpontjai a felhasználó által küldött naptárképről.
 // Kizárólag időpontok, típusok és helyszínek; nincs játékosjelenlét.
@@ -39,6 +39,35 @@ const AUG26=AUG26_TIMES.map(([day,start,end,kind,place])=>({
  id:'fu16-2026-08-'+String(day).padStart(2,'0')+'-'+start.replace(':',''),
  date:'2026-08-'+String(day).padStart(2,'0'),
  start,end,duration:plannedDuration(start,end),kind,place:AUG26_PLACES[place],source:'FU16 2026. augusztusi naptárkép'
+}));
+
+
+/* FU16 – 2026. szeptember, a felhasználó által beküldött naptárképről.
+   A keddi 19:00–21:00 edzések egyetlen jelenléti eseményt jelentenek,
+   belső 60 perc labdás és 60 perc erőnléti bontással. */
+const SEP26_PLACES={
+ S:'Budaörs, 1. sz. Általános Iskola',
+ B:'Budaörs Városi Uszoda, Sportcsarnok és Strand',
+ J:'Bleyer Jakab Általános Iskola, Budaörs, Iskola tér 1.',
+ V:'Budapest SPORT11'
+};
+const SEP26_TIMES=[
+ [2,'19:00','20:30','ball','S'],[3,'19:00','20:30','ball','S'],
+ [7,'18:00','19:30','ball','B'],[8,'19:00','21:00','mixed','B'],
+ [9,'17:00','18:30','ball','J'],[10,'17:00','18:30','ball','V'],[11,'17:00','18:45','ball','V'],
+ [14,'18:00','19:30','ball','B'],[15,'19:00','21:00','mixed','B'],
+ [16,'17:00','18:30','ball','J'],[17,'17:00','18:30','ball','V'],[18,'17:00','18:45','ball','V'],
+ [21,'18:00','19:30','ball','B'],[22,'19:00','21:00','mixed','B'],
+ [23,'17:00','18:30','ball','B'],
+ [28,'18:00','19:30','ball','B'],[29,'19:00','21:00','mixed','B'],
+ [30,'17:00','18:30','ball','J']
+];
+const SEP26=SEP26_TIMES.map(([day,start,end,kind,place])=>({
+ id:'fu16-2026-09-'+String(day).padStart(2,'0')+'-'+start.replace(':',''),
+ date:'2026-09-'+String(day).padStart(2,'0'),start,end,
+ duration:plannedDuration(start,end),kind,place:SEP26_PLACES[place],
+ ...(kind==='mixed'?{components:[{kind:'ball',duration:60},{kind:'strength',duration:60}]}:{}),
+ source:'FU16 2026. szeptemberi naptárkép'
 }));
 
 const statusLabels={present:'Jelen',absent:'Hiányzott',excused:'Igazolt hiányzás'};
@@ -159,6 +188,81 @@ function preloadAugust26(){
  if(changed)storeSessions(sessions);
 }
 
+
+function preloadSeptember26(){
+ if(state.age!=='FU16'||!norm(state.team).includes('budaifarkasok'))return;
+ const sessions=state.sessions.map(x=>({...x})),claimed=new Set();let changed=false;
+ for(const entry of SEP26){
+  const found=sessions.find(x=>{
+   if(x.date!==entry.date||claimed.has(x.id))return false;
+   if(x.id===entry.id)return true;
+   if(x.start)return x.start===entry.start;
+   return x.kind===entry.kind&&Number(x.duration)===entry.duration;
+  });
+  if(found){
+   claimed.add(found.id);
+   for(const prop of ['start','end','place','components'])if(!found[prop]&&entry[prop]){found[prop]=entry[prop];changed=true}
+  }else{sessions.push({...entry});claimed.add(entry.id);changed=true}
+ }
+ if(changed)storeSessions(sessions);
+}
+function normalizedMatchDate(raw){
+ const m=String(raw||'').match(/^(20\d{2})[-./](\d{1,2})[-./](\d{1,2})(?:\s|$)/);
+ if(!m)return '';
+ const y=Number(m[1]),mo=Number(m[2]),d=Number(m[3]),actual=new Date(y,mo-1,d);
+ if(actual.getFullYear()!==y||actual.getMonth()!==mo-1||actual.getDate()!==d)return '';
+ return iso(y,mo,d);
+}
+function matchClock(raw){
+ const match=String(raw||'').match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+ return match?String(match[1]).padStart(2,'0')+':'+match[2]:'';
+}
+function matchForTeam(m,db){
+ const own=norm(state.team);
+ for(const side of ['home','away']){
+  const other=side==='home'?'away':'home';
+  const teamName=norm(m[side+'Name']||db.teams?.[m[side+'TeamId']]?.name);
+  if(!teamName||!(teamName===own||teamName.startsWith(own)))continue;
+  const rawAge=String(m[side+'AgeGroup']||db.teams?.[m[side+'TeamId']]?.ageGroup||'').toUpperCase();
+  if(rawAge){
+   if(rawAge.includes('18')&&state.age==='FU16'||rawAge.includes('16')&&state.age==='FU18')continue;
+   if(rawAge.includes(state.age.slice(-2)))return {side,other};
+  }
+  // Korosztály nélkül kizárólag a név szerinti meccskeret alapján kapcsoljuk.
+  const roster=new Set((m[side+'Roster']||[]).map(p=>norm(p.name)));
+  const ownPlayers=state.roster.filter(p=>roster.has(norm(p.name))).length;
+  if(ownPlayers>=3)return {side,other};
+ }
+ return null;
+}
+function preloadSeptemberMatches(){
+ if(state.age!=='FU16'||!norm(state.team).includes('budaifarkasok'))return;
+ const db=fetchObj('handball_db'),sessions=state.sessions.map(x=>({...x}));let changed=false;
+ for(const m of db.matches||[]){
+  const date=normalizedMatchDate(m.date);
+  if(!date.startsWith('2026-09-'))continue;
+  const teamInfo=matchForTeam(m,db);if(!teamInfo)continue;
+  const {side,other}=teamInfo,opponent=String(m[other+'Name']||'Ellenfél');
+  const hasScore=m.homeScore!==undefined&&m.homeScore!==''&&m.awayScore!==undefined&&m.awayScore!=='';
+  // Archív / befejezett mérkőzés, nem pusztán beállított leendő találkozó.
+  if(!(m.events?.length>0||hasScore||m.locked===true))continue;
+  const matchId=String(m.id||date+'|'+opponent);
+  const id='kezi-match-'+matchId.replace(/[^a-zA-Z0-9_-]/g,'_');
+  const exists=sessions.find(x=>x.matchId===matchId||x.id===id||
+    (x.kind==='official'&&x.date===date&&norm(x.opponent)===norm(opponent)));
+  const kickoff=matchClock(m.kickoff||m.kickoffTime||m.matchTime||m.startTime||m.time||'');
+  const length=Number(m.matchEndAbs);
+  const duration=Number.isFinite(length)&&length>=1200&&length<=5400?Math.round(length/60):0;
+  const score=hasScore?String(m.homeScore)+'–'+String(m.awayScore):'';
+  const entry={id,matchId,date,start:kickoff,end:'',duration,kind:'official',
+   opponent,score,place:String(m.location||'').trim(),source:'KéziStat lezárt / archív mérkőzés'};
+  if(exists){
+   for(const p of ['matchId','opponent','score','place','start'])if(!exists[p]&&entry[p]){exists[p]=entry[p];changed=true}
+  }else{sessions.push(entry);changed=true}
+ }
+ if(changed)storeSessions(sessions);
+}
+
 function load(){
  const ctx=current();state.editor='';
  if(!ctx){state={...state,age:'',team:'',roster:[],sessions:[]};render();return}
@@ -167,6 +271,8 @@ function load(){
  state.age=ctx.age;state.team=ctx.team;state.roster=rosterFor(ctx);
  const all=fetchObj(SESSIONS_KEY);state.sessions=Array.isArray(all[key(ctx.age,ctx.team)])?all[key(ctx.age,ctx.team)].slice():[];
  preloadAugust26();
+ preloadSeptember26();
+ preloadSeptemberMatches();
  render();
 }
 function storeSessions(sessions){
@@ -209,7 +315,7 @@ function render(){
    const row=elem('div','amDay'),label=elem('div','amDate',String(d).padStart(2,'0')+'. '+weekday);
    const cards=elem('div','amDaySessions');
    for(const s of ss.filter(x=>x.date===date)){
-    const counts=sessionStatus(s.id),clock=s.start&&s.end?s.start+'–'+s.end+' · ':'',venue=s.place?' · '+s.place:'',text=clock+(types[s.kind]||'Edzés')+' · '+s.duration+' perc'+venue+' · '+counts.present+' jelen / '+counts.absent+' hiányzik';
+    const counts=sessionStatus(s.id),clock=s.start?(s.end?s.start+'–'+s.end+' · ':s.start+' · '):'',venue=s.place?' · '+s.place:'',opp=s.opponent?' · '+s.opponent:'',score=s.score?' · '+s.score:'',durationText=s.duration>0?s.duration+' perc':'időtartam nem rögzített',text=clock+(types[s.kind]||'Edzés')+' · '+durationText+opp+score+venue+' · '+counts.present+' jelen / '+counts.absent+' hiányzik';
     cards.append(button(text,()=>{state.editor=state.editor===s.id?'':s.id;render()},'amSession'));
    }
    const add=button('+ Edzés',()=>{state.editor='new|'+date;state.opened.add(monthKey);render()},'amAdd');
@@ -234,14 +340,14 @@ function newEditor(date){
   const minutes=clock??Number(duration.value);
   if(!Number.isInteger(minutes)||minutes<15||minutes>360){message('Az edzés időtartama 15–360 perc lehet.');return}
   const id='s'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9);
-  const entry={id,date,kind:type.value,duration:minutes,start:start.value,end:end.value,place:place.value.trim().slice(0,160)};
+  const entry={id,date,kind:type.value,duration:minutes,start:start.value,end:end.value,place:place.value.trim().slice(0,160),components:type.value==='mixed'?[{kind:'ball',duration:minutes/2},{kind:'strength',duration:minutes/2}]:null};
   try{storeSessions([...state.sessions,entry]);state.editor=id;render()}catch(e){message('Mentési hiba: '+e.message)}
  }),button('Mégse',()=>{state.editor='';render()},'amAdd'));
  box.append(actions);return box;
 }
 function message(text){const e=elem('p','amInfo',text);const existing=panel.querySelector('.amMessage');if(existing)existing.remove();e.classList.add('amMessage');summary.after(e)}
 function attendanceEditor(session){
- const box=elem('div','amEditor');const title=elem('h4','',session.date+' · '+(session.start&&session.end?session.start+'–'+session.end+' · ':'')+(types[session.kind]||'Edzés')+' · '+session.duration+' perc'+(session.place?' · '+session.place:''));
+ const box=elem('div','amEditor');const title=elem('h4','',session.date+' · '+(session.start?(session.end?session.start+'–'+session.end:session.start)+' · ':'')+(types[session.kind]||'Edzés')+' · '+(session.duration||'ismeretlen')+' perc'+(session.opponent?' · '+session.opponent:'')+(session.score?' · '+session.score:'')+(session.place?' · '+session.place:''));
  const controls=elem('div','amTools');
  const category=choose(Object.entries(types),session.kind),duration=elem('input'),start=elem('input'),end=elem('input'),place=elem('input');
  duration.type='number';duration.min='15';duration.max='360';duration.step='5';duration.value=session.duration;
@@ -253,9 +359,9 @@ function attendanceEditor(session){
   if((start.value||end.value)&&clock===null){message('A kezdési és befejezési idő legyen érvényes és teljes.');return}
   const minutes=clock??Number(duration.value);
   if(!Number.isInteger(minutes)||minutes<15||minutes>360){message('15–360 perc időtartamot adj meg.');return}
-  const updated=state.sessions.map(s=>s.id===session.id?{...s,kind:category.value,duration:minutes,start:start.value,end:end.value,place:place.value.trim().slice(0,160)}:s);
+  const updated=state.sessions.map(s=>s.id===session.id?{...s,kind:category.value,duration:minutes,start:start.value,end:end.value,place:place.value.trim().slice(0,160),components:category.value==='mixed'?(s.components||[{kind:'ball',duration:minutes/2},{kind:'strength',duration:minutes/2}]):null}:s);
   const before=state.sessions;
-  try{storeSessions(updated);const all=fetchObj(PROFILES_KEY);for(const profile of Object.values(all)){if(!Array.isArray(profile?.training))continue;profile.training=profile.training.map(x=>x.sessionId===session.id?{...x,type:typeToProfile[category.value],duration:minutes}:x)}writeObj(PROFILES_KEY,all);render()}catch(e){state.sessions=before;message('Nem sikerült menteni: '+e.message)}
+  try{storeSessions(updated);const all=fetchObj(PROFILES_KEY);for(const profile of Object.values(all)){if(!Array.isArray(profile?.training))continue;profile.training=profile.training.map(x=>x.sessionId===session.id?{...x,type:typeToProfile[category.value],duration:minutes,components:category.value==='mixed'?(session.components||[{kind:'ball',duration:minutes/2},{kind:'strength',duration:minutes/2}]):null}:x)}writeObj(PROFILES_KEY,all);render()}catch(e){state.sessions=before;message('Nem sikerült menteni: '+e.message)}
  }));
  box.append(title,controls);
  if(!state.roster.length){box.append(elem('p','amSmall','Nincsenek játékosok a kiválasztott keretben.'));return box}
@@ -285,7 +391,7 @@ function attendanceEditor(session){
    const k=personKey(state.age,state.team,player.key),profile=all[k]||{},previous=Array.isArray(profile.training)?profile.training:[];
    const other=previous.filter(x=>x.sessionId!==session.id);
    if(!status.value){unmarked++;all[k]={...profile,training:other};continue}
-   const entry={sessionId:session.id,date:session.date,type:typeToProfile[session.kind],duration:session.duration,status:status.value,rating:status.value==='present'&&rating.value?Number(rating.value):null,condition:status.value==='present'?condition.value:'normal',note:note.value.trim().slice(0,240)};
+   const entry={sessionId:session.id,date:session.date,type:typeToProfile[session.kind],duration:session.duration,components:session.components||null,status:status.value,rating:status.value==='present'&&rating.value?Number(rating.value):null,condition:status.value==='present'?condition.value:'normal',note:note.value.trim().slice(0,240)};
    other.push(entry);all[k]={...profile,training:other,modifiedAt:new Date().toISOString()};
    if(status.value==='present')present++;else if(status.value==='absent')absent++;else excused++;
   }
