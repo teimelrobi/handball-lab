@@ -4,7 +4,43 @@ const SESSIONS_KEY='kezistat_training_sessions_v1',PROFILES_KEY='kezistat_player
 const $=id=>document.getElementById(id),norm=s=>String(s??'').trim().toLocaleLowerCase('hu-HU').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
 const key=(age,team)=>norm(age)+'|'+norm(team),personKey=(age,team,name)=>key(age,team)+'|'+norm(name);
 const months=['augusztus','szeptember','október','november','december','január','február','március','április','május','június','július'];
-const types={ball:'Labdás',strength:'Erőnlét',other:'Egyéb'},typeToProfile={ball:'team',strength:'strength',other:'other'};
+const types={ball:'Labdás',strength:'Erőnlét',run:'Futóedzés',match:'Edzőmérkőzés',other:'Egyéb'},typeToProfile={ball:'team',strength:'strength',run:'strength',match:'match',other:'other'};
+
+// A FU16 2026. augusztusi időpontjai a felhasználó által küldött naptárképről.
+// Kizárólag időpontok, típusok és helyszínek; nincs játékosjelenlét.
+const AUG26_PLACES={
+ B:'Budaörs Városi Uszoda, Sportcsarnok és Strand',
+ J:'Bleyer Jakab Általános Iskola, Budaörs, Iskola tér 1.',
+ T:'Törökbálinti Aréna, Torbágy u. 1.',
+ H:'Herman Ottó Általános Iskola futópályája',
+ P:'Szeged Pick Akadémiai Csarnok'
+};
+const AUG26_TIMES=[
+ [3,'10:00','11:30','ball','B'],[3,'16:30','18:00','ball','J'],
+ [4,'08:00','09:00','run','H'],[4,'15:00','16:00','ball','B'],
+ [5,'13:30','15:00','strength','T'],
+ [6,'10:30','12:30','ball','B'],[6,'15:00','17:00','ball','B'],
+ [7,'10:00','12:00','ball','J'],
+ [10,'10:00','11:30','ball','B'],[10,'16:30','18:00','ball','J'],
+ [11,'12:00','13:30','ball','J'],[11,'19:30','21:00','ball','B'],
+ [12,'12:00','13:30','strength','T'],[13,'15:00','17:00','ball','B'],
+ [17,'10:00','11:30','ball','B'],[17,'15:00','16:30','ball','J'],
+ [18,'07:30','09:00','ball','B'],[18,'15:00','16:30','ball','J'],
+ [19,'10:30','12:00','strength','T'],[19,'18:30','20:00','ball','B'],
+ [20,'15:45','17:15','match','P'],[21,'10:00','11:30','match','P'],
+ [24,'09:00','10:30','ball','B'],[24,'15:00','16:30','strength','T'],
+ [25,'10:30','12:00','ball','J'],
+ [26,'09:00','10:30','ball','J'],[26,'15:00','16:30','strength','T'],
+ [27,'10:30','12:00','ball','J'],[28,'17:30','19:00','ball','J']
+];
+function timeMinutes(hm){if(!/^\d{2}:\d{2}$/.test(String(hm)))return null;const [h,m]=hm.split(':').map(Number);return h<24&&m<60?h*60+m:null}
+function plannedDuration(start,end){const a=timeMinutes(start),b=timeMinutes(end);return a==null||b==null||b<=a?null:b-a}
+const AUG26=AUG26_TIMES.map(([day,start,end,kind,place])=>({
+ id:'fu16-2026-08-'+String(day).padStart(2,'0')+'-'+start.replace(':',''),
+ date:'2026-08-'+String(day).padStart(2,'0'),
+ start,end,duration:plannedDuration(start,end),kind,place:AUG26_PLACES[place],source:'FU16 2026. augusztusi naptárkép'
+}));
+
 const statusLabels={present:'Jelen',absent:'Hiányzott',excused:'Igazolt hiányzás'};
 const conditionLabels={normal:'Normál',sick:'Betegen jelen',injured:'Sérülten jelen',light:'Könnyített',rehab:'Rehabilitáció',other:'Egyéb'};
 const validDate=s=>/^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -101,6 +137,28 @@ function rosterFor(ctx){
  }
  return [...all.values()].sort((a,b)=>a.name.localeCompare(b.name,'hu'));
 }
+
+// Idempotens import. Meglévő edzést és a hozzá tartozó jelenlétet soha nem cserélünk le.
+function preloadAugust26(){
+ if(state.age!=='FU16'||!norm(state.team).includes('budaifarkasok'))return;
+ const sessions=state.sessions.map(x=>({...x})),claimed=new Set();let changed=false;
+ for(const entry of AUG26){
+  const found=sessions.find(x=>{
+   if(x.date!==entry.date||claimed.has(x.id))return false;
+   if(x.id===entry.id)return true;
+   if(x.start)return x.start===entry.start;
+   return x.kind===entry.kind&&Number(x.duration)===entry.duration;
+  });
+  if(found){
+   claimed.add(found.id);
+   for(const field of ['start','end','place'])if(!found[field]){found[field]=entry[field];changed=true}
+  }else{
+   sessions.push({...entry});claimed.add(entry.id);changed=true;
+  }
+ }
+ if(changed)storeSessions(sessions);
+}
+
 function load(){
  const ctx=current();state.editor='';
  if(!ctx){state={...state,age:'',team:'',roster:[],sessions:[]};render();return}
@@ -108,6 +166,7 @@ function load(){
  if(changed)state.opened.clear();
  state.age=ctx.age;state.team=ctx.team;state.roster=rosterFor(ctx);
  const all=fetchObj(SESSIONS_KEY);state.sessions=Array.isArray(all[key(ctx.age,ctx.team)])?all[key(ctx.age,ctx.team)].slice():[];
+ preloadAugust26();
  render();
 }
 function storeSessions(sessions){
@@ -132,7 +191,7 @@ function render(){
  if(!state.age){summary.textContent='Az edzésnaptár a STAT csapatválasztóban kijelölt FU16-os vagy FU18-as csapathoz tartozik.';return}
  const y=Number(season.value),seasonSessions=state.sessions.filter(s=>s.date>=iso(y,8,1)&&s.date<=iso(y+1,7,31));
  const hours=seasonSessions.reduce((a,b)=>a+(Number(b.duration)||0),0)/60;
- summary.textContent=y+'/'+String((y+1)%100).padStart(2,'0')+' évad · '+seasonSessions.length+' edzés · '+hours.toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra tervezett/rögzített időtartam. Az ismeretlen jelenlét nem számít hiányzásnak.';
+ summary.textContent=y+'/'+String((y+1)%100).padStart(2,'0')+' évad · '+seasonSessions.length+' alkalom · '+hours.toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra tervezett/rögzített időtartam. Az ismeretlen jelenlét nem számít hiányzásnak.';
  if(!state.roster.length){holder.append(elem('p','amSmall','A csapat kerete üres; előbb vidd fel a játékosokat a Csapatok kezelése részben.'))}
  for(let i=0;i<12;i++){
   const y=monthYear(i),m=monthNum(i),monthKey=iso(y,m,1),ss=seasonSessions.filter(x=>x.date.startsWith(monthKey.slice(0,7)));
@@ -140,7 +199,7 @@ function render(){
   if(state.opened.size===0){if(y===today.getFullYear()&&m===today.getMonth()+1)state.opened.add(monthKey)}
   details.open=state.opened.has(monthKey);
   const summ=elem('summary');
-  summ.append(elem('span','',months[i][0].toUpperCase()+months[i].slice(1)+' '+y),elem('span','amSmall',ss.length+' edzés · '+(ss.reduce((a,b)=>a+(Number(b.duration)||0),0)/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra'));
+  summ.append(elem('span','',months[i][0].toUpperCase()+months[i].slice(1)+' '+y),elem('span','amSmall',ss.length+' alkalom · '+(ss.reduce((a,b)=>a+(Number(b.duration)||0),0)/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra'));
   details.append(summ);
   details.addEventListener('toggle',()=>{if(details.open)state.opened.add(monthKey);else state.opened.delete(monthKey)});
   const days=elem('div','amDays');
@@ -150,7 +209,7 @@ function render(){
    const row=elem('div','amDay'),label=elem('div','amDate',String(d).padStart(2,'0')+'. '+weekday);
    const cards=elem('div','amDaySessions');
    for(const s of ss.filter(x=>x.date===date)){
-    const counts=sessionStatus(s.id),text=types[s.kind]+' · '+s.duration+' perc · '+counts.present+' jelen / '+counts.absent+' hiányzik';
+    const counts=sessionStatus(s.id),clock=s.start&&s.end?s.start+'–'+s.end+' · ':'',venue=s.place?' · '+s.place:'',text=clock+(types[s.kind]||'Edzés')+' · '+s.duration+' perc'+venue+' · '+counts.present+' jelen / '+counts.absent+' hiányzik';
     cards.append(button(text,()=>{state.editor=state.editor===s.id?'':s.id;render()},'amSession'));
    }
    const add=button('+ Edzés',()=>{state.editor='new|'+date;state.opened.add(monthKey);render()},'amAdd');
@@ -165,29 +224,36 @@ function render(){
 function newEditor(date){
  const box=elem('div','amEditor'),heading=elem('h4','','Új edzés · '+date),controls=elem('div','amTools');
  const type=choose(Object.entries(types)),duration=elem('input');duration.type='number';duration.min='15';duration.max='360';duration.step='5';duration.value='90';
- controls.append(field('Edzés típusa',type),field('Időtartam (perc)',duration));
+ const start=elem('input'),end=elem('input'),place=elem('input');start.type='time';end.type='time';place.type='text';place.maxLength=160;place.placeholder='Helyszín (nem kötelező)';
+ controls.append(field('Edzés típusa',type),field('Kezdés',start),field('Befejezés',end),field('Időtartam (perc)',duration),field('Helyszín',place));
  box.append(heading,controls,elem('p','amSmall','A felvitt edzés a csapat teljes kereténél megjelenik, de az ismeretlen jelenléteket külön kell jelölni.'));
  const actions=elem('div','amTools');
  actions.append(button('Edzés létrehozása',()=>{
-  const minutes=Number(duration.value);
+  const clock=(start.value||end.value)?plannedDuration(start.value,end.value):null;
+  if((start.value||end.value)&&clock===null){message('A kezdési és befejezési idő legyen érvényes és teljes.');return}
+  const minutes=clock??Number(duration.value);
   if(!Number.isInteger(minutes)||minutes<15||minutes>360){message('Az edzés időtartama 15–360 perc lehet.');return}
   const id='s'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,9);
-  const entry={id,date,kind:type.value,duration:minutes};
+  const entry={id,date,kind:type.value,duration:minutes,start:start.value,end:end.value,place:place.value.trim().slice(0,160)};
   try{storeSessions([...state.sessions,entry]);state.editor=id;render()}catch(e){message('Mentési hiba: '+e.message)}
  }),button('Mégse',()=>{state.editor='';render()},'amAdd'));
  box.append(actions);return box;
 }
 function message(text){const e=elem('p','amInfo',text);const existing=panel.querySelector('.amMessage');if(existing)existing.remove();e.classList.add('amMessage');summary.after(e)}
 function attendanceEditor(session){
- const box=elem('div','amEditor');const title=elem('h4','',session.date+' · '+types[session.kind]+' · '+session.duration+' perc');
+ const box=elem('div','amEditor');const title=elem('h4','',session.date+' · '+(session.start&&session.end?session.start+'–'+session.end+' · ':'')+(types[session.kind]||'Edzés')+' · '+session.duration+' perc'+(session.place?' · '+session.place:''));
  const controls=elem('div','amTools');
- const category=choose(Object.entries(types),session.kind),duration=elem('input');
+ const category=choose(Object.entries(types),session.kind),duration=elem('input'),start=elem('input'),end=elem('input'),place=elem('input');
  duration.type='number';duration.min='15';duration.max='360';duration.step='5';duration.value=session.duration;
- controls.append(field('Edzés típusa',category),field('Időtartam (perc)',duration),
+ start.type='time';start.value=session.start||'';end.type='time';end.value=session.end||'';
+ place.type='text';place.value=session.place||'';place.maxLength=160;place.placeholder='Helyszín';
+ controls.append(field('Edzés típusa',category),field('Kezdés',start),field('Befejezés',end),field('Időtartam (perc)',duration),field('Helyszín',place),
  button('Edzés adatainak mentése',()=>{
-  const minutes=Number(duration.value);
+  const clock=(start.value||end.value)?plannedDuration(start.value,end.value):null;
+  if((start.value||end.value)&&clock===null){message('A kezdési és befejezési idő legyen érvényes és teljes.');return}
+  const minutes=clock??Number(duration.value);
   if(!Number.isInteger(minutes)||minutes<15||minutes>360){message('15–360 perc időtartamot adj meg.');return}
-  const updated=state.sessions.map(s=>s.id===session.id?{...s,kind:category.value,duration:minutes}:s);
+  const updated=state.sessions.map(s=>s.id===session.id?{...s,kind:category.value,duration:minutes,start:start.value,end:end.value,place:place.value.trim().slice(0,160)}:s);
   const before=state.sessions;
   try{storeSessions(updated);const all=fetchObj(PROFILES_KEY);for(const profile of Object.values(all)){if(!Array.isArray(profile?.training))continue;profile.training=profile.training.map(x=>x.sessionId===session.id?{...x,type:typeToProfile[category.value],duration:minutes}:x)}writeObj(PROFILES_KEY,all);render()}catch(e){state.sessions=before;message('Nem sikerült menteni: '+e.message)}
  }));
