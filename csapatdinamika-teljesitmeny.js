@@ -5,15 +5,16 @@ const E=id=>document.getElementById(id), clean=x=>String(x==null?'':x).trim(), n
 const age=x=>{const s=clean(x).toUpperCase();return s.includes('18')?'FU18':s.includes('16')?'FU16':''};
 let customMap=new Map(), relevantMatches=[],availableNames=[],missing=[],db=null;
 const team=()=>E('globalTeam').value;
-const worksheetPlayers=()=>players.filter(p=>p.team===team());
+const club=()=>E('globalClub')?.value||'Budai Farkasok';
+const worksheetPlayers=()=>players.filter(p=>p.team===team()&&(!p.club||norm(p.club)===norm(club())));
 function getDb(){try{const v=JSON.parse(localStorage.getItem('handball_db')||'null');return v&&typeof v==='object'&&Array.isArray(v.matches)?v:null}catch(e){return null}}
-function matchSide(m){for(const side of ['home','away']){const name=clean(m[side+'Name']||''),teamObj=db.teams?.[m[side+'TeamId']];if(norm(name).includes('budaifarkasok')||norm(teamObj?.name).includes('budaifarkasok'))return side}return ''}
+function matchSide(m){for(const side of ['home','away']){const name=clean(m[side+'Name']||''),teamObj=db.teams?.[m[side+'TeamId']];if(norm(name)===norm(club())||norm(teamObj?.name)===norm(club()))return side}return ''}
 function checkMatch(m,side){
  const group=age(m[side+'AgeGroup']||db.teams?.[m[side+'TeamId']]?.ageGroup);
  if(group)return group===team()?'yes':'no';
  const roster=m[side+'Roster']||[],keys=new Set(roster.map(x=>norm(x.name)));
  const current=worksheetPlayers().filter(p=>keys.has(norm(p.name))).length;
- const other=players.filter(p=>p.team!==team()&&keys.has(norm(p.name))).length;
+ const other=players.filter(p=>(p.team!==team()||norm(p.club||'')!==norm(club()))&&keys.has(norm(p.name))).length;
  return current>=3&&current>other?'yes':'unknown';
 }
 function pmName(p){return customMap.get(p.id)||norm(p.name)}
@@ -30,7 +31,7 @@ function loadMatches(){
  const known=new Set(availableNames.map(x=>x.key));
  customMap=new Map([...customMap].filter(([id,k])=>worksheetPlayers().some(p=>p.id===id)&&known.has(k)));
  missing=worksheetPlayers().filter(p=>!known.has(pmName(p)));
- const msg=E('perfState');let text=db.matches.length+' mentett mérkőzésből '+relevantMatches.length+' kapcsolható a '+team()+' korosztályhoz.';
+ const msg=E('perfState');let text=db.matches.length+' mentett mérkőzésből '+relevantMatches.length+' kapcsolható a '+club()+' '+team()+' csapatához.';
  if(excluded)text+=' '+excluded+' bizonytalan vagy más korosztályú találkozó kihagyva.';
  if(missing.length)text+=' '+missing.length+' név még nem egyezik a mérkőzéskerettel.';
  msg.textContent=text;
@@ -171,6 +172,7 @@ window.performancePanelRender=renderPerformance;
 window.performancePanelRefresh=refresh;
 E('perfReload').addEventListener('click',refresh);
 E('globalTeam').addEventListener('change',refresh);
+E('globalClub')?.addEventListener('change',refresh);
 for(const id of ['perfA','perfB','perfCategory','perfMin'])E(id).addEventListener('change',renderPerformance);
 E('perfExport').addEventListener('click',()=>{
  const rows=[['Páros','Együtt (másodperc)','Meccsek','Lőtt','Kapott','Gólkülönbség','Jelölés A→B','Jelölés B→A']];
