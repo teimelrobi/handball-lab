@@ -413,7 +413,7 @@ function preloadAutumnMatches(){
  const db=fetchObj('handball_db'),sessions=state.sessions.map(x=>({...x}));let changed=false;
  for(const m of db.matches||[]){
   const date=normalizedMatchDate(m.date);
-  if(!/^2026-(?:08|09|10|11)-/.test(date))continue;
+  if(!/^2026-(?:07|08|09|10|11|12)-/.test(date)&&!/^2027-(?:0[1-7])-/.test(date))continue;
   const teamInfo=matchForTeam(m,db);if(!teamInfo)continue;
   const {side,other}=teamInfo,opponent=String(m[other+'Name']||'Ellenfél');
   const hasScore=m.homeScore!==undefined&&m.homeScore!==''&&m.awayScore!==undefined&&m.awayScore!=='';
@@ -505,6 +505,34 @@ function sessionStatus(id){
  return {present:pres,absent:abs,excused:exc,unmarked:state.roster.length-pres-abs-exc};
 }
 
+
+const COMP_KEY='kezistat_match_competition_v1';
+const compFold=x=>String(x??'').toLocaleLowerCase('hu-HU').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function hasStat(m){return !!((Array.isArray(m?.events)&&m.events.length>0)||m?.locked===true)}
+function isLeagueGame(m){
+ const ov=fetchObj(COMP_KEY),id=String(m.id??'');
+ if(id&&Object.prototype.hasOwnProperty.call(ov,id))return ov[id]===true;
+ if(m.isChampionship===true||m.matchType==='league'||m.competitionType==='league')return true;
+ if(m.isChampionship===false||m.matchType==='friendly'||m.competitionType==='friendly')return false;
+ const label=compFold(m.league)+' '+compFold(m.matchName);
+ if(/baratsagos|edzo.?merkozes|felkeszul|friendly|scrimmage|kupa|cup|torna|tournament/.test(label))return false;
+ if(/bajnok|nb\s*[i123]\b|nbi\b|nbii\b|osztaly|league|championship|liga/.test(label))return true;
+ return null;
+}
+function leagueMatches(from,to){
+ const db=fetchObj('handball_db'),seen=new Set(),found=[];
+ for(const m of db.matches||[]){
+  const d=normalizedMatchDate(m.date),id=String(m.id??d+'|'+m.homeName+'|'+m.awayName);
+  if(!d||d<from||d>to||seen.has(id)||!matchForTeam(m,db)||!hasStat(m)||isLeagueGame(m)!==true)continue;
+  seen.add(id);found.push(m);
+ }
+ return found;
+}
+function unknownMatches(from,to){
+ const db=fetchObj('handball_db');
+ return (db.matches||[]).filter(m=>{const d=normalizedMatchDate(m.date);return d&&d>=from&&d<=to&&matchForTeam(m,db)&&hasStat(m)&&isLeagueGame(m)===null});
+}
+function classifyGame(m,league){const all=fetchObj(COMP_KEY);all[String(m.id)]=league;writeObj(COMP_KEY,all)}
 /* Az alkalmakat típus alapján számoljuk, nem a játékosok jelenlétéből.
    A vegyes 120 perces edzés egy naptári alkalom, de két típus (labdás + erőnléti).
    A meccs és edzőmeccs egyaránt a mérkőzések közé tartozik. */
@@ -512,7 +540,7 @@ const CAT_LIST=[
  {id:'ball',label:'Labdás / termi'},
  {id:'strength',label:'Erőnléti'},
  {id:'run',label:'Futóedzés'},
- {id:'match',label:'Mérkőzés'}
+ {id:'match',label:'Bajnoki mérkőzés'}
 ];
 function eventParts(session){
  const minutes=Number(session.duration)>0?Number(session.duration):0;
@@ -527,41 +555,44 @@ function eventParts(session){
  if(kind==='ball')return [{kind:'ball',minutes}];
  if(kind==='strength')return [{kind:'strength',minutes}];
  if(kind==='run')return [{kind:'run',minutes}];
- if(kind==='match'||kind==='official')return [{kind:'match',minutes}];
+ // Mérkőzésszám csak a statisztikai adatbázisból származik.
  return [];
 }
-function categoryTotals(sessions){
+function categoryTotals(sessions,from,to){
  const result=Object.fromEntries(CAT_LIST.map(c=>[c.id,{count:0,minutes:0}]));
  for(const session of sessions)for(const part of eventParts(session)){
   const row=result[part.kind];if(!row)continue;
   row.count++;row.minutes+=part.minutes;
  }
+ if(from&&to)result.match.count=leagueMatches(from,to).length;
  return result;
 }
 function formatActivityHours(minutes){
  return (minutes/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra';
 }
-function renderActivitySummary(seasonSessions,cutoff,periodStart){
+function renderActivitySummary(seasonSessions,cutoff,periodStart,from,to){
  activitySummary.replaceChildren();
  const past=seasonSessions.filter(s=>s.date<=cutoff),future=seasonSessions.filter(s=>s.date>cutoff);
- const grouped=categoryTotals(past);
+ const grouped=categoryTotals(past,from,cutoff);
  activitySummary.append(elem('h4','','Eddig ütemezett alkalmak · '+(periodStart||'augusztus 1.')+' – '+cutoff));
  const cards=elem('div','amSummaryGrid');
  for(const cat of CAT_LIST){
   const card=elem('div','amSummaryCard'),stat=grouped[cat.id];
-  card.append(elem('div','amSummaryNumber',stat.count),
+  card.append(elem('div','amSummaryNumber',cat.id==='match'?stat.count:formatActivityHours(stat.minutes)),
               elem('div','amSummaryLabel',cat.label),
-              elem('div','amSummaryDuration',formatActivityHours(stat.minutes)));
+              elem('div','amSummaryDuration',cat.id==='match'?'Csak statisztikai bajnoki':stat.count+' alkalom'));
   cards.append(card);
  }
  activitySummary.append(cards);
- const allSeason=categoryTotals(seasonSessions);
- const totals=CAT_LIST.map(cat=>cat.label+': '+allSeason[cat.id].count).join(' · ');
+ const allSeason=categoryTotals(seasonSessions,from,to);
+ const totals=CAT_LIST.map(cat=>cat.label+': '+(cat.id==='match'?allSeason[cat.id].count+' db':formatActivityHours(allSeason[cat.id].minutes))).join(' · ');
  activitySummary.append(elem('p','amSummaryNote',
   'A mai napig '+past.length+' alkalom szerepel a naptárban, ez dátum szerinti ütemezés, nem igazolt megtartás. '+
-  'A vegyes labdás + erőnléti foglalkozás mindkét típusnál 1-1-nek számít, de a jelenlét és a teljes alkalomszám szempontjából egy esemény. '+
+  'A vegyes edzéseket külön labdás és erőnléti óraszámban mutatjuk, de a jelenlét szempontjából egy alkalom. Mérkőzésként kizárólag a KéziStat statisztikájában szereplő bajnokikat számoljuk. '+
   'Még '+future.length+' későbbi alkalom van beütemezve.'));
- activitySummary.append(elem('p','amSummaryNote','Teljes kiválasztott évad tervezett bontása: '+totals+'.'));
+ activitySummary.append(elem('p','amSummaryNote','Teljes kiválasztott évad bontása: '+totals+'.'));
+ const unknown=unknownMatches(from,cutoff);
+ if(unknown.length)activitySummary.append(elem('p','amSummaryNote',unknown.length+' statisztikai meccs besorolása bizonytalan. Ezeket csak akkor számoljuk, ha a naptárban bajnokiként megjelölöd.'));
 }
 
 
@@ -571,8 +602,8 @@ function renderCalendarMonth(y,m,ss,specialTitle){
   if(state.opened.size===0){if(y===today.getFullYear()&&m===today.getMonth()+1)state.opened.add(monthKey)}
   details.open=state.opened.has(monthKey);
   const summ=elem('summary');
-  const monthly=categoryTotals(ss);
-  const monthDetail=CAT_LIST.map(cat=>cat.label+': '+monthly[cat.id].count).join(' · ');
+  const monthly=categoryTotals(ss,iso(y,m,1),iso(y,m,new Date(y,m,0).getDate()));
+  const monthDetail=CAT_LIST.map(cat=>cat.label+': '+(cat.id==='match'?monthly[cat.id].count+' db':formatActivityHours(monthly[cat.id].minutes))).join(' · ');
   summ.append(elem('span','',specialTitle||(months[m>=8?m-8:m+4][0].toUpperCase()+months[m>=8?m-8:m+4].slice(1)+' '+y)),
     elem('span','amSmall',ss.length+' alkalom · '+(ss.reduce((a,b)=>a+(Number(b.duration)||0),0)/60).toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra · '+monthDetail));
   details.append(summ);
@@ -604,7 +635,7 @@ function render(){
  const preseasonSessions=isFu16Preseason?state.sessions.filter(s=>s.seasonTag==='2026/27-preseason'&&s.date.startsWith('2026-07-')):[];
  const regularSeasonSessions=state.sessions.filter(s=>s.date>=iso(y,8,1)&&s.date<=iso(y+1,7,31)&&!(s.seasonTag==='2026/27-preseason'));
  const seasonSessions=[...preseasonSessions,...regularSeasonSessions];
- const hours=seasonSessions.reduce((a,b)=>a+(Number(b.duration)||0),0)/60;
+ const hours=seasonSessions.filter(x=>x.kind!=='match'&&x.kind!=='official').reduce((a,b)=>a+(Number(b.duration)||0),0)/60;
  const currentDay=new Date(),localToday=iso(currentDay.getFullYear(),currentDay.getMonth()+1,currentDay.getDate());
  const seasonStart=iso(y,8,1),seasonEnd=iso(y+1,7,31);
  const cutoff=localToday<seasonStart?seasonStart:localToday>seasonEnd?seasonEnd:localToday;
@@ -612,7 +643,7 @@ function render(){
  const octMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-10-')).length;
  const novMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-11-')).length;
  summary.textContent=y+'/'+String((y+1)%100).padStart(2,'0')+' évad · '+seasonSessions.length+' alkalom · '+hours.toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra tervezett/rögzített időtartam. Az ismeretlen jelenlét nem számít hiányzásnak.'+(y===2026&&state.age==='FU16'?' · Archív mérkőzések: szeptember '+septMatches+', október '+octMatches+', november '+novMatches+'.':'');
- renderActivitySummary(seasonSessions,cutoff,preseasonSessions.length?'2026. július 27.':'augusztus 1.');
+ renderActivitySummary(seasonSessions,cutoff,preseasonSessions.length?'2026. július 27.':'augusztus 1.',preseasonSessions.length?'2026-07-27':iso(y,8,1),iso(y+1,7,31));
  if(!state.roster.length){holder.append(elem('p','amSmall','A csapat kerete üres; előbb vidd fel a játékosokat a Csapatok kezelése részben.'))}
  if(preseasonSessions.length)renderCalendarMonth(2026,7,preseasonSessions,'Előszezon – Július 2026');
  for(let i=0;i<12;i++){
@@ -665,6 +696,17 @@ function attendanceEditor(session){
   box.append(elem('p','amSmall',reliable
    ?'A mérkőzés ('+matchRoster.length+' fős) nevezett keretéből a név szerint egyeztethető játékosokat automatikusan jelennek jelöltem. A kézi módosításokat megőrzöm.'
    :'Ehhez a mérkőzéshez nincs egyértelmű, legfeljebb 16 fős nevezési lista. A jelenlétet ezért nem töltöm ki találgatással; kézzel jelölheted.'));
+ }
+
+ if(session.matchId){
+  const db=fetchObj('handball_db'),m=(db.matches||[]).find(x=>String(x.id)===String(session.matchId));
+  if(m&&hasStat(m)){
+   const verdict=isLeagueGame(m),row=elem('div','amTools');
+   const select=choose([['','Ellenőrizendő – nem számít'],['yes','Bajnoki – számít'],['no','Nem bajnoki – nem számít']],verdict===null?'':verdict?'yes':'no');
+   row.append(field('Mérkőzés típusa az összesítőhöz',select),elem('span','amSmall','A KéziStat bajnokságmezője: '+String(m.league||'nincs megadva')));
+   select.addEventListener('change',()=>{if(!select.value)return;classifyGame(m,select.value==='yes');render();message('Mérkőzés besorolása mentve.')});
+   box.append(row);
+  }
  }
  if(!state.roster.length){box.append(elem('p','amSmall','Nincsenek játékosok a kiválasztott keretben.'));return box}
  const all=fetchObj(PROFILES_KEY),tbody=elem('tbody'),controlsByPlayer=[];
