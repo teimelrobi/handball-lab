@@ -511,6 +511,15 @@ function attendanceEditor(session){
   try{storeSessions(updated);const all=fetchObj(PROFILES_KEY);for(const profile of Object.values(all)){if(!Array.isArray(profile?.training))continue;profile.training=profile.training.map(x=>x.sessionId===session.id?{...x,type:typeToProfile[category.value],duration:minutes,components:category.value==='mixed'?(session.components||[{kind:'ball',duration:minutes/2},{kind:'strength',duration:minutes/2}]):null}:x)}writeObj(PROFILES_KEY,all);render()}catch(e){state.sessions=before;message('Nem sikerült menteni: '+e.message)}
  }));
  box.append(title,controls);
+ if(session.matchId){
+  const db=fetchObj('handball_db'),match=(db.matches||[]).find(x=>String(x.id)===String(session.matchId));
+  const side=match?matchForTeam(match,db)?.side:null;
+  const matchRoster=side?match[side+'Roster']:null;
+  const reliable=Array.isArray(matchRoster)&&matchRoster.length>0&&matchRoster.length<=16;
+  box.append(elem('p','amSmall',reliable
+   ?'A mérkőzés ('+matchRoster.length+' fős) nevezett keretéből a név szerint egyeztethető játékosokat automatikusan jelennek jelöltem. A kézi módosításokat megőrzöm.'
+   :'Ehhez a mérkőzéshez nincs egyértelmű, legfeljebb 16 fős nevezési lista. A jelenlétet ezért nem töltöm ki találgatással; kézzel jelölheted.'));
+ }
  if(!state.roster.length){box.append(elem('p','amSmall','Nincsenek játékosok a kiválasztott keretben.'));return box}
  const all=fetchObj(PROFILES_KEY),tbody=elem('tbody'),controlsByPlayer=[];
  const table=elem('table','amAttendance'),head=elem('thead'),header=elem('tr');
