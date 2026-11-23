@@ -60,11 +60,11 @@
   <button class="tab" data-panel="performanceView" type="button">Játékoskapcsolatok és teljesítmény</button>
   <button class="tab" data-panel="optimizerView" type="button">Csapatoptimalizáló</button>
  </div>
- <div class="upload"><label class="filebtn">Excel betöltése (.xlsx)<input type="file" id="fileTop" accept=".xlsx" hidden></label><small id="globalStatus" role="status">Nincs betöltött munkafüzet</small></div>
+ <div class="upload"><label class="filebtn">Excel betöltése (.xlsx)<input type="file" id="fileTop" accept=".xlsx" hidden></label><small id="globalStatus" role="status">Az Excel első betöltése után a böngésző helyben megjegyzi az adatokat.</small></div>
 </div>
 <div id="overviewView" class="sectionContent">
- <div class="profileHeader"><h2 style="margin:0;flex:1">Csapatáttekintés</h2><label for="globalTeam" class="caption">Korosztály</label><select id="globalTeam" style="width:160px"><option value="FU16">FU16</option><option value="FU18">FU18</option></select></div>
- <div id="overviewStatus">Az értékelés a helyben betöltött Excelből készül. Az egyéni edzőkapcsolati válaszokat nem jelenítjük meg.</div>
+ <div class="profileHeader"><h2 style="margin:0;flex:1">Csapatáttekintés</h2><label for="globalClub" class="caption">Csapat</label><select id="globalClub" style="min-width:175px;max-width:230px"><option value="Budai Farkasok">Budai Farkasok</option></select><label for="globalTeam" class="caption">Korosztály</label><select id="globalTeam" style="width:115px"><option value="FU16">FU16</option><option value="FU18">FU18</option></select><button id="refreshDynamicTeams" class="secondary" type="button" style="padding:8px 12px;font-size:12px">Csapatkeret frissítése</button></div>
+ <div id="overviewStatus">A kérdőíves eredményeket egyszer kell betölteni az adott böngészőben. Az új játékosokat és csapatokat a KéziStat keretéből keressük; kérdőíves értékelést nem találunk ki. Az egyéni edzőkapcsolati válaszokat nem jelenítjük meg.</div>
  <div class="overviewGrid">
   <div class="metric"><strong id="ovPlayers">–</strong><span>Játékos a keretben</span></div>
   <div class="metric"><strong id="ovPersonality">–</strong><span>Teljes 80 kérdéses kérdőív</span></div>
@@ -112,7 +112,7 @@
 </div>
 <div id="optimizerView" class="sectionContent hidden">
  <div class="profileHeader"><h2 style="margin:0;flex:1">Csapatoptimalizáló – támadó és védekező hetes</h2><button type="button" class="secondary" id="optReload">Adatok frissítése</button></div>
- <p class="caption">Edzői döntéstámogató eszköz. A nevezett keretet, posztokat, ellenőrzött meccsstatisztikákat, közös játékidőket és opcionálisan a kölcsönös szociometriai választásokat együttesen értékeli. Nem automatikus játékosminősítés.</p>
+ <p class="caption">Edzői döntéstámogató eszköz. A nevezett keretet, posztokat, ellenőrzött meccsstatisztikákat, közös játékidőket, valamint mindig az <strong>előző 6 teljes nap</strong> edzésjelenlétét és edzésminőségét értékeli. A szociometria opcionális, kis súlyú kiegészítés. Nem automatikus játékosminősítés.</p>
  <div class="panel">
   <div class="optControls">
    <label class="field">KéziStat-csapat<select id="optTeam"></select></label>
@@ -132,7 +132,7 @@
  <div class="panel">
   <div class="toolbar"><h2>Mérkőzéskeret és posztok</h2><div class="right"><span class="caption" id="optCount">0 / 16 nevezett</span><button id="optRecent" type="button" class="secondary">Legutóbbi keret kijelölése</button></div></div>
   <p class="caption">Válassz ki 7–16 nevezett játékost. Elsődleges és másodlagos posztot adhatsz meg; a rendszer csak megfelelő posztra ajánl játékost. Ha a statisztikában eltérő a név, párosítsd a játékosokat.</p>
-  <div class="scroll"><table><thead><tr><th>Nevezés / játékos</th><th>Elsődleges poszt</th><th>Másodlagos poszt</th><th>KéziStat-név</th><th>Forrás</th></tr></thead><tbody id="optRoster"></tbody></table></div>
+  <div class="scroll"><table><thead><tr><th>Nevezés / játékos</th><th>Elsődleges poszt</th><th>Másodlagos poszt</th><th>KéziStat-név</th><th>Forrás</th><th>Előző 6 nap · jelenlét és edzésminőség</th></tr></thead><tbody id="optRoster"></tbody></table></div>
   <div class="optActions"><button id="optCalculate" type="button">Támadó és védekező hetes kiszámítása</button><button id="optExport" class="secondary" type="button" disabled>Javaslat CSV-exportja</button></div>
  </div>
  <div id="optResult" aria-live="polite"></div>
@@ -184,9 +184,81 @@ async function readFile(file){let f=await unzipXL(file),paths=sheetNames(f),ss=s
  if(personalityPath&&f[personalityPath])for(const row of Object.values(sheetRows(f[personalityPath],ss))){const id=norm(row[1]),p=byId.get(id)||byName.get(nk(id));if(!p)continue;let scores=[4,5,6,7].map(k=>Number(row[k]));personalityData.set(p.id,{complete:Number(row[3])===80,scores:scores.every(Number.isFinite)?scores:[]});}
  if(cohesionPath&&f[cohesionPath])for(const row of Object.values(sheetRows(f[cohesionPath],ss))){const id=norm(row[1]),p=byId.get(id)||byName.get(nk(id));if(!p)continue;cohesionData.set(p.id,{complete:Number(row[3])===18,task:Number(row[4]),social:Number(row[5])});}
  if(conclusionsPath&&f[conclusionsPath])for(const row of Object.values(sheetRows(f[conclusionsPath],ss))){const name=norm(row[1]),p=byName.get(nk(name));if(!p)continue;const texts=[2,3,4,5,6].map(k=>norm(row[k]));if(texts.some(Boolean))conclusionData.set(p.id,texts);}
- players=all;records=responses;unmatched=bad;selected.clear();chosenGroup=null;populatePlayerChips();let n16=players.filter(p=>p.team==='FU16').length,n18=players.filter(p=>p.team==='FU18').length;$('status').className='status ok';$('status').textContent=`Beolvasva: ${n16} FU16, ${n18} FU18 játékos; ${responses.length} játékosok közti jelölés. ${bad.length?bad.length+' nem játékoshoz tartozó vagy fel nem oldott jelölés kihagyva (az aktuális fájlban ezeket a stábtagok kapták).':''}`;render();uiDataLoaded(file.name)}
+ const club=currentClub();
+ rememberWorkbookData(club,all,responses,personalityData,cohesionData,conclusionData,file.name);
+ hydrateDynamics();selected.clear();chosenGroup=null;populatePlayerChips();
+ let n16=all.filter(p=>p.team==='FU16').length,n18=all.filter(p=>p.team==='FU18').length;
+ $('status').className='status ok';$('status').textContent=`Helyben elmentve: ${n16} FU16, ${n18} FU18 játékos; ${responses.length} jelölés. ${bad.length?bad.length+' fel nem oldott vagy nem játékosra mutató jelölés kihagyva.':''}`;
+ render();uiDataLoaded(file.name)}
+
+const DYNAMICS_CACHE_KEY='kezistat_csapatdinamika_private_v1';
+const defaultClub='Budai Farkasok';
+function dynamicsCache(){
+ try{const x=JSON.parse(localStorage.getItem(DYNAMICS_CACHE_KEY)||'{}');return x&&typeof x==='object'&&x.snapshots&&typeof x.snapshots==='object'?x:{snapshots:{}}}catch(e){return {snapshots:{}}}
+}
+function importedId(club,group,id){return nk(club)+'::'+group+'::'+String(id)}
+function snapshotKey(club,group){return nk(club)+'|'+group}
+function currentClub(){return $('globalClub')?.value||defaultClub}
+function knownClubGroups(){
+ const entries=[],db=(()=>{try{return JSON.parse(localStorage.getItem('handball_db')||'{}')}catch(e){return {}}})();
+ for(const t of Object.values(db.teams||{})){
+  const name=norm(t.name||''),group=teamKey(t.ageGroup||'');
+  if(name&&['FU16','FU18'].includes(group))entries.push({club:name,team:group,roster:Array.isArray(t.players)?t.players:[]});
+ }
+ return entries;
+}
+function rememberWorkbookData(club,original,links,pers,coh,conclusions,filename){
+ const cache=dynamicsCache(),groups=[...new Set(original.map(p=>p.team))];
+ const idMap=new Map(original.map(p=>[p.id,importedId(club,p.team,p.id)]));
+ for(const group of groups){
+  const subset=original.filter(p=>p.team===group);
+  if(!['FU16','FU18'].includes(group)||!subset.length)continue;
+  const groupIds=new Set(subset.map(p=>p.id)),ns=original.filter(p=>p.team===group).map(p=>({...p,id:idMap.get(p.id),club}));
+  const remap=map=>Object.fromEntries([...map].filter(([id])=>groupIds.has(id)).map(([id,d])=>[idMap.get(id),d]));
+  cache.snapshots[snapshotKey(club,group)]={club,team:group,players:ns,
+   records:links.filter(r=>groupIds.has(r.from)&&groupIds.has(r.to)).map(r=>({...r,from:idMap.get(r.from),to:idMap.get(r.to)})),
+   personality:remap(pers),cohesion:remap(coh),conclusions:remap(conclusions),
+   filename,importedAt:new Date().toISOString()};
+ }
+ localStorage.setItem(DYNAMICS_CACHE_KEY,JSON.stringify(cache));
+}
+function refreshAvailableClubs(){
+ const select=$('globalClub'),age=$('globalTeam').value,previous=select.value||defaultClub;
+ const choices=new Map([[nk(defaultClub),defaultClub]]);
+ for(const snap of Object.values(dynamicsCache().snapshots))if(snap?.club&&snap.team===age)choices.set(nk(snap.club),snap.club);
+ for(const t of knownClubGroups())if(t.team===age)choices.set(nk(t.club),t.club);
+ select.replaceChildren();
+ for(const name of [...choices.values()].sort((a,b)=>a.localeCompare(b,'hu')))select.add(new Option(name,name));
+ const chosen=[...choices.values()].find(x=>nk(x)===nk(previous));
+ select.value=chosen||[...choices.values()].find(x=>nk(x)===nk(defaultClub))||[...choices.values()][0]||defaultClub;
+}
+function hydrateDynamics(){
+ const cache=dynamicsCache(),bank=Object.values(cache.snapshots).filter(x=>x&&Array.isArray(x.players));
+ const individuals=[],links=[],pers=new Map(),coh=new Map(),notes=new Map();
+ for(const snap of bank){
+  individuals.push(...snap.players.map(p=>({...p,club:snap.club})));
+  links.push(...(Array.isArray(snap.records)?snap.records:[]));
+  for(const [k,v] of Object.entries(snap.personality||{}))pers.set(k,v);
+  for(const [k,v] of Object.entries(snap.cohesion||{}))coh.set(k,v);
+  for(const [k,v] of Object.entries(snap.conclusions||{}))notes.set(k,v);
+ }
+ const seen=new Set(individuals.map(p=>snapshotKey(p.club,p.team)+'|'+nk(p.name)));
+ for(const group of knownClubGroups())for(const p of group.roster){
+  const name=norm(p.name||''),full=snapshotKey(group.club,group.team)+'|'+nk(name);
+  if(!name||seen.has(full))continue;seen.add(full);
+  individuals.push({id:'stat::'+snapshotKey(group.club,group.team)+'::'+nk(name),name,team:group.team,club:group.club,source:'KéziStat'});
+ }
+ players=individuals;records=links;personalityData=pers;cohesionData=coh;conclusionData=notes;unmatched=[];
+}
+function dynamicsSwitch(){
+ refreshAvailableClubs();hydrateDynamics();selected.clear();chosenGroup=null;
+ $('team').value=$('globalTeam').value;populatePlayerChips();refreshProfileOptions();renderOverview();
+ if(players.length)render();
+ window.performancePanelRefresh?.();window.teamOptimizerRefresh?.();
+}
+
 function updateQuestions(){let prev=$('question').value,cat=+$('category').value,start=cat?(cat-1)*4+1:1,end=cat?cat*4:20;$('question').replaceChildren(new Option('A témakör összes kérdése','0'));for(let q=start;q<=end;q++)$('question').add(new Option('S'+String(q).padStart(2,'0')+' – '+categories[Math.ceil(q/4)],String(q)));$('question').value=[...$('question').options].some(o=>o.value===prev)?prev:'0'}
-function activePlayers(){return players.filter(p=>$('team').value==='all'||p.team===$('team').value).sort((a,b)=>a.name.localeCompare(b.name,'hu'))}
+function activePlayers(){return players.filter(p=>nk(p.club||defaultClub)===nk(currentClub())&&($('team').value==='all'||p.team===$('team').value)).sort((a,b)=>a.name.localeCompare(b.name,'hu'))}
 function populatePlayerChips(){let term=nk($('playerSearch').value),all=activePlayers().filter(p=>nk(p.name).includes(term));$('playerChips').replaceChildren();for(let p of all){let chip=document.createElement('span');chip.className='chip'+(selected.has(p.id)?' active':'');chip.textContent=p.name;chip.onclick=()=>{if(selected.has(p.id))selected.delete(p.id);else if(selected.size<7)selected.add(p.id);populatePlayerChips();render()};$('playerChips').append(chip)}$('selectionStatus').textContent=`${selected.size}/7 kiválasztva. A részletes hálóhoz 3–7 játékost válassz.`}
 function pairKey(a,b){return a<b?a+'\u001f'+b:b+'\u001f'+a}
 function graphData(){let all=activePlayers(),ids=new Set(all.map(p=>p.id)),cat=+$('category').value,q=+$('question').value,weighted=$('weighted').checked,min=+$('minEdge').value;let counts=new Map();for(let r of records){if(!ids.has(r.from)||!ids.has(r.to)||cat&&Math.ceil(r.q/4)!==cat||q&&r.q!==q)continue;let key=r.from+'\u001e'+r.to;counts.set(key,(counts.get(key)||0)+(weighted?4-r.rank:1))}let pairs=[];for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){let a=all[i],b=all[j],ab=counts.get(a.id+'\u001e'+b.id)||0,ba=counts.get(b.id+'\u001e'+a.id)||0,mutual=ab>=min&&ba>=min;if(ab>=min||ba>=min)pairs.push({a:a.id,b:b.id,ab,ba,mutual,strength:ab+ba})}let visiblePairs=pairs.filter(p=>!$('mutual').checked||p.mutual);return {all,pairs,visiblePairs,counts,min}}
@@ -220,7 +292,7 @@ function setActivePanel(id){
  if(id==='overviewView')renderOverview();if(id==='profileView')renderProfile();if(id==='networkView'&&players.length)render();if(id==='performanceView')window.performancePanelRender?.();if(id==='optimizerView')window.teamOptimizerRender?.();
 }
 function selectedTeam(){return $('globalTeam').value}
-function relevant(){return players.filter(p=>p.team===selectedTeam())}
+function relevant(){return players.filter(p=>p.team===selectedTeam()&&nk(p.club||defaultClub)===nk(currentClub()))}
 function pctBar(label,val,max=100){return `<div class="barLine"><span class="barName">${esc(label)}</span><div class="barTrack"><span style="width:${Math.min(100,Math.max(0,val/max*100))}%"></span></div><span class="barValue">${Number.isFinite(val)?val.toLocaleString('hu-HU',{maximumFractionDigits:1}):'–'}</span></div>`}
 function mean(values){let xs=values.filter(Number.isFinite);return xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:NaN}
 function primaryType(scores){if(!scores||scores.length!==4)return -1;return scores.indexOf(Math.max(...scores))}
@@ -239,7 +311,7 @@ function renderOverview(){
  }else {$('ovCohBars').innerHTML='<div class="emptyState">Ehhez a csapathoz nincs teljes kohéziós kitöltés.</div>';$('ovReading').textContent=''}
 }
 function refreshProfileOptions(){let options=relevant().slice().sort((a,b)=>a.name.localeCompare(b.name,'hu'));const select=$('profileSelect'),old=select.value;select.replaceChildren();for(const p of options){const o=document.createElement('option');o.value=p.id;o.textContent=p.name;select.append(o)}if(options.some(p=>p.id===old))select.value=old;renderProfile()}
-function renderProfile(){let id=$('profileSelect').value,p=players.find(x=>x.id===id),out=$('profileBody');if(!p||p.team!==selectedTeam()){out.innerHTML='<div class="emptyState">Előbb töltsd be a kitöltött munkafüzetet.</div>';return}
+function renderProfile(){let id=$('profileSelect').value,p=players.find(x=>x.id===id),out=$('profileBody');if(!p||p.team!==selectedTeam()||nk(p.club||defaultClub)!==nk(currentClub())){out.innerHTML='<div class="emptyState">Előbb töltsd be a kitöltött munkafüzetet.</div>';return}
  const d=personalityData.get(p.id),notes=conclusionData.get(p.id),i=primaryType(d?.scores);
  let intro=`<h2 style="margin:0 0 8px">${esc(p.name)}</h2>`;
  if(i>=0){const sorted=d.scores.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v||a.i-b.i);intro+=`<div class="kpiPills"><span>Elsődleges jelleg: ${esc(typeNames[sorted[0].i])}</span><span>Másodlagos: ${esc(typeNames[sorted[1].i])}${sorted[0].v===sorted[1].v?' (holtverseny)':''}</span></div>`}
@@ -248,12 +320,19 @@ function renderProfile(){let id=$('profileSelect').value,p=players.find(x=>x.id=
  out.className='';out.innerHTML=intro+'<div class="noteCards">'+notes.map((t,j)=>`<article class="noteCard${j===0?' wide':''}"><h3>${headings[j]}</h3><p>${esc(t)||'Nincs rögzített értékelés.'}</p></article>`).join('')+'</div>';
  $('profileStatus').textContent='A szöveges következtetések a betöltött Excel „FU16 értelmezések” lapjából származnak. Nem frissülnek automatikusan a válaszok módosításakor.';
 }
-function uiDataLoaded(filename){loadedFilename=filename;let t=$('globalStatus');t.textContent=`Betöltve: ${filename} · ${players.length} játékos`;
+function uiDataLoaded(filename){loadedFilename=filename;let t=$('globalStatus');t.textContent=`Helyben mentve: ${filename} · ${relevant().length} kiválasztott csapatbeli játékos (automatikusan visszatöltődik)`;
  $('team').value=$('globalTeam').value;refreshProfileOptions();renderOverview();window.performancePanelRefresh?.();window.teamOptimizerRefresh?.();setActivePanel('overviewView');
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>setActivePanel(b.dataset.panel)));
-$('globalTeam').addEventListener('change',()=>{$('team').value=$('globalTeam').value;selected.clear();chosenGroup=null;populatePlayerChips();refreshProfileOptions();renderOverview();if(players.length)render()});
+$('globalTeam').addEventListener('change',dynamicsSwitch);
+$('globalClub').addEventListener('change',dynamicsSwitch);
+$('refreshDynamicTeams').addEventListener('click',dynamicsSwitch);
 $('team').addEventListener('change',()=>{if($('team').value!=='all'){$('globalTeam').value=$('team').value;refreshProfileOptions();renderOverview()}});
 $('profileSelect').addEventListener('change',renderProfile);
 $('fileTop').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;$('globalStatus').textContent='Excel feldolgozása...';try{await readFile(f)}catch(err){$('globalStatus').textContent='Betöltési hiba: '+err.message;console.error(err)}});
+refreshAvailableClubs();hydrateDynamics();populatePlayerChips();refreshProfileOptions();renderOverview();
+const loaded=Object.values(dynamicsCache().snapshots).length;
+$('globalStatus').textContent=loaded?'Automatikusan betöltve: '+loaded+' mentett csapat/korosztály – az adatok ebben a böngészőben maradnak.':
+ 'A kérdőíves Excel egyszeri betöltése szükséges ezen a böngészőn; a KéziStatban lévő új játékosokat már látod.';
+window.teamDynamicsSwitchClub=(club)=>{if(!club)return;const x=$('globalClub');if([...x.options].some(o=>o.value===club)){x.value=club;dynamicsSwitch()}};
 </script><script src="./csapatdinamika-teljesitmeny.js"></script><script src="./csapatdinamika-optimalizalo.js"></script></body></html>
