@@ -48,7 +48,8 @@ box.innerHTML=`
 <div class="pdGrid">
 <label>Elsődleges poszt<select id="pdPrimary"></select></label>
 <label>Másodlagos poszt<select id="pdSecondary"></select></label>
-<label>Védekező szerep<select id="pdDefense"><option value="">Nincs megadva</option><option value="1-es">1-es védő</option><option value="2-es">2-es védő</option><option value="3-as">3-as védő</option><option value="előretolt">Előretolt védő</option></select></label>
+<label>Elsődleges védekező szerep<select id="pdDefense"><option value="">Nincs megadva</option><option value="1-es">1-es védő</option><option value="2-es">2-es védő</option><option value="3-as">3-as védő</option><option value="előretolt">Előretolt védő</option></select></label>
+<label>Másodlagos védekező szerep<select id="pdDefenseSecondary"><option value="">Nincs megadva</option><option value="1-es">1-es védő</option><option value="2-es">2-es védő</option><option value="3-as">3-as védő</option><option value="előretolt">Előretolt védő</option></select></label>
 <label>Domináns kéz<select id="pdHand"><option value="">Nincs megadva</option><option value="jobb">Jobb</option><option value="bal">Bal</option><option value="mindkettő">Mindkettő</option></select></label>
 <label>Magasság (cm, opcionális)<input type="number" min="90" max="230" id="pdHeight" placeholder="pl. 184"></label>
 <label>Testsúly (kg, opcionális)<input type="number" min="25" max="200" step="0.1" id="pdWeight" placeholder="pl. 77"></label>
@@ -90,7 +91,7 @@ function render(){
  el('pdSave').disabled=false;el('pdTrainingAdd').disabled=false;
  el('pdWho').textContent=cur.age+' · '+cur.team+' · '+labelName();
  const p=get(cur.age,cur.team,cur.player)||{};
- for(const [id,prop] of [['pdPrimary','primary'],['pdSecondary','secondary'],['pdDefense','defense'],['pdHand','hand'],['pdHeight','height'],['pdWeight','weight'],['pdAvailable','availability'],['pdPenalty','penalty']])el(id).value=p[prop]??(prop==='availability'?'ready':'');
+ for(const [id,prop] of [['pdPrimary','primary'],['pdSecondary','secondary'],['pdDefense','defense'],['pdDefenseSecondary','defenseSecondary'],['pdHand','hand'],['pdHeight','height'],['pdWeight','weight'],['pdAvailable','availability'],['pdPenalty','penalty']])el(id).value=p[prop]??(prop==='availability'?'ready':'');
  const r=latestTraining(p),ratio=r.sessions?Math.round(r.present/r.sessions*100):null;
  el('pdTrainingTotals').textContent='Utolsó 28 nap (rögzített edzések): '+r.present+' jelenlét / '+r.sessions+' alkalom; '+r.excused+' igazolt hiányzás; minőségátlag: '+(r.mean==null?'–':r.mean.toFixed(2))+' / 5.'+(ratio===null?'':' Részvétel: '+ratio+'%.');
  const body=el('pdHistory');body.replaceChildren();
@@ -118,7 +119,7 @@ function save(){
  const n=(id,min,max)=>{const str=el(id).value;if(!str)return null;const v=Number(str);return Number.isFinite(v)&&v>=min&&v<=max?v:null};
  const height=n('pdHeight',90,230),weight=n('pdWeight',25,200);
  if((el('pdHeight').value&&height===null)||(el('pdWeight').value&&weight===null)){el('pdStatus').textContent='Ellenőrizd a magasságot és a testsúlyt.';return}
- put(cur.age,cur.team,cur.player,{primary:el('pdPrimary').value,secondary:el('pdSecondary').value,defense:el('pdDefense').value,hand:el('pdHand').value,height,weight,availability:el('pdAvailable').value,penalty:el('pdPenalty').value});
+ put(cur.age,cur.team,cur.player,{primary:el('pdPrimary').value,secondary:el('pdSecondary').value,defense:el('pdDefense').value,defenseSecondary:el('pdDefenseSecondary').value,hand:el('pdHand').value,height,weight,availability:el('pdAvailable').value,penalty:el('pdPenalty').value});
  render();el('pdStatus').textContent='Játékosadatok mentve ezen a böngészőn.';
 }
 function addTraining(){
@@ -130,6 +131,7 @@ function addTraining(){
  training.push({date,type,status,rating:rating?Number(rating):null,condition,note});
  put(cur.age,cur.team,cur.player,{training});render();el('pdTrainingCondition').value='normal';el('pdTrainingNote').value='';el('pdStatus').textContent='Edzésrészvétel és megjegyzés mentve.';
 }
+el('pdDefense').addEventListener('change',()=>{if(el('pdDefense').value===el('pdDefenseSecondary').value)el('pdDefenseSecondary').value='' });
 el('pdSave').addEventListener('click',save);
 el('pdTrainingAdd').addEventListener('click',addTraining);
 el('pdTrainingStatus').addEventListener('change',()=>{if(el('pdTrainingStatus').value!=='present')el('pdTrainingRating').value='';el('pdTrainingRating').disabled=el('pdTrainingStatus').value!=='present'});
