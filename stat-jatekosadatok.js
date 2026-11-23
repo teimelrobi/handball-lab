@@ -16,7 +16,7 @@ function put(age,team,player,patch){
 function latestTraining(profile,days=28){
  const now=Date.now(),low=now-days*86400000,items=(profile?.training||[]).filter(x=>{const t=Date.parse(x.date+'T12:00:00');return Number.isFinite(t)&&t>=low&&t<=now+86400000});
  const attended=items.filter(x=>x.status==='present'),absent=items.filter(x=>x.status==='absent'),excused=items.filter(x=>x.status==='excused');
- const rated=attended.filter(x=>Number.isInteger(Number(x.rating))&&Number(x.rating)>=1&&Number(x.rating)<=5);
+ const rated=attended.filter(x=>(!x.condition||x.condition==='normal')&&Number.isInteger(Number(x.rating))&&Number(x.rating)>=1&&Number(x.rating)<=5);
  return {sessions:items.length,present:attended.length,absent:absent.length,excused:excused.length,rated:rated.length,mean:rated.length?rated.reduce((s,x)=>s+Number(x.rating),0)/rated.length:null};
 }
 const api={get,put,key,latestTraining};window.keziPlayerProfile=api;
@@ -28,14 +28,14 @@ style.textContent=`
 #playerDataPanel .pdGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:12px 0}
 #playerDataPanel label{display:block;font-size:12px;color:#b7cad7;min-width:0}
 #playerDataPanel input,#playerDataPanel select{display:block;width:100%;background:#1b2d38;color:#f8fbfc;border:1px solid #426073;padding:10px;border-radius:7px;margin-top:5px}
-#playerDataPanel .pdRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+#playerDataPanel input[type="text"]{min-width:0}\n#playerDataPanel .pdRow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
 #playerDataPanel button,#playerDataToggle{padding:11px 15px;border-radius:9px;background:#16634e;color:white;border:1px solid #299c79;font-weight:700;cursor:pointer}
 #playerDataPanel button.pdSecondary{background:transparent;border-color:#526778}
 #playerDataPanel table{width:100%;border-collapse:collapse;font-size:13px}
 #playerDataPanel td,#playerDataPanel th{border-bottom:1px solid #29404b;text-align:left;padding:8px}
 #playerDataPanel .pdMessage,#playerDataPanel .pdNote{color:#9fb6c5;font-size:12px;line-height:1.55}
 @media(max-width:900px){#playerDataPanel .pdGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:530px){#playerDataPanel .pdGrid{grid-template-columns:1fr}}
+@media(max-width:530px){#playerDataPanel .pdGrid{grid-template-columns:1fr}#playerDataPanel .pdGrid label[style*="grid-column"]{grid-column:auto!important}}
 `;
 document.head.append(style);
 const toggle=document.createElement('button');toggle.type='button';toggle.id='playerDataToggle';toggle.textContent='Játékos adatok és edzések';toggle.style.cssText='display:block;margin:8px 0 16px';
@@ -65,8 +65,12 @@ box.innerHTML=`
 <label>Részvétel<select id="pdTrainingStatus"><option value="present">Részt vett</option><option value="excused">Igazolt hiányzás</option><option value="absent">Hiányzott</option></select></label>
 <label>Edzésminőség (1–5)<select id="pdTrainingRating"><option value="">Nincs értékelés</option><option value="1">1 – Gyenge</option><option value="2">2 – Fejlesztendő</option><option value="3">3 – Megfelelő</option><option value="4">4 – Jó</option><option value="5">5 – Kiemelkedő</option></select></label>
 </div>
+<div class="pdGrid">
+<label>Körülmény<select id="pdTrainingCondition"><option value="normal">Normál részvétel</option><option value="sick">Betegen jelen volt</option><option value="injured">Sérülten jelen volt</option><option value="light">Könnyített edzést végzett</option><option value="rehab">Rehabilitációs feladatot végzett</option><option value="other">Egyéb</option></select></label>
+<label style="grid-column:span 3">Megjegyzés (nem kötelező)<input type="text" id="pdTrainingNote" maxlength="240" placeholder="pl. beteg, de ott volt; térdfájdalom miatt könnyített gyakorlat"></label>
+</div>
 <div class="pdRow"><button id="pdTrainingAdd" type="button">Edzés rögzítése</button><span id="pdTrainingTotals" class="pdNote"></span></div>
-<div style="overflow:auto"><table><thead><tr><th>Dátum</th><th>Típus</th><th>Részvétel</th><th>Minőség</th><th></th></tr></thead><tbody id="pdHistory"></tbody></table></div>
+<div style="overflow:auto"><table><thead><tr><th>Dátum</th><th>Típus</th><th>Részvétel</th><th>Minőség</th><th>Körülmény</th><th>Megjegyzés</th><th></th></tr></thead><tbody id="pdHistory"></tbody></table></div>
 `;
 toggle.after(box);
 for(const id of ['pdPrimary','pdSecondary'])for(const pos of positions)el(id).add(new Option(pos||'Nincs megadva',pos));
@@ -90,13 +94,22 @@ function render(){
  const r=latestTraining(p),ratio=r.sessions?Math.round(r.present/r.sessions*100):null;
  el('pdTrainingTotals').textContent='Utolsó 28 nap (rögzített edzések): '+r.present+' jelenlét / '+r.sessions+' alkalom; '+r.excused+' igazolt hiányzás; minőségátlag: '+(r.mean==null?'–':r.mean.toFixed(2))+' / 5.'+(ratio===null?'':' Részvétel: '+ratio+'%.');
  const body=el('pdHistory');body.replaceChildren();
- const tNames={team:'Csapatedzés',strength:'Erőnléti',individual:'Egyéni',video:'Videó/taktikai'},sNames={present:'Részt vett',absent:'Hiányzott',excused:'Igazolt'};
+ const tNames={team:'Csapatedzés',strength:'Erőnléti',individual:'Egyéni',video:'Videó/taktikai'},sNames={present:'Részt vett',absent:'Hiányzott',excused:'Igazolt'},cNames={normal:'Normál',sick:'Betegen jelen volt',injured:'Sérülten jelen volt',light:'Könnyített',rehab:'Rehabilitáció',other:'Egyéb'};
  for(const session of [...(p.training||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,80)){
   const tr=document.createElement('tr');
-  for(const val of [session.date,tNames[session.type]||session.type,sNames[session.status]||session.status,session.rating||'–']){const td=document.createElement('td');td.textContent=val;tr.append(td)}
-  const td=document.createElement('td'),btn=document.createElement('button');btn.type='button';btn.className='pdSecondary';btn.textContent='Törlés';
+  for(const val of [session.date,tNames[session.type]||session.type,sNames[session.status]||session.status,session.rating||'–',cNames[session.condition]||'–',session.note||'–']){const td=document.createElement('td');td.textContent=val;tr.append(td)}
+  const td=document.createElement('td');
+  const edit=document.createElement('button');edit.type='button';edit.className='pdSecondary';edit.textContent='Szerkesztés';
+  edit.addEventListener('click',()=>{
+   el('pdTrainingDate').value=session.date;el('pdTrainingType').value=session.type;
+   el('pdTrainingStatus').value=session.status;el('pdTrainingRating').value=session.rating||'';
+   el('pdTrainingCondition').value=session.condition||'normal';el('pdTrainingNote').value=session.note||'';
+   el('pdTrainingRating').disabled=session.status!=='present';
+   el('pdStatus').textContent='A fenti mezőkben módosíthatod, majd az Edzés rögzítése gombbal felülírhatod ezt a napot és edzéstípust.';
+  });
+  const btn=document.createElement('button');btn.type='button';btn.className='pdSecondary';btn.textContent='Törlés';
   btn.addEventListener('click',()=>{if(!cur)return;const fresh=get(cur.age,cur.team,cur.player)||{},training=(fresh.training||[]).filter(x=>!(x.date===session.date&&x.type===session.type));put(cur.age,cur.team,cur.player,{training});render()});
-  td.append(btn);tr.append(td);body.append(tr);
+  td.append(edit,document.createTextNode(' '),btn);tr.append(td);body.append(tr);
  }
  status.textContent='Elmentve a böngésződben'+(p.modifiedAt?' · '+new Date(p.modifiedAt).toLocaleDateString('hu-HU'):'');
 }
@@ -110,12 +123,12 @@ function save(){
 }
 function addTraining(){
  cur=selection();if(!cur)return;
- const date=el('pdTrainingDate').value,type=el('pdTrainingType').value,status=el('pdTrainingStatus').value,rating=status==='present'?el('pdTrainingRating').value:'';
+ const date=el('pdTrainingDate').value,type=el('pdTrainingType').value,status=el('pdTrainingStatus').value,rating=status==='present'?el('pdTrainingRating').value:'',condition=el('pdTrainingCondition').value,note=el('pdTrainingNote').value.trim().slice(0,240);
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){el('pdStatus').textContent='Adj meg egy érvényes edzésdátumot.';return}
  if(date>new Date().toLocaleDateString('en-CA')){el('pdStatus').textContent='Jövőbeli edzést nem lehet megtartottként rögzíteni.';return}
  const p=get(cur.age,cur.team,cur.player)||{},training=(p.training||[]).filter(x=>!(x.date===date&&x.type===type));
- training.push({date,type,status,rating:rating?Number(rating):null});
- put(cur.age,cur.team,cur.player,{training});render();el('pdStatus').textContent='Edzésrészvétel rögzítve.';
+ training.push({date,type,status,rating:rating?Number(rating):null,condition,note});
+ put(cur.age,cur.team,cur.player,{training});render();el('pdTrainingCondition').value='normal';el('pdTrainingNote').value='';el('pdStatus').textContent='Edzésrészvétel és megjegyzés mentve.';
 }
 el('pdSave').addEventListener('click',save);
 el('pdTrainingAdd').addEventListener('click',addTraining);
