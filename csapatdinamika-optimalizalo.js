@@ -38,7 +38,7 @@ function trainValue(c){
  const p=savedProfile(c),now=Date.now(),since=now-28*86400000;
  const rows=(p?.training||[]).filter(x=>{const t=Date.parse(String(x.date)+'T12:00:00');return Number.isFinite(t)&&t>=since&&t<=now+86400000});
  const played=rows.filter(x=>x.status==='present'),missed=rows.filter(x=>x.status==='absent');
- const rated=played.filter(x=>Number(x.rating)>=1&&Number(x.rating)<=5),avg=rated.length?rated.reduce((s,x)=>s+Number(x.rating),0)/rated.length:null;
+ const rated=played.filter(x=>(!x.condition||x.condition==='normal')&&Number(x.rating)>=1&&Number(x.rating)<=5),avg=rated.length?rated.reduce((s,x)=>s+Number(x.rating),0)/rated.length:null;
  // Igazolt hiányzás nem csökkenti az edzésrészvételi pontot.
  const denominator=played.length+missed.length,att=denominator>=3?played.length/denominator:null;
  // A pontszám csak több dokumentált edzés után számít; szubjektív értékelés kis súlyú.
