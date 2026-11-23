@@ -310,7 +310,16 @@ swap.append(node('p','',def.swaps?'Támadás után le: '+leaving.map(x=>x.name).
 const situation=$('optSituation').value;if(situation.startsWith('late-'))out.append(node('p','optWarning','57:00, döntetlen: a '+(situation==='late-attack'?'támadó':'védekező')+' hetes a kiinduló javaslat. Nincs külön validált végjáték-modell, így az aktuális forma, fáradtság, időkérés és taktika elsőbbséget élvez.'));
 if(situation==='power'||situation==='short')out.append(node('p','optWarning','A létszámhelyzetet a felület jelzi, de a 7 fős összeállítás nem állítja elő külön a 6:5 vagy 5:6 tényleges pályalétszámot. Ehhez később külön létszámhelyzet-specifikus modell szükséges.'));
 const p=node('div','optAdvice');p.append(node('h3','','Jellemző személyiségösszetétel a támadó hetesben'),node('p','',personalities(atk.players)),node('p','optSmall','A személyiségprofil nem dönt a kiválasztásról; a szociometriai kölcsönösséget csak kis súllyal, opcionálisan vesszük figyelembe.'));out.append(p);
-if(met.nVerified<2)out.append(node('p','optWarning','Az eredmények kevés ellenőrzött mérkőzésadatból származnak. A kijelölést csak edzői hipotézisként használd; ellenőrizd az aktuális állapotot, posztokat, terhelést és a védekezési rendszert.'));
+const trainingPanel=node('div','optAdvice');trainingPanel.append(node('h3','','Edzésmunka · az előző 6 nap'));
+ const trainingList=node('div','optLineupRows');
+ for(const c of pool){
+  const v=trainValue(c),line=node('div','optLineupRow');
+  const point=(v.points>=0?'+':'')+v.points.toFixed(1)+' pont';
+  line.append(node('strong','optPosition',c.name),node('span','optPlayer',trainingText(c)),node('small','optReason','Az összeállításban figyelembe vett edzésmunka-hatás: '+point));
+  trainingList.append(line);
+ }
+ trainingPanel.append(trainingList);out.append(trainingPanel);
+ if(met.nVerified<2)out.append(node('p','optWarning','Az eredmények kevés ellenőrzött mérkőzésadatból származnak. A kijelölést csak edzői hipotézisként használd; ellenőrizd az aktuális állapotot, posztokat, terhelést és a védekezési rendszert.'));
  out.append(node('p','optSmall','Adatfelhasználás: poszt = kötelező feltétel; mérkőzésteljesítmény = fő pontszám, ha van ellenőrzött játékidő; előző 6 teljes nap edzésmunkája = legfeljebb 7 pont; kölcsönös szociometria = legfeljebb 1,2 pont; személyiségtípus = tájékoztató, nem pontozott; testmagasság és testsúly = tájékoztató, nem pontozott.'));
 out.append(node('p','optSmall','A védekező mezőnyjátékosok 6:0-s (két 1-es, két 2-es, két 3-as) szerepét az elsődleges és másodlagos beállított védekező poszt alapján javasoljuk. Hiányos posztadatnál az szerepbecslés, edzői ellenőrzést igényel. A 5:1 külön modell később fejleszthető.'));
 const six=sixDayPeriod();out.append(node('p','optSmall','Edzésadatok: '+six.from+' – '+six.to+' (az előző 6 teljes nap). Az igazolt hiányzás nem rontja a pontszámot, a hiányzó adat sem.'));st.last={atk,def,met,leaving,entering};$('optExport').disabled=false;status('Kiszámítva a támadó és a védekező hetes. Javasolt cserék: '+def.swaps+'.');
@@ -322,6 +331,11 @@ for(const p of POS)rows.push([PN[p],atk.players.find(x=>x.id===atk.roles[p])?.na
 rows.push([],['Védekező szerep','Játékos']);
 for(const c of def.players)rows.push([c.id===def.keeper?'Kapus':'Mezőny',c.name]);
 rows.push([],['Támadás után le',leaving.map(x=>x.name).join(', ')],['Védekezésre be',entering.map(x=>x.name).join(', ')],['Megjegyzés','Edzői próba, nem bizonyított optimális összeállítás.']);
+ const six=sixDayPeriod();
+ rows.push([],['Előző 6 nap edzésmunkája',six.from+' – '+six.to],['Játékos','Jelen','Igazolt','Hiányzott','Edzések','Minőségátlag 1–5','Edzésmunka pont']);
+ for(const c of st.roster.filter(x=>st.chosen.has(x.id))){
+  const v=trainValue(c);rows.push([c.name,v.present,v.excused,v.absent,v.sessions,v.avg===null?'':v.avg.toFixed(2),v.points.toFixed(2)]);
+ }
 const q=x=>'"'+String(x??'').replace(/"/g,'""')+'"';
 const content='\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n'),url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));
 const a=node('a');a.href=url;a.download='KeziStat_'+group()+'_csapatoptimalizalo.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
