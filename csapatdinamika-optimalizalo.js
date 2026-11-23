@@ -69,7 +69,7 @@ return out.map(c=>{
  first:manual?.first??(profile.primary?P(profile.primary):c.first),
  second:manual?.second??(profile.secondary?P(profile.secondary):c.second),
  availability:profile.availability||'ready',
- defense:profile.defense||''};
+ defense:profile.defense||'',defenseSecondary:profile.defenseSecondary||''};
 }).sort((a,b)=>a.name.localeCompare(b.name,'hu'));
 }
 function load(reload){
@@ -197,6 +197,28 @@ function attack(pool,metrics,social){
  let best=null;for(const b of beam){const arr=POS.map(p=>pool.find(x=>x.id===b.roles[p])),v=b.v+combined(arr,'attack',metrics,social);if(!best||v>best.v)best={roles:b.roles,players:arr,v}}
  return best;
 }
+
+function defenseFit(players){
+ // A hat mezőnyjátékoshoz 6:0-s védőhelyeket (1,1,2,2,3,3) rendelünk.
+ // Az elsődleges és másodlagos védekező szerep is számít; ismeretlen szerep nem kizáró.
+ const slots=['1-es','1-es','2-es','2-es','3-as','3-as'],count=1<<slots.length;
+ let dp=new Array(count).fill(-Infinity),paths=new Array(count).fill(null);dp[0]=0;paths[0]=[];
+ for(let i=0;i<players.length;i++){
+  const next=new Array(count).fill(-Infinity),npaths=new Array(count).fill(null),p=players[i];
+  for(let mask=0;mask<count;mask++)if(Number.isFinite(dp[mask])){
+   for(let j=0;j<slots.length;j++){
+    if(mask&(1<<j))continue;
+    const role=slots[j],hasRole=!!p.defense||!!p.defenseSecondary;
+    const points=p.defense===role?2.2:p.defenseSecondary===role?1.4:hasRole?-1.1:0;
+    const mm=mask|(1<<j),v=dp[mask]+points;
+    if(v>next[mm]){next[mm]=v;npaths[mm]=[...paths[mask],{id:p.id,role}]}
+   }
+  }
+  dp=next;paths=npaths;
+ }
+ return {score:dp[count-1],assignments:paths[count-1]||[]};
+}
+
 function defense(pool,atk,metrics,social){
 const maxSubs=clamp(Number($('optSwaps').value)||0,0,3),aIds=new Set(atk.players.map(p=>p.id));
 const goalies=pool.filter(p=>p.first==='K'),field=pool.filter(p=>p.first!=='K');
@@ -205,8 +227,9 @@ for(const keeper of goalies){
  const picks=[keeper];
  function scan(start){
  if(picks.length===7){const newcomers=picks.filter(x=>!aIds.has(x.id));if(newcomers.length>maxSubs)return;
- const v=picks.reduce((s,c)=>s+rating(c,'defense',metrics),0)+combined(picks,'defense',metrics,social)-newcomers.length*1.4;
- if(!best||v>best.v)best={players:picks.slice(),keeper:keeper.id,v,swaps:newcomers.length};return}
+ const coverage=defenseFit(picks.filter(c=>c.id!==keeper.id));
+ const v=picks.reduce((s,c)=>s+rating(c,'defense',metrics),0)+combined(picks,'defense',metrics,social)-newcomers.length*1.4+coverage.score;
+ if(!best||v>best.v)best={players:picks.slice(),keeper:keeper.id,v,swaps:newcomers.length,roles:coverage.assignments};return}
  const need=7-picks.length;
  if(field.length-start<need||picks.filter(x=>!aIds.has(x.id)).length>maxSubs)return;
  for(let i=start;i<=field.length-need;i++){picks.push(field[i]);scan(i+1);picks.pop()}
@@ -224,12 +247,15 @@ let details=phase==='attack'?[
 ]:[p.steal?'Labdaszerzés '+p.steal:'',p.block?'Sánc '+p.block:'',p.pen?'2 perc '+p.pen:''];
 return details.filter(Boolean).join(' · ')+(details.some(Boolean)?' · ':'')+Math.round(p.sec/60)+' perc';
 }
-function lineup(host,title,arr,roles,phase,metrics,keeperId){
+function lineup(host,title,arr,roles,phase,metrics,keeperId,defenseRoles=[]){
 const box=node('div','optLineup');box.append(node('h3','',title));
 const content=node('div','optLineupRows');
 const ordered=phase==='attack'?POS.map(pos=>({pos,c:arr.find(x=>x.id===roles[pos])})):
   [{pos:'K',c:arr.find(x=>x.id===keeperId)},...arr.filter(x=>x.id!==keeperId).sort((a,b)=>POS.indexOf(a.first)-POS.indexOf(b.first)).map(c=>({pos:c.first||'Mezőny',c}))];
-for(const {pos,c} of ordered){if(!c)continue;const r=node('div','optLineupRow');r.append(node('strong','optPosition',PN[pos]||'Mezőny'),node('span','optPlayer',c.name),node('small','optReason',evidence(c,phase,metrics)));content.append(r)}
+for(const {pos,c} of ordered){if(!c)continue;const r=node('div','optLineupRow'),assignment=defenseRoles.find(x=>x.id===c.id);
+ const assigned=phase==='defense'&&pos!=='K'?assignment?.role||'Mezőny':PN[pos]||'Mezőny';
+ const info=phase==='defense'&&pos!=='K'?' (megadott: '+[c.defense,c.defenseSecondary].filter(Boolean).join(' / ').trim()+')':'';
+ r.append(node('strong','optPosition',assigned),node('span','optPlayer',c.name),node('small','optReason',evidence(c,phase,metrics)+(info===' (megadott: )'?'':info)));content.append(r)}
 box.append(content);host.append(box);
 }
 function personalities(arr){
@@ -251,7 +277,7 @@ if(!def){status('A megadott legfeljebb '+$('optSwaps').value+' cserével nem tud
 const out=$('optResult');out.replaceChildren();
 out.append(node('p','optBanner',met.nVerified?met.nVerified+' ellenőrzött mérkőzésből számított javaslat. Posztok az állandó játékosadatlapból, az utolsó 28 napos edzésmunkával és opcionális szociometriával.':'Nincs ellenőrzött összeállításnapló. Ez poszt- és edzésadat-alapú próba-összeállítás, nem teljesítmény-optimalizálás. A szociometriai rásegítést adat hiányában kikapcsoltam.'));
 const boxes=node('div','optPairLineups');
-lineup(boxes,'Támadó hetes',atk.players,atk.roles,'attack',met);lineup(boxes,'Védekező hetes',def.players,null,'defense',met,def.keeper);out.append(boxes);
+lineup(boxes,'Támadó hetes',atk.players,atk.roles,'attack',met);lineup(boxes,'Védekező hetes – 6:0 szerepek',def.players,null,'defense',met,def.keeper,def.roles);out.append(boxes);
 const as=new Set(atk.players.map(x=>x.id)),ds=new Set(def.players.map(x=>x.id));
 const leaving=atk.players.filter(x=>!ds.has(x.id)),entering=def.players.filter(x=>!as.has(x.id));
 const swap=node('div','optAdvice');swap.append(node('h3','',def.swaps+' támadó–védő csere'));
@@ -261,7 +287,7 @@ if(situation==='power'||situation==='short')out.append(node('p','optWarning','A 
 const p=node('div','optAdvice');p.append(node('h3','','Jellemző személyiségösszetétel a támadó hetesben'),node('p','',personalities(atk.players)),node('p','optSmall','A személyiségprofil nem dönt a kiválasztásról; a szociometriai kölcsönösséget csak kis súllyal, opcionálisan vesszük figyelembe.'));out.append(p);
 if(met.nVerified<2)out.append(node('p','optWarning','Az eredmények kevés ellenőrzött mérkőzésadatból származnak. A kijelölést csak edzői hipotézisként használd; ellenőrizd az aktuális állapotot, posztokat, terhelést és a védekezési rendszert.'));
  out.append(node('p','optSmall','Adatfelhasználás: poszt = kötelező feltétel; mérkőzésteljesítmény = fő pontszám, ha van ellenőrzött játékidő; utolsó 28 nap edzésmunkája = legfeljebb 10 pont; kölcsönös szociometria = legfeljebb 1,2 pont; személyiségtípus = tájékoztató, nem pontozott; testmagasság és testsúly = tájékoztató, nem pontozott.'));
-out.append(node('p','optSmall','A védekező hat mezőnyjátékos pontos 6:0 vagy 5:1 helyét nem becsüljük: azt az edző határozza meg. A támadó hetes szerepkörönként rendezett.'));
+out.append(node('p','optSmall','A védekező mezőnyjátékosok 6:0-s (két 1-es, két 2-es, két 3-as) szerepét az elsődleges és másodlagos beállított védekező poszt alapján javasoljuk. Hiányos posztadatnál az szerepbecslés, edzői ellenőrzést igényel. A 5:1 külön modell később fejleszthető.'));
 st.last={atk,def,met,leaving,entering};$('optExport').disabled=false;status('Kiszámítva a támadó és a védekező hetes. Javasolt cserék: '+def.swaps+'.');
 }
 function exportCSV(){
