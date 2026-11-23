@@ -15,7 +15,7 @@ const group=()=> $('globalTeam').value;
 const team=()=> $('optTeam').value;
 const excel=()=>players.filter(p=>p.team===group()&&(!p.club||NK(p.club)===NK(team())));
 const key=(a,b)=>a<b?a+'|'+b:b+'|'+a;
-function db(){try{const x=JSON.parse(localStorage.getItem('handball_db')||'null');return x&&Array.isArray(x.matches)?x:null}catch(e){return null}}
+function db(){try{const x=JSON.parse(localStorage.getItem('handball_db')||'null');if(!x||typeof x!=='object')return null;if(!Array.isArray(x.matches))x.matches=[];return x}catch(e){return null}}
 function matchSide(m,name,d){for(const side of ['home','away'])if(NK(m[side+'Name']||d.teams?.[m[side+'TeamId']]?.name)===NK(name))return side;return ''}
 function matchAge(m,side,d){
 const exact=age(m[side+'AgeGroup']||d.teams?.[m[side+'TeamId']]?.ageGroup);if(exact)return exact===group();
@@ -93,8 +93,13 @@ return out.map(c=>{
 }
 function load(reload){
 const d=db(),teams=new Map();
-if(d){for(const t of Object.values(d.teams||{}))if(t?.name)teams.set(NK(t.name),S(t.name));
-for(const m of d.matches)for(const s of ['home','away'])if(m[s+'Name'])teams.set(NK(m[s+'Name']),S(m[s+'Name']))}
+if(d){for(const t of Object.values(d.teams||{}))if(t?.name&&age(t.ageGroup)===group())teams.set(NK(t.name),S(t.name));
+ for(const m of d.matches)for(const side of ['home','away']){
+  const a=age(m[side+'AgeGroup']||d.teams?.[m[side+'TeamId']]?.ageGroup);
+  if(a===group()&&m[side+'Name'])teams.set(NK(m[side+'Name']),S(m[side+'Name']));
+ }
+}
+for(const p of players)if(p.club&&p.team===group())teams.set(NK(p.club),S(p.club));
 const sel=$('optTeam'),preferred=$('globalClub')?.value||'',before=sel.value,list=[...teams.values()].sort((a,b)=>Number(!NK(a).includes('budaifarkasok'))-Number(!NK(b).includes('budaifarkasok'))||a.localeCompare(b,'hu'));
 sel.replaceChildren(new Option('Válassz csapatot',''));for(const name of list)sel.add(new Option(name,name));
 sel.value=list.includes(preferred)?preferred:list.includes(before)?before:list.find(x=>NK(x).includes('budaifarkasok'))||list[0]||'';
@@ -333,6 +338,6 @@ $('optExport').addEventListener('click',exportCSV);
 $('globalTeam').addEventListener('change',()=>load(true));
 for(const id of ['optPeriod','optSwaps','optSituation','optSocial'])$(id).addEventListener('change',clearResult);
 window.teamOptimizerRefresh=()=>load(true);
-window.teamOptimizerRender=()=>{refreshTrainingScores();renderRoster();updateStatus()};
+window.teamOptimizerRender=()=>load(true);
 load(true);
 })();
