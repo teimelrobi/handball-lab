@@ -584,7 +584,7 @@ function renderCalendarMonth(y,m,ss,specialTitle){
    const row=elem('div','amDay'),label=elem('div','amDate',String(d).padStart(2,'0')+'. '+weekday);
    const cards=elem('div','amDaySessions');
    for(const s of ss.filter(x=>x.date===date)){
-    const counts=sessionStatus(s.id),clock=s.start?(s.end?s.start+'–'+s.end+' · ':s.start+' · '):'',venue=s.place?' · '+s.place:'',opp=s.opponent?' · '+s.opponent:'',score=s.score?' · '+s.score:'',durationText=s.duration>0?s.duration+' perc':'időtartam nem rögzített',sourceFlag=s.sourceFlag==='red'?' · ⚠ Eredeti naptárban piros jelölés':s.sourceFlag==='purple'?' · Eredeti naptárban lila jelölés':'',text=clock+(types[s.kind]||'Edzés')+' · '+durationText+opp+score+venue+sourceFlag+' · '+counts.present+' jelen / '+counts.absent+' hiányzik';
+    const counts=sessionStatus(s.id),clock=s.start?(s.end?s.start+'–'+s.end+' · ':s.start+' · '):'',venue=s.place?' · '+s.place:'',opp=s.opponent?' · '+s.opponent:'',score=s.score?' · '+s.score:'',durationText=s.duration>0?s.duration+' perc':'időtartam nem rögzített',sourceFlag=s.sourceFlag==='red'?' · ⚠ Eredeti naptárban piros jelölés':s.sourceFlag==='purple'?' · Eredeti naptárban lila jelölés':'',text=clock+(types[s.kind]||'Edzés')+' · '+durationText+opp+score+venue+sourceFlag+' · '+counts.present+' jelen / '+(counts.absent+counts.excused)+' hiányzott';
     cards.append(button(text,()=>{state.editor=state.editor===s.id?'':s.id;render()},'amSession'));
    }
    const add=button('+ Edzés',()=>{state.editor='new|'+date;state.opened.add(monthKey);render()},'amAdd');
