@@ -14,10 +14,10 @@ const elem=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.classNam
 const button=(label,fn,cls)=>{const e=elem('button',cls||'',label);e.type='button';e.addEventListener('click',fn);return e};
 const wrap=(tag,...children)=>{const e=elem(tag);e.append(...children);return e};
 const field=(name,control)=>{const e=elem('label','amField');e.append(elem('span','',name),control);return e};
-function choose(options,selected=''){
+function choose(options,selected){
  const sel=elem('select');
  for(const [val,label] of options)sel.add(new Option(label,val));
- sel.value=selected??'';
+ sel.value=selected===undefined?(options[0]?.[0]||''):(selected??'');
  return sel;
 }
 const main=$('view-career-stats'),pivot=$('playerDataToggle');
