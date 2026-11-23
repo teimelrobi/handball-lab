@@ -10,10 +10,10 @@ const node=(tag,cls,t)=>{const e=document.createElement(tag);if(cls)e.className=
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const age=x=>{const t=NK(x);return t.includes('18')?'FU18':t.includes('16')?'FU16':''};
 const P=(raw,goalie)=>{const s=NK(raw);if(goalie||s==='k'||s==='kapus'||s==='gk')return 'K';if(s==='bsz'||s.includes('balszel'))return 'BSZ';if(s==='ba'||s.includes('balatlov'))return 'BA';if(s==='ir'||s.includes('iranyit'))return 'IR';if(s==='ja'||s.includes('jobbatlov'))return 'JA';if(s==='jsz'||s.includes('jobbszel'))return 'JSZ';if(s==='be'||s.includes('beallo'))return 'BE';return ''};
-const st={db:null,team:'',matches:[],rawNames:new Map(),roster:[],chosen:new Set(),overrides:new Map(),aliases:new Map(),last:null,signature:''};
+const st={db:null,team:'',matches:[],rawNames:new Map(),roster:[],chosen:new Set(),overrides:new Map(),aliases:new Map(),last:null,signature:'',trainingMemo:new Map()};
 const group=()=> $('globalTeam').value;
 const team=()=> $('optTeam').value;
-const excel=()=>players.filter(p=>p.team===group());
+const excel=()=>players.filter(p=>p.team===group()&&(!p.club||NK(p.club)===NK(team())));
 const key=(a,b)=>a<b?a+'|'+b:b+'|'+a;
 function db(){try{const x=JSON.parse(localStorage.getItem('handball_db')||'null');return x&&Array.isArray(x.matches)?x:null}catch(e){return null}}
 function matchSide(m,name,d){for(const side of ['home','away'])if(NK(m[side+'Name']||d.teams?.[m[side+'TeamId']]?.name)===NK(name))return side;return ''}
@@ -34,18 +34,37 @@ function saveProfile(c,patch){
  all[k]={...(all[k]||{}),...patch,modifiedAt:new Date().toISOString()};
  try{localStorage.setItem(PROFILE_STORE,JSON.stringify(all))}catch(e){status('Nem sikerült elmenteni a játékos posztját: '+e.message)}
 }
-function trainValue(c){
- const p=savedProfile(c),now=Date.now(),since=now-28*86400000;
- const rows=(p?.training||[]).filter(x=>{if(x.type==='match')return false;const t=Date.parse(String(x.date)+'T12:00:00');return Number.isFinite(t)&&t>=since&&t<=now+86400000});
- const played=rows.filter(x=>x.status==='present'),missed=rows.filter(x=>x.status==='absent');
- const rated=played.filter(x=>(!x.condition||x.condition==='normal')&&Number(x.rating)>=1&&Number(x.rating)<=5),avg=rated.length?rated.reduce((s,x)=>s+Number(x.rating),0)/rated.length:null;
- // Igazolt hiányzás nem csökkenti az edzésrészvételi pontot.
- const denominator=played.length+missed.length,att=denominator>=3?played.length/denominator:null;
- // A pontszám csak több dokumentált edzés után számít; szubjektív értékelés kis súlyú.
- const quality=avg===null?0:(avg-3)*4*Math.min(1,rated.length/3);
- const attendance=att===null?0:(att-0.8)*5;
- return {sessions:rows.length,present:played.length,avg,points:clamp(quality+attendance,-10,10)};
+function sixDayPeriod(){
+ const today=new Date(),end=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+ const start=new Date(end);start.setDate(start.getDate()-6);
+ end.setDate(end.getDate()-1);
+ const iso=d=>String(d.getFullYear())+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+ return {from:iso(start),to:iso(end)};
 }
+function trainValue(c){
+ const period=sixDayPeriod(),memoKey=String(c.id)+'|'+period.from+'|'+period.to;
+ if(st.trainingMemo.has(memoKey))return st.trainingMemo.get(memoKey);
+ const profile=savedProfile(c);
+ const rows=(profile?.training||[]).filter(x=>x.type!=='match'&&x.date>=period.from&&x.date<=period.to);
+ const present=rows.filter(x=>x.status==='present'),absent=rows.filter(x=>x.status==='absent'),excused=rows.filter(x=>x.status==='excused');
+ const rated=present.filter(x=>(!x.condition||x.condition==='normal')&&Number(x.rating)>=1&&Number(x.rating)<=5);
+ const avg=rated.length?rated.reduce((sum,x)=>sum+Number(x.rating),0)/rated.length:null;
+ const assessed=present.length+absent.length,attendanceRate=assessed?present.length/assessed:null;
+ // Igazolt hiányzás és nem rögzített edzés nem jár levonással.
+ const quality=avg===null?0:(avg-3)*3*Math.min(1,rated.length/2);
+ const attendance=attendanceRate===null?0:(attendanceRate-0.8)*6*Math.min(1,assessed/3);
+ const result={sessions:rows.length,present:present.length,absent:absent.length,excused:excused.length,
+  rated:rated.length,avg,points:clamp(quality+attendance,-7,7),from:period.from,to:period.to};
+ st.trainingMemo.set(memoKey,result);return result;
+}
+function trainingText(c){
+ const t=trainValue(c);
+ if(!t.sessions)return 'Előző 6 nap: nincs edzésadat';
+ const label=t.avg===null?'nincs értékelés':t.avg>=3.5?'Jó':t.avg>=2.5?'Közepes':'Gyenge';
+ return '6 nap: '+t.present+'/'+t.sessions+' jelen'+(t.excused?' · '+t.excused+' igazolt':'')+
+  (t.absent?' · '+t.absent+' hiányzás':'')+' · '+label+(t.avg===null?'':' ('+t.avg.toFixed(1)+'/5)');
+}
+function refreshTrainingScores(){st.trainingMemo.clear()}
 
 function candidates(d,matches){
 const known=new Map(),meta=new Map();
@@ -76,11 +95,12 @@ function load(reload){
 const d=db(),teams=new Map();
 if(d){for(const t of Object.values(d.teams||{}))if(t?.name)teams.set(NK(t.name),S(t.name));
 for(const m of d.matches)for(const s of ['home','away'])if(m[s+'Name'])teams.set(NK(m[s+'Name']),S(m[s+'Name']))}
-const sel=$('optTeam'),before=sel.value,list=[...teams.values()].sort((a,b)=>Number(!NK(a).includes('budaifarkasok'))-Number(!NK(b).includes('budaifarkasok'))||a.localeCompare(b,'hu'));
+const sel=$('optTeam'),preferred=$('globalClub')?.value||'',before=sel.value,list=[...teams.values()].sort((a,b)=>Number(!NK(a).includes('budaifarkasok'))-Number(!NK(b).includes('budaifarkasok'))||a.localeCompare(b,'hu'));
 sel.replaceChildren(new Option('Válassz csapatot',''));for(const name of list)sel.add(new Option(name,name));
-sel.value=list.includes(before)?before:list.find(x=>NK(x).includes('budaifarkasok'))||list[0]||'';
+sel.value=list.includes(preferred)?preferred:list.includes(before)?before:list.find(x=>NK(x).includes('budaifarkasok'))||list[0]||'';
 const sign=group()+'|'+team();
 if(sign!==st.signature){st.signature=sign;st.chosen.clear();st.overrides.clear();st.aliases.clear();st.last=null}
+refreshTrainingScores();
 st.db=d;st.team=team();st.matches=[];
 if(d&&team())for(const m of d.matches){const side=matchSide(m,team(),d);if(side&&matchAge(m,side,d))st.matches.push({m,side})}
 st.matches.sort((a,b)=>String(b.m.date||'').localeCompare(String(a.m.date||'')));
@@ -100,7 +120,7 @@ e.addEventListener('change',()=>{const x=st.overrides.get(c.id)||{first:c.first,
 }
 function renderRoster(){
 const tbody=$('optRoster');tbody.replaceChildren();$('optCount').textContent=st.chosen.size+' / 16 nevezett';
-if(!st.roster.length){const tr=node('tr'),td=node('td','', 'Nincs játékos ehhez a korosztályhoz. Az Excelt és a KéziStat-adatokat is ellenőrizd.');td.colSpan=5;tr.append(td);tbody.append(tr);return}
+if(!st.roster.length){const tr=node('tr'),td=node('td','', 'Nincs játékos ehhez a korosztályhoz. Az Excelt és a KéziStat-adatokat is ellenőrizd.');td.colSpan=6;tr.append(td);tbody.append(tr);return}
 for(const c of st.roster){
  const tr=node('tr'),choose=node('td'),label=node('label','optCheck'),ch=node('input');
  ch.type='checkbox';ch.checked=st.chosen.has(c.id);
@@ -113,7 +133,7 @@ for(const c of st.roster){
  for(const [k,name] of st.rawNames)mapping.add(new Option(name,k));
  mapping.value=c.key||'';mapping.disabled=!c.survey;
  mapping.addEventListener('change',()=>{if(mapping.value)st.aliases.set(c.id,mapping.value);else st.aliases.delete(c.id);st.roster=candidates(st.db,st.matches);renderRoster();clearResult()});
- map.append(mapping);tr.append(choose,first,second,map,node('td','optLight',c.survey?'Excel':'KéziStat'));tbody.append(tr);
+ map.append(mapping);tr.append(choose,first,second,map,node('td','optLight',c.survey?'Kérdőív + KéziStat':'KéziStat'),node('td','optLight',trainingText(c)));tbody.append(tr);
 }
 }
 function lastRoster(){
@@ -265,7 +285,7 @@ for(const c of arr){const d=personalityData.get(c.id);if(!d?.complete||d.scores?
 return [...counts].map(([name,n])=>name+': '+n+' fő').join(' · ')||'Nincs elérhető, teljes személyiségprofil ehhez a heteshez.';
 }
 function optimize(){
-clearResult();const unavailable=st.roster.filter(c=>st.chosen.has(c.id)&&c.availability==='no');
+refreshTrainingScores();renderRoster();clearResult();const unavailable=st.roster.filter(c=>st.chosen.has(c.id)&&c.availability==='no');
  const pool=st.roster.filter(c=>st.chosen.has(c.id)&&c.availability!=='no');
  if(unavailable.length)status('A nem nevezhető játékosokat kihagytam: '+unavailable.map(c=>c.name).join(', ')+'.');
 if(pool.length<7||pool.length>16){status('Válassz legalább 7, legfeljebb 16 nevezett játékost (jelenleg '+pool.length+').');return}
@@ -275,7 +295,7 @@ if(atk.error){status(atk.error);return}
 const def=defense(pool,atk,met,social);
 if(!def){status('A megadott legfeljebb '+$('optSwaps').value+' cserével nem tudok érvényes védekező hetest összeállítani.');return}
 const out=$('optResult');out.replaceChildren();
-out.append(node('p','optBanner',met.nVerified?met.nVerified+' ellenőrzött mérkőzésből számított javaslat. Posztok az állandó játékosadatlapból, az utolsó 28 napos edzésmunkával és opcionális szociometriával.':'Nincs ellenőrzött összeállításnapló. Ez poszt- és edzésadat-alapú próba-összeállítás, nem teljesítmény-optimalizálás. A szociometriai rásegítést adat hiányában kikapcsoltam.'));
+out.append(node('p','optBanner',met.nVerified?met.nVerified+' ellenőrzött mérkőzésből számított javaslat. Posztok az állandó játékosadatlapból, az előző 6 teljes napos edzésmunkával és opcionális szociometriával.':'Nincs ellenőrzött összeállításnapló. Ez poszt- és edzésadat-alapú próba-összeállítás, nem teljesítmény-optimalizálás. A szociometriai rásegítést adat hiányában kikapcsoltam.'));
 const boxes=node('div','optPairLineups');
 lineup(boxes,'Támadó hetes',atk.players,atk.roles,'attack',met);lineup(boxes,'Védekező hetes – 6:0 szerepek',def.players,null,'defense',met,def.keeper,def.roles);out.append(boxes);
 const as=new Set(atk.players.map(x=>x.id)),ds=new Set(def.players.map(x=>x.id));
@@ -286,9 +306,9 @@ const situation=$('optSituation').value;if(situation.startsWith('late-'))out.app
 if(situation==='power'||situation==='short')out.append(node('p','optWarning','A létszámhelyzetet a felület jelzi, de a 7 fős összeállítás nem állítja elő külön a 6:5 vagy 5:6 tényleges pályalétszámot. Ehhez később külön létszámhelyzet-specifikus modell szükséges.'));
 const p=node('div','optAdvice');p.append(node('h3','','Jellemző személyiségösszetétel a támadó hetesben'),node('p','',personalities(atk.players)),node('p','optSmall','A személyiségprofil nem dönt a kiválasztásról; a szociometriai kölcsönösséget csak kis súllyal, opcionálisan vesszük figyelembe.'));out.append(p);
 if(met.nVerified<2)out.append(node('p','optWarning','Az eredmények kevés ellenőrzött mérkőzésadatból származnak. A kijelölést csak edzői hipotézisként használd; ellenőrizd az aktuális állapotot, posztokat, terhelést és a védekezési rendszert.'));
- out.append(node('p','optSmall','Adatfelhasználás: poszt = kötelező feltétel; mérkőzésteljesítmény = fő pontszám, ha van ellenőrzött játékidő; utolsó 28 nap edzésmunkája = legfeljebb 10 pont; kölcsönös szociometria = legfeljebb 1,2 pont; személyiségtípus = tájékoztató, nem pontozott; testmagasság és testsúly = tájékoztató, nem pontozott.'));
+ out.append(node('p','optSmall','Adatfelhasználás: poszt = kötelező feltétel; mérkőzésteljesítmény = fő pontszám, ha van ellenőrzött játékidő; előző 6 teljes nap edzésmunkája = legfeljebb 7 pont; kölcsönös szociometria = legfeljebb 1,2 pont; személyiségtípus = tájékoztató, nem pontozott; testmagasság és testsúly = tájékoztató, nem pontozott.'));
 out.append(node('p','optSmall','A védekező mezőnyjátékosok 6:0-s (két 1-es, két 2-es, két 3-as) szerepét az elsődleges és másodlagos beállított védekező poszt alapján javasoljuk. Hiányos posztadatnál az szerepbecslés, edzői ellenőrzést igényel. A 5:1 külön modell később fejleszthető.'));
-st.last={atk,def,met,leaving,entering};$('optExport').disabled=false;status('Kiszámítva a támadó és a védekező hetes. Javasolt cserék: '+def.swaps+'.');
+const six=sixDayPeriod();out.append(node('p','optSmall','Edzésadatok: '+six.from+' – '+six.to+' (az előző 6 teljes nap). Az igazolt hiányzás nem rontja a pontszámot, a hiányzó adat sem.'));st.last={atk,def,met,leaving,entering};$('optExport').disabled=false;status('Kiszámítva a támadó és a védekező hetes. Javasolt cserék: '+def.swaps+'.');
 }
 function exportCSV(){
 if(!st.last)return;const {atk,def,met,leaving,entering}=st.last;
@@ -302,13 +322,17 @@ const content='\ufeff'+rows.map(r=>r.map(q).join(';')).join('\r\n'),url=URL.crea
 const a=node('a');a.href=url;a.download='KeziStat_'+group()+'_csapatoptimalizalo.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 $('optReload').addEventListener('click',()=>load(true));
-$('optTeam').addEventListener('change',()=>load(true));
+$('optTeam').addEventListener('change',()=>{
+ const club=$('globalClub');
+ if(club&&club.value!==team()){club.value=team();club.dispatchEvent(new Event('change'))}
+ else load(true);
+});
 $('optRecent').addEventListener('click',lastRoster);
 $('optCalculate').addEventListener('click',optimize);
 $('optExport').addEventListener('click',exportCSV);
 $('globalTeam').addEventListener('change',()=>load(true));
 for(const id of ['optPeriod','optSwaps','optSituation','optSocial'])$(id).addEventListener('change',clearResult);
 window.teamOptimizerRefresh=()=>load(true);
-window.teamOptimizerRender=()=>updateStatus();
+window.teamOptimizerRender=()=>{refreshTrainingScores();renderRoster();updateStatus()};
 load(true);
 })();
