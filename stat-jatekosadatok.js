@@ -58,8 +58,8 @@ box.innerHTML=`
 </div>
 <div class="pdRow"><button id="pdSave" type="button">Játékosadatok mentése</button><span class="pdMessage" id="pdStatus"></span></div>
 <hr style="border:0;border-top:1px solid #345162;margin:22px 0">
-<h3>Edzésmunka</h3>
-<p class="pdNote">Minden megtartott edzésre rögzítsd a részvételt. Az edzésminőség 1–5 között értékelhető, csak tényleges részvétel esetén. Az igazolt hiányzást elkülönítjük.</p>
+<h3>Edzésmunka – egyéni bejegyzés</h3>
+<p class="pdNote">Az új, teljes csapatot érintő edzéseket a STAT → Havi jelenléti ívben rögzítsd. Itt a régebbi egyéni bejegyzések megtekinthetők és kiegészíthetők; a csapatedzésre felvitt jelenlétek csak a havi naptárból módosíthatók.</p>
 <div class="pdGrid">
 <label>Edzés dátuma<input type="date" id="pdTrainingDate"></label>
 <label>Edzés típusa<select id="pdTrainingType"><option value="team">Csapatedzés</option><option value="strength">Erőnléti</option><option value="individual">Egyéni képzés</option><option value="video">Videó/taktikai</option></select></label>
@@ -95,12 +95,13 @@ function render(){
  const r=latestTraining(p),ratio=r.sessions?Math.round(r.present/r.sessions*100):null;
  el('pdTrainingTotals').textContent='Utolsó 28 nap (rögzített edzések): '+r.present+' jelenlét / '+r.sessions+' alkalom; '+r.excused+' igazolt hiányzás; minőségátlag: '+(r.mean==null?'–':r.mean.toFixed(2))+' / 5.'+(ratio===null?'':' Részvétel: '+ratio+'%.');
  const body=el('pdHistory');body.replaceChildren();
- const tNames={team:'Csapatedzés',strength:'Erőnléti',individual:'Egyéni',video:'Videó/taktikai'},sNames={present:'Részt vett',absent:'Hiányzott',excused:'Igazolt'},cNames={normal:'Normál',sick:'Betegen jelen volt',injured:'Sérülten jelen volt',light:'Könnyített',rehab:'Rehabilitáció',other:'Egyéb'};
+ const tNames={team:'Csapatedzés',strength:'Erőnléti',individual:'Egyéni',video:'Videó/taktikai',other:'Egyéb'},sNames={present:'Részt vett',absent:'Hiányzott',excused:'Igazolt'},cNames={normal:'Normál',sick:'Betegen jelen volt',injured:'Sérülten jelen volt',light:'Könnyített',rehab:'Rehabilitáció',other:'Egyéb'};
  for(const session of [...(p.training||[])].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,80)){
   const tr=document.createElement('tr');
   for(const val of [session.date,tNames[session.type]||session.type,sNames[session.status]||session.status,session.rating||'–',cNames[session.condition]||'–',session.note||'–']){const td=document.createElement('td');td.textContent=val;tr.append(td)}
   const td=document.createElement('td');
-  const edit=document.createElement('button');edit.type='button';edit.className='pdSecondary';edit.textContent='Szerkesztés';
+  const managed=!!session.sessionId;
+  const edit=document.createElement('button');edit.type='button';edit.className='pdSecondary';edit.textContent=managed?'Havi jelenléti ívben':'Szerkesztés';edit.disabled=managed;
   edit.addEventListener('click',()=>{
    el('pdTrainingDate').value=session.date;el('pdTrainingType').value=session.type;
    el('pdTrainingStatus').value=session.status;el('pdTrainingRating').value=session.rating||'';
@@ -108,7 +109,7 @@ function render(){
    el('pdTrainingRating').disabled=session.status!=='present';
    el('pdStatus').textContent='A fenti mezőkben módosíthatod, majd az Edzés rögzítése gombbal felülírhatod ezt a napot és edzéstípust.';
   });
-  const btn=document.createElement('button');btn.type='button';btn.className='pdSecondary';btn.textContent='Törlés';
+  const btn=document.createElement('button');btn.type='button';btn.className='pdSecondary';btn.textContent='Törlés';btn.disabled=managed;
   btn.addEventListener('click',()=>{if(!cur)return;const fresh=get(cur.age,cur.team,cur.player)||{},training=(fresh.training||[]).filter(x=>!(x.date===session.date&&x.type===session.type));put(cur.age,cur.team,cur.player,{training});render()});
   td.append(edit,document.createTextNode(' '),btn);tr.append(td);body.append(tr);
  }
@@ -127,7 +128,9 @@ function addTraining(){
  const date=el('pdTrainingDate').value,type=el('pdTrainingType').value,status=el('pdTrainingStatus').value,rating=status==='present'?el('pdTrainingRating').value:'',condition=el('pdTrainingCondition').value,note=el('pdTrainingNote').value.trim().slice(0,240);
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){el('pdStatus').textContent='Adj meg egy érvényes edzésdátumot.';return}
  if(date>new Date().toLocaleDateString('en-CA')){el('pdStatus').textContent='Jövőbeli edzést nem lehet megtartottként rögzíteni.';return}
- const p=get(cur.age,cur.team,cur.player)||{},training=(p.training||[]).filter(x=>!(x.date===date&&x.type===type));
+ const p=get(cur.age,cur.team,cur.player)||{};
+ if((p.training||[]).some(x=>x.sessionId&&x.date===date&&x.type===type)){el('pdStatus').textContent='Ezt az edzést a Havi jelenléti ívben módosíthatod.';return}
+ const training=(p.training||[]).filter(x=>x.sessionId||!(x.date===date&&x.type===type));
  training.push({date,type,status,rating:rating?Number(rating):null,condition,note});
  put(cur.age,cur.team,cur.player,{training});render();el('pdTrainingCondition').value='normal';el('pdTrainingNote').value='';el('pdStatus').textContent='Edzésrészvétel és megjegyzés mentve.';
 }
