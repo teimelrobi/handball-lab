@@ -101,6 +101,38 @@ const OCT26=OCT26_TIMES.map(([day,start,end,kind,place,flag])=>({
  source:'FU16 2026. októberi naptárkép'
 }));
 
+
+/* FU16 – 2026. november a felhasználó által küldött naptárképről.
+   A piros szín jelentése ismeretlen; a dátumokat nem tekintjük automatikusan teljesítettnek. */
+const NOV26_PLACES={
+ B:'Budaörs Városi Uszoda, Sportcsarnok és Strand',
+ J:'Bleyer Jakab Általános Iskola, Budaörs, Iskola tér 1.',
+ V:'Budapest SPORT11',
+ H:'Budaörsi 1. Számú Általános Iskola, Budaörs, Hársfa utca 29.'
+};
+const NOV26_TIMES=[
+ [3,'12:00','13:30','ball','B'],[3,'19:00','20:00','ball','B'],
+ [4,'17:00','18:30','ball','J'],[5,'16:30','18:00','ball','V'],
+ [6,'18:30','20:00','ball','J'],
+ [9,'18:30','20:00','ball','J'],[10,'19:00','20:30','ball','B'],
+ [11,'19:00','20:30','ball','H'],[12,'16:30','18:00','ball','V','red'],
+ [13,'18:30','20:00','ball','V'],
+ [16,'09:30','10:30','ball','B'],[16,'18:00','19:30','ball','B'],
+ [17,'19:00','21:00','mixed','B'],[18,'19:00','20:30','ball','J'],
+ [19,'16:30','18:00','ball','V'],
+ [23,'18:00','19:30','ball','B','red'],[24,'19:00','21:00','mixed','B','red'],
+ [25,'19:30','21:00','ball','B','red'],[26,'16:30','18:00','ball','V','red'],
+ [30,'18:00','19:30','ball','B','red']
+];
+const NOV26=NOV26_TIMES.map(([day,start,end,kind,place,flag])=>({
+ id:'fu16-2026-11-'+String(day).padStart(2,'0')+'-'+start.replace(':',''),
+ date:'2026-11-'+String(day).padStart(2,'0'),start,end,duration:plannedDuration(start,end),
+ kind,place:NOV26_PLACES[place],
+ ...(kind==='mixed'?{components:[{kind:'ball',duration:60},{kind:'strength',duration:60}]}:{}),
+ ...(flag==='red'?{sourceFlag:'red',sourceNote:'Piros jelölés a novemberi eredeti naptárban – jelentése nem ismert'}:{}),
+ source:'FU16 2026. novemberi naptárkép'
+}));
+
 const statusLabels={present:'Jelen',absent:'Hiányzott',excused:'Igazolt hiányzás'};
 const conditionLabels={normal:'Normál',sick:'Betegen jelen',injured:'Sérülten jelen',light:'Könnyített',rehab:'Rehabilitáció',other:'Egyéb'};
 const validDate=s=>/^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -258,6 +290,27 @@ function preloadOctober26(){
  if(changed)storeSessions(sessions);
 }
 
+
+function preloadNovember26(){
+ if(state.age!=='FU16'||!norm(state.team).includes('budaifarkasok'))return;
+ const sessions=state.sessions.map(x=>({...x})),claimed=new Set();let changed=false;
+ for(const entry of NOV26){
+  const found=sessions.find(x=>{
+   if(x.date!==entry.date||claimed.has(x.id))return false;
+   if(x.id===entry.id)return true;
+   if(x.start)return x.start===entry.start;
+   return x.kind===entry.kind&&Number(x.duration)===entry.duration;
+  });
+  if(found){
+   claimed.add(found.id);
+   for(const field of ['start','end','place','components','sourceFlag','sourceNote']){
+    if(!found[field]&&entry[field]){found[field]=entry[field];changed=true}
+   }
+  }else{sessions.push({...entry});claimed.add(entry.id);changed=true}
+ }
+ if(changed)storeSessions(sessions);
+}
+
 function normalizedMatchDate(raw){
  const m=String(raw||'').match(/^(20\d{2})[-./](\d{1,2})[-./](\d{1,2})(?:\s|$)/);
  if(!m)return '';
@@ -292,7 +345,7 @@ function preloadAutumnMatches(){
  const db=fetchObj('handball_db'),sessions=state.sessions.map(x=>({...x}));let changed=false;
  for(const m of db.matches||[]){
   const date=normalizedMatchDate(m.date);
-  if(!date.startsWith('2026-09-')&&!date.startsWith('2026-10-'))continue;
+  if(!/^2026-(?:08|09|10|11)-/.test(date))continue;
   const teamInfo=matchForTeam(m,db);if(!teamInfo)continue;
   const {side,other}=teamInfo,opponent=String(m[other+'Name']||'Ellenfél');
   const hasScore=m.homeScore!==undefined&&m.homeScore!==''&&m.awayScore!==undefined&&m.awayScore!=='';
@@ -300,8 +353,10 @@ function preloadAutumnMatches(){
   if(!(m.events?.length>0||hasScore||m.locked===true))continue;
   const matchId=String(m.id||date+'|'+opponent);
   const id='kezi-match-'+matchId.replace(/[^a-zA-Z0-9_-]/g,'_');
+  const friendlyOfDay=sessions.filter(x=>x.date===date&&x.kind==='match'&&!x.matchId);
   const exists=sessions.find(x=>x.matchId===matchId||x.id===id||
-    (x.kind==='official'&&x.date===date&&norm(x.opponent)===norm(opponent)));
+    (x.kind==='official'&&x.date===date&&norm(x.opponent)===norm(opponent)))||
+    (friendlyOfDay.length===1?friendlyOfDay[0]:null);
   const kickoff=matchClock(m.kickoff||m.kickoffTime||m.matchTime||m.startTime||m.time||'');
   const length=Number(m.matchEndAbs);
   const duration=Number.isFinite(length)&&length>=1200&&length<=5400?Math.round(length/60):0;
@@ -315,6 +370,40 @@ function preloadAutumnMatches(){
  if(changed)storeSessions(sessions);
 }
 
+
+/* Mérkőzés-részvétel csak az adott archivált mérkőzés tényleges,
+   legfeljebb 16 főből álló nevezett keretéből. Nincs negatív jelölés a kimaradóknál. */
+function autofillMatchAttendance(){
+ if(state.age!=='FU16'||!norm(state.team).includes('budaifarkasok'))return;
+ const db=fetchObj('handball_db'),matches=Array.isArray(db.matches)?db.matches:[];
+ const sessions=state.sessions.filter(x=>x.matchId&&(x.kind==='official'||x.kind==='match'));
+ if(!sessions.length||!state.roster.length)return;
+ const profiles=fetchObj(PROFILES_KEY),byName=new Map(state.roster.map(p=>[norm(p.name),p]));
+ let changed=false;
+ for(const session of sessions){
+  const match=matches.find(x=>String(x.id)===String(session.matchId));
+  if(!match)continue;
+  const side=matchForTeam(match,db)?.side;
+  if(!side)continue;
+  const named=match[side+'Roster'];
+  // A teljes klubkeretet tartalmazó (>16) import nem tekinthető mérkőzésnevezésnek.
+  if(!Array.isArray(named)||!named.length||named.length>16)continue;
+  const identifiers=new Set(named.map(p=>norm(p?.name)).filter(Boolean));
+  if(identifiers.size!==named.length)continue;
+  for(const name of identifiers){
+   const athlete=byName.get(name);if(!athlete)continue;
+   const k=personKey(state.age,state.team,athlete.key),profile=profiles[k]||{};
+   if((profile.training||[]).some(x=>x.sessionId===session.id))continue;
+   const row={sessionId:session.id,date:session.date,type:'match',duration:session.duration||0,
+    status:'present',rating:null,condition:'normal',note:'Nevezett játékos a mérkőzés keretében',
+    attendanceSource:'match-roster'};
+   profiles[k]={...profile,training:[...(profile.training||[]),row],modifiedAt:new Date().toISOString()};
+   changed=true;
+  }
+ }
+ if(changed)writeObj(PROFILES_KEY,profiles);
+}
+
 function load(){
  const ctx=current();state.editor='';
  if(!ctx){state={...state,age:'',team:'',roster:[],sessions:[]};render();return}
@@ -325,7 +414,9 @@ function load(){
  preloadAugust26();
  preloadSeptember26();
  preloadOctober26();
+ preloadNovember26();
  preloadAutumnMatches();
+ autofillMatchAttendance();
  render();
 }
 function storeSessions(sessions){
@@ -352,7 +443,8 @@ function render(){
  const hours=seasonSessions.reduce((a,b)=>a+(Number(b.duration)||0),0)/60;
  const septMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-09-')).length;
  const octMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-10-')).length;
- summary.textContent=y+'/'+String((y+1)%100).padStart(2,'0')+' évad · '+seasonSessions.length+' alkalom · '+hours.toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra tervezett/rögzített időtartam. Az ismeretlen jelenlét nem számít hiányzásnak.'+(y===2026&&state.age==='FU16'?' · Archív mérkőzések: szeptember '+septMatches+', október '+octMatches+'.':'');
+ const novMatches=state.sessions.filter(x=>x.kind==='official'&&x.date.startsWith('2026-11-')).length;
+ summary.textContent=y+'/'+String((y+1)%100).padStart(2,'0')+' évad · '+seasonSessions.length+' alkalom · '+hours.toLocaleString('hu-HU',{maximumFractionDigits:1})+' óra tervezett/rögzített időtartam. Az ismeretlen jelenlét nem számít hiányzásnak.'+(y===2026&&state.age==='FU16'?' · Archív mérkőzések: szeptember '+septMatches+', október '+octMatches+', november '+novMatches+'.':'');
  if(!state.roster.length){holder.append(elem('p','amSmall','A csapat kerete üres; előbb vidd fel a játékosokat a Csapatok kezelése részben.'))}
  for(let i=0;i<12;i++){
   const y=monthYear(i),m=monthNum(i),monthKey=iso(y,m,1),ss=seasonSessions.filter(x=>x.date.startsWith(monthKey.slice(0,7)));
@@ -445,7 +537,18 @@ function attendanceEditor(session){
   for(const {player,status,rating,condition,note} of controlsByPlayer){
    const k=personKey(state.age,state.team,player.key),profile=all[k]||{},previous=Array.isArray(profile.training)?profile.training:[];
    const other=previous.filter(x=>x.sessionId!==session.id);
-   if(!status.value){unmarked++;all[k]={...profile,training:other};continue}
+   if(!status.value){
+    unmarked++;
+    // Egy korábban automatikusan bejelölt mérkőzés-jelenlét kézi törlését
+    // tombstone jelzi, hogy a következő betöltés ne jelölje vissza.
+    const existed=previous.some(x=>x.sessionId===session.id);
+    if(session.matchId&&existed)other.push({
+      sessionId:session.id,date:session.date,type:'match',duration:session.duration||0,
+      status:'',manualUnmarked:true,rating:null,condition:'normal',note:''
+    });
+    all[k]={...profile,training:other};
+    continue
+   }
    const entry={sessionId:session.id,date:session.date,type:typeToProfile[session.kind],duration:session.duration,components:session.components||null,status:status.value,rating:status.value==='present'&&rating.value?Number(rating.value):null,condition:status.value==='present'?condition.value:'normal',note:note.value.trim().slice(0,240)};
    other.push(entry);all[k]={...profile,training:other,modifiedAt:new Date().toISOString()};
    if(status.value==='present')present++;else if(status.value==='absent')absent++;else excused++;
