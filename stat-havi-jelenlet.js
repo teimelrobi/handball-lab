@@ -184,6 +184,16 @@ const css=elem('style');css.textContent=`
 #amPanel td .amSmall{font-size:11px}
 #amPanel .amAttendance th:first-child,#amPanel .amAttendance td:first-child{min-width:155px}
 #amPanel .amAttendance select{min-width:112px}
+#amPanel .amTickLabel{display:inline-flex;align-items:center;gap:7px;cursor:pointer;white-space:nowrap;font-size:12px;border:1px solid #3a5764;border-radius:8px;padding:8px 10px;background:#1d333f;min-height:36px}
+#amPanel .amTickLabel input[type="checkbox"]{width:18px;height:18px;flex:0 0 auto;accent-color:#44d6a6;margin:0;cursor:pointer}
+#amPanel .amTickLabel:has(input:checked){background:#20574a;border-color:#58caa8;color:#fff}
+#amPanel .amPresent{font-weight:800}
+#amPanel .amRatingGroup{display:flex;gap:6px;flex-wrap:wrap}
+#amPanel .amRatingGroup .amTickLabel{padding:7px 9px}
+#amPanel .amTickLabel:has(input:disabled){opacity:.43;cursor:default}
+#amPanel .amAttendance td:nth-child(3){min-width:260px}
+#amPanel .amAttendance td:nth-child(2){min-width:148px}
+#amPanel .amAttendance td:nth-child(4){min-width:130px}
 #amPanel .amAttendance input[type=text]{min-width:150px;max-width:300px}
 #amPanel .amInfo{padding:10px 13px;background:#193b43;border-radius:9px;margin-top:12px;line-height:1.5;color:#c1e9df;font-size:12px}
 #amPanel .amSummary{margin:14px 0 22px}
@@ -207,7 +217,7 @@ pivot.addEventListener('click',()=>{panel.hidden=true});
 const panel=elem('section');panel.id='amPanel';panel.hidden=true;
 toggle.after(panel);
 const h=elem('h3','','Edzésnaptár és csapatszintű jelenléti ív');
-const desc=elem('p','amSmall','A szezon augusztus 1-jén kezdődik és július 31-én végződik. A hónapok lenyithatók, minden napra külön edzés rögzíthető. Alapból senki nem számít hiányzónak: a részvételt kifejezetten jelölni kell.');
+const desc=elem('p','amSmall','A szezon augusztus 1-jén kezdődik és július 31-én végződik. A hónapok lenyithatók, minden napra külön edzés rögzíthető. A pipálós jelenlét a Mentés gomb megnyomásáig nem változtatja meg a rögzített adatokat.');
 const tools=elem('div','amTools');
 const season=choose([]),context=elem('span','amSmall',''),summary=elem('div','amInfo','');
 tools.append(field('Évad (augusztus–július)',season),context,button('Frissítés',()=>load()));
@@ -602,46 +612,103 @@ function attendanceEditor(session){
  if(!state.roster.length){box.append(elem('p','amSmall','Nincsenek játékosok a kiválasztott keretben.'));return box}
  const all=fetchObj(PROFILES_KEY),tbody=elem('tbody'),controlsByPlayer=[];
  const table=elem('table','amAttendance'),head=elem('thead'),header=elem('tr');
- for(const label of ['Játékos','Jelenlét','Minőség (1–5)','Körülmény','Megjegyzés'])header.append(elem('th','',label));
+ for(const label of ['Játékos','Jelenlét','Edzésminőség','Körülmény','Megjegyzés'])header.append(elem('th','',label));
  head.append(header);table.append(head,tbody);
  const rosters=state.roster.slice().sort((a,b)=>a.name.localeCompare(b.name,'hu'));
  for(const player of rosters){
   const profile=all[personKey(state.age,state.team,player.key)]||{},entry=(profile.training||[]).find(x=>x.sessionId===session.id)||{};
   const tr=elem('tr'),name=elem('td','',player.name);
-  const status=choose([['','— Nincs jelölve'],['present','Jelen'],['absent','Hiányzott'],['excused','Igazolt hiányzás']],entry.status||'');
-  const rating=choose([['','— Nincs értékelés'],['1','1'],['2','2'],['3','3'],['4','4'],['5','5']],entry.rating==null?'':String(entry.rating));
+  // Egy pipa = jelen volt; a külön igazolt pipa a hiányzás típusát jelöli.
+  const present=elem('input');present.type='checkbox';present.checked=entry.status==='present';
+  present.setAttribute('aria-label',player.name+' jelen volt');
+  const excused=elem('input');excused.type='checkbox';excused.checked=entry.status==='excused';
+  excused.setAttribute('aria-label',player.name+' igazolt hiányzás');
+  const statusCell=elem('td'),presentLabel=elem('label','amTickLabel amPresent'),excusedLabel=elem('label','amTickLabel');
+  presentLabel.append(present,elem('span','','Jelen'));
+  excusedLabel.append(excused,elem('span','','Igazolt'));
+  const statusRow=elem('div','amRatingGroup');
+  statusRow.append(presentLabel,excusedLabel);statusCell.append(statusRow);
+  // A korábbi 1–5-ös értékeléseket megőrizzük:
+  // 1–2 Gyenge, 3 Közepes, 4–5 Jó. Új jelölés 2 / 3 / 4 pontot ment.
+  const ratingCell=elem('td'),ratingRow=elem('div','amRatingGroup');
+  const oldRating=Number(entry.rating),oldGrade=oldRating>=1&&oldRating<=2?'weak':oldRating===3?'medium':oldRating>=4&&oldRating<=5?'good':'';
+  const quality={selected:oldGrade,touched:false,boxes:[]};
+  for(const [id,title] of [['weak','Gyenge'],['medium','Közepes'],['good','Jó']]){
+   const checkbox=elem('input');checkbox.type='checkbox';checkbox.checked=quality.selected===id;
+   checkbox.setAttribute('aria-label',player.name+' – '+title);
+   const label=elem('label','amTickLabel');label.append(checkbox,elem('span','',title));
+   checkbox.addEventListener('change',()=>{
+    quality.touched=true;
+    quality.selected=checkbox.checked?id:'';
+    for(const item of quality.boxes)item.checkbox.checked=item.id===quality.selected;
+   });
+   quality.boxes.push({id,checkbox});ratingRow.append(label);
+  }
+  ratingCell.append(ratingRow);
   const condition=choose(Object.entries(conditionLabels),entry.condition||'normal');
   const note=elem('input');note.type='text';note.maxLength=240;note.placeholder='Megjegyzés (opcionális)';note.value=entry.note||'';
-  const adapt=()=>{const present=status.value==='present';rating.disabled=!present;condition.disabled=!present;if(!present){rating.value='';condition.value='normal'}};
-  status.addEventListener('change',adapt);adapt();
-  for(const control of [status,rating,condition,note])tr.append(wrap('td',control));
-  tr.prepend(name);tbody.append(tr);controlsByPlayer.push({player,status,rating,condition,note});
+  const adapt=()=>{
+   if(present.checked)excused.checked=false;
+   const active=present.checked;
+   for(const item of quality.boxes)item.checkbox.disabled=!active;
+   condition.disabled=!active;
+   if(!active){quality.selected='';quality.touched=true;for(const item of quality.boxes)item.checkbox.checked=false;condition.value='normal'}
+  };
+  present.addEventListener('change',adapt);
+  excused.addEventListener('change',()=>{if(excused.checked){present.checked=false;adapt()}});
+  // Inicializáláskor csak a letiltást állítjuk: az eredeti értékelést nem töröljük.
+  const initialActive=present.checked;
+  for(const item of quality.boxes)item.checkbox.disabled=!initialActive;
+  condition.disabled=!initialActive;
+  tr.append(name,statusCell,ratingCell,wrap('td',condition),wrap('td',note));
+  tbody.append(tr);controlsByPlayer.push({player,present,excused,quality,condition,note,entry});
  }
  const wrapTable=elem('div','amTableWrap');wrapTable.append(table);
  const actions=elem('div','amTools');
- actions.append(button('Mindenki jelen – kijelölés',()=>{for(const r of controlsByPlayer){r.status.value='present';r.status.events?.change?.();r.rating.disabled=false;r.condition.disabled=false}},'amAdd'),
+ actions.append(button('Mindenki jelen – kijelölés',()=>{
+   for(const r of controlsByPlayer){r.present.checked=true;r.excused.checked=false;r.condition.disabled=false;
+    for(const item of r.quality.boxes)item.checkbox.disabled=false}
+  },'amAdd'),
  button('Jelenlét és értékelések mentése',()=>{
-  const all=fetchObj(PROFILES_KEY);let present=0,absent=0,excused=0,unmarked=0;
-  for(const {player,status,rating,condition,note} of controlsByPlayer){
+  const isMatch=session.kind==='official'||session.kind==='match'||!!session.matchId;
+  const marked=controlsByPlayer.filter(r=>r.present.checked).length;
+  // A jövőbeli edzésre véletlenül sem rögzítünk tömeges hiányzást.
+  const now=new Date(),today=iso(now.getFullYear(),now.getMonth()+1,now.getDate());
+  if(!isMatch&&session.date>today){message('A jövőbeli edzésre még ne ments jelenlétet.');return}
+  if(!isMatch&&!marked&&!controlsByPlayer.some(r=>r.excused.checked)){
+   if(!confirm('Senkit sem jelöltél jelenlévőnek vagy igazolt hiányzónak. Mindenki hiányzott ezen az edzésen?'))return
+  }
+  const all=fetchObj(PROFILES_KEY);let presentCount=0,absentCount=0,excusedCount=0,unmarked=0;
+  for(const r of controlsByPlayer){
+   const {player,present,excused,quality,condition,note}=r;
    const k=personKey(state.age,state.team,player.key),profile=all[k]||{},previous=Array.isArray(profile.training)?profile.training:[];
    const other=previous.filter(x=>x.sessionId!==session.id);
-   if(!status.value){
+   const selectedStatus=present.checked?'present':excused.checked?'excused':isMatch?'':'absent';
+   if(!selectedStatus){
     unmarked++;
-    // Egy korábban automatikusan bejelölt mérkőzés-jelenlét kézi törlését
-    // tombstone jelzi, hogy a következő betöltés ne jelölje vissza.
-    const existed=previous.some(x=>x.sessionId===session.id);
-    if(session.matchId&&existed)other.push({
-      sessionId:session.id,date:session.date,type:'match',duration:session.duration||0,
-      status:'',manualUnmarked:true,rating:null,condition:'normal',note:''
+    // Nem nevezett játékosokra nem generálunk automatikusan hiányzást.
+    // Korábban már meglévő meccsjelölés törlése maradjon tartós kézi döntés.
+    if(previous.some(x=>x.sessionId===session.id))other.push({
+     sessionId:session.id,date:session.date,type:'match',duration:session.duration||0,
+     status:'',manualUnmarked:true,rating:null,condition:'normal',note:''
     });
     all[k]={...profile,training:other};
-    continue
+    continue;
    }
-   const entry={sessionId:session.id,date:session.date,type:typeToProfile[session.kind],duration:session.duration,components:session.components||null,status:status.value,rating:status.value==='present'&&rating.value?Number(rating.value):null,condition:status.value==='present'?condition.value:'normal',note:note.value.trim().slice(0,240)};
+   let rating=null;
+   if(selectedStatus==='present'&&quality.selected){
+    const mapping={weak:2,medium:3,good:4};
+    const original=Number(r.entry.rating);
+    const originalGrade=original>=1&&original<=2?'weak':original===3?'medium':original>=4&&original<=5?'good':'';
+    rating=!quality.touched&&originalGrade===quality.selected?original:mapping[quality.selected];
+   }
+   const entry={sessionId:session.id,date:session.date,type:typeToProfile[session.kind],duration:session.duration,
+    components:session.components||null,status:selectedStatus,rating,
+    condition:selectedStatus==='present'?condition.value:'normal',note:note.value.trim().slice(0,240)};
    other.push(entry);all[k]={...profile,training:other,modifiedAt:new Date().toISOString()};
-   if(status.value==='present')present++;else if(status.value==='absent')absent++;else excused++;
+   if(selectedStatus==='present')presentCount++;else if(selectedStatus==='absent')absentCount++;else excusedCount++;
   }
-  try{writeObj(PROFILES_KEY,all);render();message('Mentve: '+present+' jelen, '+absent+' hiányzik, '+excused+' igazolt, '+unmarked+' még nincs jelölve.')}catch(e){message('Jelenlét mentése sikertelen: '+e.message)}
+  try{writeObj(PROFILES_KEY,all);render();message('Mentve: '+presentCount+' jelen, '+absentCount+' hiányzik, '+excusedCount+' igazolt, '+unmarked+' még nincs jelölve.')}catch(e){message('Jelenlét mentése sikertelen: '+e.message)}
  }),button('Bezárás',()=>{state.editor='';render()},'amAdd'),
  button('Edzés törlése',()=>{
   if(!confirm('Biztosan törlöd a '+session.date+' napi '+types[session.kind]+' edzést és a hozzá tartozó jelenléti jelöléseket?'))return;
@@ -649,7 +716,10 @@ function attendanceEditor(session){
   for(const profile of Object.values(all))if(Array.isArray(profile?.training))profile.training=profile.training.filter(x=>x.sessionId!==session.id);
   try{writeObj(PROFILES_KEY,all);storeSessions(sessions);state.editor='';render();message('Edzés törölve.')}catch(e){message('Törlési hiba: '+e.message)}
  },'amDanger'));
- box.append(wrapTable,actions,elem('p','amSmall','A jelölések mentésekor az adott edzés részvétele beépül a játékos edzésnaplójába és az optimalizáló 28 napos edzésmunka-mutatójába. Az igazolt hiányzás elkülönül. Az adatok csak ezen a böngészőn tárolódnak.'));
+ box.append(elem('p','amSmall',session.kind==='official'||session.kind==='match'||session.matchId
+  ?'Mérkőzésnél a bejelölt játékos jelen volt; a be nem jelölt játékos nincs automatikusan hiányzónak minősítve. Az igazolt hiányzás külön pipálható.'
+  :'Edzésnél a Jelen pipa hiánya mentéskor hiányzást jelent, kivéve ha az Igazolt jelölés aktív. Az értékelés csak jelenlévőknek adható: Gyenge (2), Közepes (3), Jó (4) pontként kerül a meglévő 1–5-ös rendszerbe.'),
+  wrapTable,actions,elem('p','amSmall','A mentett jelölések bekerülnek a játékos edzésnaplójába és az optimalizáló 28 napos edzésmunka-mutatójába. A korábbi értékeléseket a rendszer megtartja, az adatok továbbra is ebben a böngészőben tárolódnak.'));
  return box;
 }
 $('career-team-select')?.addEventListener('change',()=>{if(!panel.hidden)queueMicrotask(load)});
