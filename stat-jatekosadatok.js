@@ -120,6 +120,7 @@ function save(){
  const n=(id,min,max)=>{const str=el(id).value;if(!str)return null;const v=Number(str);return Number.isFinite(v)&&v>=min&&v<=max?v:null};
  const height=n('pdHeight',90,230),weight=n('pdWeight',25,200);
  if((el('pdHeight').value&&height===null)||(el('pdWeight').value&&weight===null)){el('pdStatus').textContent='Ellenőrizd a magasságot és a testsúlyt.';return}
+ if(el('pdDefense').value&&el('pdDefense').value===el('pdDefenseSecondary').value){el('pdStatus').textContent='Az elsődleges és másodlagos védekező szerep legyen eltérő.';return}
  put(cur.age,cur.team,cur.player,{primary:el('pdPrimary').value,secondary:el('pdSecondary').value,defense:el('pdDefense').value,defenseSecondary:el('pdDefenseSecondary').value,hand:el('pdHand').value,height,weight,availability:el('pdAvailable').value,penalty:el('pdPenalty').value});
  render();el('pdStatus').textContent='Játékosadatok mentve ezen a böngészőn.';
 }
