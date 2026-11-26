@@ -7281,23 +7281,8 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(!chosen.length)return alert('Jelölj ki legalább egy jelenetet a csapatnál.');
             const projects=[...new Map(chosen.map(x=>[x.project.id,x.project])).values()];
             const total=chosen.reduce((n,x)=>n+Math.max(0,x.clip.end-x.clip.start),0);
-            if(!confirm(chosen.length+' jelenetet fűzünk össze '+projects.length+' mérkőzésből ('+Math.ceil(total)+' másodperc). Az eredeti videókat újra ki kell választani. Folytatod?'))return;
+            if(!confirm(chosen.length+' jelenetet fűzünk össze '+projects.length+' mérkőzésből ('+Math.ceil(total)+' másodperc). A hiányzó eredeti videókat szükség esetén újra ki kell választani. Folytatod?'))return;
             const status=document.getElementById('clip-team-export-status');
-            const files=new Map();
-            for(const p of projects){
-                status.textContent='Mentett videó keresése: '+p.title;
-                let file=null;
-                try{file=await clipGetStoredVideo(p.id);}catch(e){console.warn('Videó keresése',e);}
-                if(!file&&isDriveAuthorized()){try{file=await clipDriveDownload(p.id,status);}catch(e){status.textContent='Drive hiba: '+e.message;}}
-                if(!file){
-                    status.textContent='Válaszd ki a hiányzó videót: '+p.title+' ('+(p.videoName||'ismeretlen fájlnév')+')';
-                    file=await clipTeamAskVideo(p);
-                    if(!file){status.textContent='Exportálás megszakítva. A jelenetek megmaradtak.';return;}
-                    if(p.videoName&&file.name!==p.videoName&&!confirm('Másik fájlt választottál, mint a mentett videó.\nVárt: '+p.videoName+'\nKiválasztott: '+file.name+'\nBiztosan folytatod?')){status.textContent='Exportálás megszakítva.';return;}
-                    try{await clipStoreVideo(p.id,file);}catch(e){console.warn('Videó tárolása exportáláskor',e);}
-                }
-                files.set(p.id,file);
-            }
             clipExportBusy=true;
             let ff=null;
             const temp=new Set();
@@ -7311,10 +7296,31 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
                     const {project,clip}=ordered[i];
                     if(project.id!==previousId){
                         if(sourceName){await ff.deleteFile(sourceName);temp.delete(sourceName);}
-                        const file=files.get(project.id);
+                        let file=null,bytes=null;
+                        const read=async(candidate)=>{
+                            if(!candidate||!candidate.size)return false;
+                            try{bytes=new Uint8Array(await candidate.arrayBuffer());if(!bytes.length)return false;file=candidate;return true;}
+                            catch(e){console.warn('Nem olvasható forrás:',project.title,e);return false;}
+                        };
+                        status.textContent='Mentett videó ellenőrzése: '+project.title;
+                        try{await read(await clipGetStoredVideo(project.id));}catch(e){console.warn(e);}
+                        if(!file&&isDriveAuthorized()){
+                            try{if(project.driveFileId)await read(await clipDownloadDriveFileById(project.driveFileId,project.videoName,status));}catch(e){console.warn(e);}
+                            if(!file)try{await read(await clipDriveDownload(project.id,status));}catch(e){console.warn(e);}
+                        }
+                        if(!file){
+                            status.textContent='Nem olvasható a mentett videó. Válaszd ki az eredetit: '+project.title+' ('+(project.videoName||'ismeretlen fájlnév')+')';
+                            if(!confirm('Az eredeti videó nem olvasható: '+project.title+'. Válaszd ki újra a pontos eredeti fájlt. Folytatod?')){status.textContent='Export megszakítva. A jelenetek megmaradtak.';return;}
+                            const selected=await clipTeamAskVideo(project);
+                            if(!selected){status.textContent='Export megszakítva. A jelenetek megmaradtak.';return;}
+                            if(project.videoName&&selected.name!==project.videoName&&!confirm('Eltérő fájlnév. Várt: '+project.videoName+'; kiválasztott: '+selected.name+'. Biztosan ugyanaz a mérkőzésvideó?')){status.textContent='Export megszakítva.';return;}
+                            if(!await read(selected))throw Error('Nem olvasható az eredeti videó: '+project.title);
+                        }
                         sourceName='team_source_'+i+'.'+(file.name.split('.').pop()||'mp4').replace(/[^a-z0-9]/gi,'');
                         status.textContent='Mérkőzésvideó betöltése: '+project.title;
-                        await ff.writeFile(sourceName,new Uint8Array(await file.arrayBuffer()));temp.add(sourceName);
+                        temp.add(sourceName);
+                        await ff.writeFile(sourceName,bytes);
+                        bytes=null;
                         previousId=project.id;
                     }
                     const out='team_part_'+i+'.mp4';
