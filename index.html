@@ -7199,14 +7199,17 @@ function openVideoRoom(matchId=null, filterSpec=null, returnToStats=false) {
             if(el)el.textContent=clipTeamSelected.size+' jelenet kijelölve';
         }
         async function clipTeamAskVideo(project){
-            return new Promise(resolve=>{
-                const input=document.createElement('input');input.type='file';input.accept='video/*';input.style.display='none';
-                document.body.appendChild(input);
-                input.onchange=()=>{const file=input.files?.[0]||null;input.remove();resolve(file);};
-                input.addEventListener('cancel',()=>{input.remove();resolve(null);},{once:true});
-                input.click();
-            });
-        }
+ return new Promise(resolve=>{
+ const panel=document.createElement('div');panel.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center';
+ const box=document.createElement('div');box.style.cssText='background:#151d25;color:white;padding:24px;border-radius:12px;max-width:540px;width:90%';
+ const label=document.createElement('p');label.textContent='Eredeti mérkőzésvideó kiválasztása: '+project.title+' ('+(project.videoName||'MP4')+')';
+ const input=document.createElement('input');input.type='file';input.accept='video/*,.mp4,.mkv,.mov,.avi,.webm';input.style.cssText='display:block;width:100%;margin:16px 0';
+ const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Mégse';
+ const finish=file=>{panel.remove();resolve(file);};
+ input.onchange=()=>{if(input.files?.[0])finish(input.files[0]);};cancel.onclick=()=>finish(null);
+ box.append(label,input,cancel);panel.append(box);document.body.append(panel);
+ });
+ }
         function clipCaptionLines(ctx,text,maxWidth,maxLines){
             const words=String(text||'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean),lines=[];let line='';
             for(const word of words){
